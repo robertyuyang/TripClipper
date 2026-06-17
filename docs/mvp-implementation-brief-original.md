@@ -35,7 +35,7 @@ MVP 需要实现一个本地 FastAPI 启动页，同时保留可复用的 CLI/AP
 - 项目输入：`project.yaml`。
 - 存储方式：JSON 文件包，不上 SQLite。
 - 分析流程：两阶段分析。
-- 模型能力：云模型可配置，同时必须提供 mock provider，保证无 API key 时也能跑通链路。
+- 模型能力：云模型可配置，但必须连接真实模型服务；无 API key 或模型配置不可用时，Stage 2 必须明确失败并提示修正，不得生成替代性假分析结果。
 - Eagle 定位：素材级 UI 和同步适配器，不是唯一事实源。
 - 片段输出：第一版只输出 timecode，不裁切视频片段。
 - 素材处理：只引用原始路径，不复制、不移动、不删除、不覆盖源素材。
@@ -63,10 +63,12 @@ audience: "internal_team"
 people_focus: "high"
 audio_priority: "high"
 model_config:
-  provider: "mock"
-  vision_model: ""
-  transcription_model: ""
-  text_model: ""
+  provider: "openai_compatible"
+  base_url: "https://api.example.com/v1"
+  api_key_env: "TRIPCLIPPER_MODEL_API_KEY"
+  vision_model: "your-vision-model"
+  transcription_model: "your-transcription-model"
+  text_model: "your-text-model"
 eagle_sync:
   enabled: true
   mode: "dry-run"
@@ -135,7 +137,7 @@ Stage 2 使用模型能力，但模型 provider 必须可替换。
 
 Stage 2 应先跑 20-30 个素材的样本分析。样本结果确认后，再执行全量分析。
 
-第一版必须实现 mock provider，保证没有模型 API key 时也能跑通完整流程。
+第一版必须实现真实模型 provider。没有模型 API key、模型配置不可用或模型调用失败时，Stage 2 必须明确失败并记录原因，不得把素材标记为已完成分析，也不得写入替代性假结果。
 
 ## 6. 标准数据包
 
@@ -277,20 +279,20 @@ Agent 评分：5 星。
 1. Python 项目骨架：`pyproject.toml`、README、包结构、CLI 入口。
 2. `project.yaml` 读取和项目目录管理。
 3. Stage 1 扫描：素材发现、稳定 `asset_id`、元数据、可选 ffmpeg/ffprobe 集成、优雅降级。
-4. Mock Stage 2 provider：说明、标签、星级、可用片段、声音策略。
+4. 真实模型 Stage 2 provider：说明、标签、星级、可用片段、声音策略。
 5. 导出器：`cut_index.json`、`assets.csv`、`segments.csv`、`summary.md`、`review.html`。
 6. Eagle dry-run 计划生成。
 7. 保守版 Eagle apply。
 8. FastAPI 本地启动页。
-9. 基础测试：配置、扫描、导出、mock 分析、Eagle 备注区块替换。
+9. 基础测试：配置、扫描、导出、真实模型 provider 边界、结构化输出校验、Eagle 备注区块替换。
 
 ## 9. 验收标准
 
 MVP 满足以下条件即可验收：
 
 - `tripclipper serve` 可以启动本地页面。
-- 示例 `project.yaml` 可以跑完整流程。
-- 没有模型 API key 时，mock provider 可以跑通。
+- 在提供可用真实模型配置时，示例 `project.yaml` 可以跑完整流程。
+- 没有模型 API key、模型配置不可用或模型调用失败时，Stage 2 明确失败并记录原因，不写入替代性假分析结果。
 - 缺少 `ffmpeg` 或 `ffprobe` 时流程不崩溃，只记录能力缺失。
 - 项目能导出 `cut_index.json`、`assets.csv`、`segments.csv`、`summary.md`、`review.html`。
 - Eagle 不可用时，不影响本地数据包导出。
@@ -306,7 +308,7 @@ MVP 满足以下条件即可验收：
 请进入 Goal 模式，并按以下文档实现 TripClipper MVP：
 /Users/bytedance/Documents/TripClipper/docs/mvp-implementation-brief.md
 
-请先读取文档，再从 Python 项目骨架开始，依次实现 CLI、项目配置、Stage 1 扫描、mock Stage 2 分析、可迁移导出、Eagle dry-run/apply，以及 FastAPI 本地启动页。
+请先读取文档，再从 Python 项目骨架开始，依次实现 CLI、项目配置、Stage 1 扫描、真实模型 Stage 2 分析、可迁移导出、Eagle dry-run/apply，以及 FastAPI 本地启动页。
 
-第一版必须安全：不删除、不移动、不覆盖原始素材；ffmpeg、模型、Eagle 失败时都不能阻塞本地数据包导出；没有模型 API key 时，mock provider 也要能跑通完整链路。
+第一版必须安全：不删除、不移动、不覆盖原始素材；ffmpeg、Eagle 失败时都不能阻塞本地数据包导出；Stage 2 必须使用真实模型，模型配置缺失、密钥缺失或调用失败时必须明确失败并提示修正，不得生成替代性假分析结果。
 ```

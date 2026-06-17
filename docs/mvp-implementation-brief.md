@@ -31,7 +31,7 @@
 /Users/bytedance/Documents/TripClipper/docs/mvp-product-requirements.md
 /Users/bytedance/Documents/TripClipper/docs/mvp-technical-design.md
 
-请先读取产品需求，再读取技术设计，然后从 Python 项目骨架开始，依次实现 CLI、项目配置、Stage 1 扫描、mock Stage 2 分析、可迁移导出、Eagle dry-run/apply，以及 FastAPI 本地启动页。
+请先读取产品需求，再读取技术设计，然后从 Python 项目骨架开始，依次实现 CLI、项目配置、Stage 1 扫描、真实模型 Stage 2 分析、可迁移导出、Eagle dry-run/apply，以及 FastAPI 本地启动页。
 
-第一版必须安全：不删除、不移动、不覆盖原始素材；ffmpeg、模型、Eagle 失败时都不能阻塞本地数据包导出；没有模型 API key 时，mock provider 也要能跑通完整链路。
+第一版必须安全：不删除、不移动、不覆盖原始素材；ffmpeg、Eagle 失败时都不能阻塞本地数据包导出；Stage 2 必须使用真实模型，模型配置缺失、密钥缺失或调用失败时必须明确失败并提示修正，不得生成替代性假分析结果。
 ```
