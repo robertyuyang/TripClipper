@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tripclipper"
+version = "0.1.0"
+description = "Local media preparation agent for turning raw trip/activity footage into a portable editing data package."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "PyYAML>=6.0",
+  "fastapi>=0.100",
+  "uvicorn>=0.23",
+]
+
+[project.scripts]
+tripclipper = "tripclipper.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["tripclipper*"]
