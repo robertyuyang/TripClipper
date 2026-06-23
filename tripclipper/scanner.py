@@ -137,6 +137,8 @@ def build_asset_record(
         "thumbnail_path": None,
         "frame_paths": [],
         "transcript_path": None,
+        "transcription_status": "not_started",
+        "transcribed_at": None,
         "analysis_status": "scanned",
         "scene": None,
         "summary": None,
@@ -167,6 +169,9 @@ def build_asset_record(
         preserved = dict(old)
         preserved.update({key: asset[key] for key in _scan_owned_fields()})
         asset = preserved
+    asset.setdefault("transcript_path", None)
+    asset.setdefault("transcription_status", "not_started")
+    asset.setdefault("transcribed_at", None)
 
     if capabilities.get("ffprobe"):
         metadata, warning = ffprobe_metadata(path)
@@ -175,10 +180,15 @@ def build_asset_record(
         asset["metadata"] = metadata
 
     if capabilities.get("ffmpeg") and media_type == "video":
-        thumb = generate_video_thumbnail(path, config.project_dir, asset_id)
-        if thumb:
-            asset["thumbnail_path"] = str(thumb)
-            asset["frame_paths"] = [str(thumb)]
+        frames = generate_video_frames(
+            path,
+            config.project_dir,
+            asset_id,
+            asset.get("metadata", {}).get("duration_seconds"),
+        )
+        if frames:
+            asset["frame_paths"] = [str(frame) for frame in frames]
+            asset["thumbnail_path"] = str(frames[len(frames) // 2])
 
     if media_type == "image":
         asset["frame_paths"] = [str(path.resolve())]
@@ -224,27 +234,36 @@ def ffprobe_metadata(path: Path) -> tuple[dict[str, Any], dict[str, Any] | None]
     return metadata, None
 
 
-def generate_video_thumbnail(path: Path, project_dir: Path, asset_id: str) -> Path | None:
-    thumb_dir = ensure_dir(project_dir / "cache" / "thumbnails")
-    thumb_path = thumb_dir / f"{asset_id}.jpg"
-    command = [
-        "ffmpeg",
-        "-y",
-        "-ss",
-        "00:00:01",
-        "-i",
-        str(path),
-        "-frames:v",
-        "1",
-        "-vf",
-        "scale=480:-1",
-        str(thumb_path),
-    ]
-    try:
-        subprocess.run(command, capture_output=True, text=True, check=True, timeout=60)
-        return thumb_path if thumb_path.exists() else None
-    except Exception:
-        return None
+def generate_video_frames(
+    path: Path,
+    project_dir: Path,
+    asset_id: str,
+    duration_seconds: float | None = None,
+) -> list[Path]:
+    frames_dir = ensure_dir(project_dir / "cache" / "frames")
+    frames: list[Path] = []
+    for label, seconds in zip(("early", "middle", "late"), _representative_frame_offsets(duration_seconds)):
+        frame_path = frames_dir / f"{asset_id}_{label}.jpg"
+        command = [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            _seconds_to_ffmpeg_timestamp(seconds),
+            "-i",
+            str(path),
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=480:-1",
+            str(frame_path),
+        ]
+        try:
+            subprocess.run(command, capture_output=True, text=True, check=True, timeout=60)
+        except Exception:
+            continue
+        if frame_path.exists() and frame_path.stat().st_size > 0:
+            frames.append(frame_path)
+    return frames
 
 
 def _iter_media_files(source_folder: Path) -> list[Path]:
@@ -268,6 +287,17 @@ def _duration_to_timecode(value: Any) -> str | None:
     hours, remainder = divmod(seconds_int, 3600)
     minutes, secs = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def _representative_frame_offsets(duration_seconds: float | None) -> list[float]:
+    duration = _float_or_none(duration_seconds)
+    if duration is None or duration <= 0:
+        return [1.0, 3.0, 5.0]
+    return [max(0.0, min(duration * ratio, max(duration - 0.05, 0.0))) for ratio in (0.2, 0.5, 0.8)]
+
+
+def _seconds_to_ffmpeg_timestamp(seconds: float) -> str:
+    return f"{max(0.0, seconds):.3f}"
 
 
 def _float_or_none(value: Any) -> float | None:
@@ -329,5 +359,4 @@ def _scan_owned_fields() -> list[str]:
         "metadata",
         "thumbnail_path",
         "frame_paths",
-        "transcript_path",
     ]

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import base64
 import json
+import mimetypes
 import os
 import re
+import ssl
 import urllib.error
 import urllib.request
+import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -27,9 +30,21 @@ class ModelProvider(ABC):
     def analyze_asset(self, project: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
+    def transcribe_audio(self, audio_path: str | Path) -> str:
+        raise ModelConfigurationError("当前模型 provider 不支持音频转写。")
 
-def create_provider(model_config: dict[str, Any] | None) -> ModelProvider:
-    errors = validate_model_config(model_config)
+
+def create_provider(
+    model_config: dict[str, Any] | None,
+    *,
+    require_analysis_model: bool = True,
+    require_transcription_model: bool = False,
+) -> ModelProvider:
+    errors = validate_model_config(
+        model_config,
+        require_analysis_model=require_analysis_model,
+        require_transcription_model=require_transcription_model,
+    )
     if errors:
         raise ModelConfigurationError("；".join(errors))
     config = dict(model_config or {})
@@ -52,6 +67,12 @@ class OpenAICompatibleProvider(ModelProvider):
         content = _message_content(response)
         raw = _parse_json_content(content)
         return validate_analysis_result(raw)
+
+    def transcribe_audio(self, audio_path: str | Path) -> str:
+        model = str(self.config.get("transcription_model") or "").strip()
+        if not model:
+            raise ModelConfigurationError("model_config.transcription_model 缺失，无法执行音频转写。")
+        return self._post_audio_transcriptions(Path(audio_path), model)
 
     def _payload(self, project: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
         model = self._model_for_asset(asset)
@@ -103,7 +124,7 @@ class OpenAICompatibleProvider(ModelProvider):
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout, context=_ssl_context()) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
@@ -114,6 +135,49 @@ class OpenAICompatibleProvider(ModelProvider):
             raise ModelProviderError("模型服务请求超时。") from exc
         except json.JSONDecodeError as exc:
             raise ModelProviderError("模型服务返回内容不是合法 JSON。") from exc
+
+    def _post_audio_transcriptions(self, audio_path: Path, model: str) -> str:
+        endpoint = _audio_transcriptions_endpoint(self.base_url)
+        fields = {
+            "model": model,
+            "response_format": "json",
+        }
+        language = _transcription_language(self.language)
+        if language:
+            fields["language"] = language
+        boundary, body = _multipart_form_data(fields, "file", audio_path)
+        request = urllib.request.Request(
+            endpoint,
+            data=body,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "User-Agent": "TripClipper/0.1",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout, context=_ssl_context()) as response:
+                raw = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            body_text = exc.read().decode("utf-8", errors="replace")
+            raise ModelProviderError(f"音频转写服务返回 HTTP {exc.code}：{body_text[:500]}") from exc
+        except urllib.error.URLError as exc:
+            raise ModelProviderError(f"无法连接音频转写服务：{exc.reason}") from exc
+        except TimeoutError as exc:
+            raise ModelProviderError("音频转写服务请求超时。") from exc
+
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            text = raw.strip()
+            if text:
+                return text
+            raise ModelProviderError("音频转写服务返回空文本。")
+        text = _transcription_text(payload)
+        if not text:
+            raise ModelProviderError("音频转写服务响应缺少 text。")
+        return text
 
 
 def validate_analysis_result(raw: dict[str, Any]) -> dict[str, Any]:
@@ -148,6 +212,15 @@ def validate_analysis_result(raw: dict[str, Any]) -> dict[str, Any]:
     if not result["segments"]:
         raise ModelProviderError("模型输出 segments 为空。")
     return result
+
+
+def _ssl_context() -> ssl.SSLContext:
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
 
 
 def _analysis_prompt(project: dict[str, Any], asset: dict[str, Any], language: str) -> str:
@@ -185,7 +258,7 @@ JSON 字段必须包含：
 
 
 def _asset_prompt_metadata(asset: dict[str, Any]) -> dict[str, Any]:
-    return {
+    metadata = {
         "asset_id": asset.get("asset_id"),
         "file": asset.get("file"),
         "relative_path": asset.get("relative_path"),
@@ -195,6 +268,77 @@ def _asset_prompt_metadata(asset: dict[str, Any]) -> dict[str, Any]:
         "modified_time": asset.get("modified_time"),
         "metadata": asset.get("metadata") or {},
     }
+    transcript = _transcript_excerpt(asset.get("transcript_path"))
+    if transcript:
+        metadata["transcript_path"] = asset.get("transcript_path")
+        metadata["transcript_excerpt"] = transcript
+    return metadata
+
+
+def _audio_transcriptions_endpoint(base_url: str) -> str:
+    endpoint = base_url.rstrip("/")
+    if endpoint.endswith("/chat/completions"):
+        endpoint = endpoint[: -len("/chat/completions")]
+    if not endpoint.endswith("/audio/transcriptions"):
+        endpoint = f"{endpoint}/audio/transcriptions"
+    return endpoint
+
+
+def _multipart_form_data(fields: dict[str, str], file_field: str, file_path: Path) -> tuple[str, bytes]:
+    boundary = f"----TripClipper{uuid.uuid4().hex}"
+    chunks: list[bytes] = []
+    for name, value in fields.items():
+        chunks.append(f"--{boundary}\r\n".encode("utf-8"))
+        chunks.append(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"))
+        chunks.append(str(value).encode("utf-8"))
+        chunks.append(b"\r\n")
+
+    mime = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+    chunks.append(f"--{boundary}\r\n".encode("utf-8"))
+    chunks.append(
+        (
+            f'Content-Disposition: form-data; name="{file_field}"; filename="{file_path.name}"\r\n'
+            f"Content-Type: {mime}\r\n\r\n"
+        ).encode("utf-8")
+    )
+    chunks.append(file_path.read_bytes())
+    chunks.append(b"\r\n")
+    chunks.append(f"--{boundary}--\r\n".encode("utf-8"))
+    return boundary, b"".join(chunks)
+
+
+def _transcription_language(language: str) -> str | None:
+    token = re.split(r"[-_]", str(language or "").strip().lower(), maxsplit=1)[0]
+    if not token or token in {"auto", "default"}:
+        return None
+    return token
+
+
+def _transcription_text(payload: Any) -> str:
+    if isinstance(payload, dict):
+        if payload.get("text"):
+            return str(payload["text"]).strip()
+        segments = payload.get("segments")
+        if isinstance(segments, list):
+            return "".join(str(segment.get("text") or "") for segment in segments if isinstance(segment, dict)).strip()
+    return ""
+
+
+def _transcript_excerpt(raw_path: Any, limit: int = 6000) -> str | None:
+    if not raw_path:
+        return None
+    path = Path(str(raw_path))
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not text:
+        return None
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}\n...（转写文本已截断，仅用于模型上下文）"
 
 
 def _visual_context_paths(asset: dict[str, Any]) -> list[Path]:

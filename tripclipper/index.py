@@ -7,7 +7,7 @@ from .config import ProjectConfig
 from .utils import ensure_dir, read_json, utc_now_iso, write_json
 
 
-SCHEMA_VERSION = "0.2"
+SCHEMA_VERSION = "0.3"
 
 
 def index_path(project_dir: str | Path) -> Path:
@@ -44,6 +44,14 @@ def empty_index(config: ProjectConfig) -> dict[str, Any]:
             "started_at": None,
             "finished_at": None,
             "status": "not_started",
+            "error_summary": None,
+        },
+        "transcription": {
+            "status": "not_started",
+            "transcribed": 0,
+            "skipped": 0,
+            "failed": 0,
+            "finished_at": None,
             "error_summary": None,
         },
         "assets": [],

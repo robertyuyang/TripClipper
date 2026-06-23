@@ -40,6 +40,8 @@ ASSET_COLUMNS = [
     "edit_candidate_priority",
     "edit_candidate_reason",
     "audio_suggestion",
+    "transcription_status",
+    "transcript_path",
     "analysis_status",
     "eagle_item_id",
     "eagle_sync_status",
@@ -111,6 +113,8 @@ def write_assets_csv(path: Path, assets: list[dict[str, Any]]) -> None:
                     "edit_candidate_priority": asset.get("edit_candidate_priority"),
                     "edit_candidate_reason": asset.get("edit_candidate_reason"),
                     "audio_suggestion": asset.get("audio_suggestion"),
+                    "transcription_status": asset.get("transcription_status"),
+                    "transcript_path": asset.get("transcript_path"),
                     "analysis_status": asset.get("analysis_status"),
                     "eagle_item_id": asset.get("eagle_item_id"),
                     "eagle_sync_status": asset.get("eagle_sync_status"),
@@ -294,6 +298,7 @@ def _asset_card(asset: dict[str, Any]) -> str:
     <p>{html.escape(asset.get('summary') or f"分析状态：{asset.get('analysis_status', 'unknown')}")}</p>
     <p><strong>雷同组：</strong>{html.escape(asset.get('similar_group_id') or '无')} {html.escape(asset.get('similar_reason') or '')}</p>
     <p><strong>声音：</strong>{html.escape(asset.get('audio_suggestion') or '')}</p>
+    {_transcript_link_html(asset)}
     <div class="chips">{tag_html}</div>
     <table><tbody>{segments or '<tr><td>暂无推荐片段</td><td></td><td></td></tr>'}</tbody></table>
   </div>
@@ -313,6 +318,17 @@ def _media_link(asset: dict[str, Any]) -> str:
     if path and Path(path).exists():
         return f'<a href="{html.escape(Path(path).resolve().as_uri())}">{label}</a>'
     return label
+
+
+def _transcript_link_html(asset: dict[str, Any]) -> str:
+    path = asset.get("transcript_path")
+    status = asset.get("transcription_status") or "not_started"
+    if path and Path(path).exists():
+        link = f'<a href="{html.escape(Path(path).resolve().as_uri())}">打开转写文本</a>'
+        return f'<p><strong>转写：</strong>{html.escape(status)} · {link}</p>'
+    if status in {"failed", "transcribed"}:
+        return f"<p><strong>转写：</strong>{html.escape(status)}</p>"
+    return ""
 
 
 def _rough_cut_lines(defaults: list[dict[str, Any]]) -> list[str]:

@@ -9,6 +9,39 @@ from .constants import EDIT_CANDIDATE_STATUSES, SIMILAR_SELECTIONS
 from .utils import stable_hash
 
 
+_CONTEXT_SHOT_FUNCTIONS = {"establishing", "transition", "b_roll"}
+_MOMENT_SHOT_FUNCTIONS = {"highlight", "reaction", "dialogue"}
+_WIDE_SHOT_SCALES = {"extreme_wide", "wide", "full"}
+_CLOSE_SHOT_SCALES = {"close_up", "extreme_close_up"}
+
+_SCENE_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("民宿", ("民宿", "度假屋", "客栈", "酒店", "住宿")),
+    ("溶洞", ("溶洞", "钟乳石", "石笋")),
+    ("atv", ("atv", "全地形车", "越野车")),
+    ("溪谷徒步", ("溪谷", "溪流", "徒步")),
+    ("团建合影", ("合影", "横幅")),
+)
+
+_GENERIC_SCENE_WORDS = {
+    "高光",
+    "转场",
+    "broll",
+    "默认候选",
+    "团建",
+    "户外",
+    "户外活动",
+    "户外团建",
+    "行车记录仪",
+    "空镜头",
+    "过渡镜头",
+    "第一视角",
+    "环境",
+    "外景",
+    "到达",
+    "抵达",
+}
+
+
 def apply_postprocessing(data: dict[str, Any]) -> dict[str, Any]:
     _normalize_asset_defaults(data.get("assets", []))
     _build_similar_groups(data)
@@ -40,8 +73,8 @@ def _build_similar_groups(data: dict[str, Any]) -> None:
         key = (
             str(asset.get("type") or ""),
             str(asset.get("subject_type") or "other"),
-            str(asset.get("shot_function") or "other"),
-            str(asset.get("shot_scale") or ""),
+            _shot_function_key(asset),
+            _shot_scale_key(asset),
             _scene_key(asset),
         )
         if key[-1]:
@@ -190,12 +223,60 @@ def _balanced_order(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _scene_key(asset: dict[str, Any]) -> str:
-    primary = str(asset.get("primary_subject") or "").strip().lower()
+    text = _scene_text(asset)
+    for canonical, aliases in _SCENE_ALIASES:
+        if any(_normalize_scene_text(alias) in text for alias in aliases):
+            return canonical
+
+    tokens = _scene_tokens(asset)
+    if tokens:
+        return "|".join(tokens[:2])
+
+    primary = _normalize_scene_text(asset.get("primary_subject"))
     if primary and primary not in {"other", "未知", "不确定"}:
-        return re.sub(r"\s+", "", primary)[:24]
-    tags = [str(tag).strip().lower() for tag in asset.get("tags") or [] if str(tag).strip()]
-    meaningful = [tag for tag in tags if tag not in {"高光", "转场", "b-roll", "默认候选"}]
-    return "|".join(meaningful[:3])
+        return primary[:24]
+    return ""
+
+
+def _shot_function_key(asset: dict[str, Any]) -> str:
+    shot_function = str(asset.get("shot_function") or "other")
+    if shot_function in _CONTEXT_SHOT_FUNCTIONS:
+        return "context"
+    if shot_function in _MOMENT_SHOT_FUNCTIONS:
+        return "moment"
+    return shot_function
+
+
+def _shot_scale_key(asset: dict[str, Any]) -> str:
+    shot_scale = str(asset.get("shot_scale") or "")
+    if shot_scale in _WIDE_SHOT_SCALES:
+        return "wide"
+    if shot_scale in _CLOSE_SHOT_SCALES:
+        return "close_up"
+    return shot_scale
+
+
+def _scene_text(asset: dict[str, Any]) -> str:
+    parts = [
+        str(asset.get("scene") or ""),
+        str(asset.get("primary_subject") or ""),
+        *[str(tag) for tag in asset.get("tags") or []],
+    ]
+    return _normalize_scene_text(" ".join(parts))
+
+
+def _scene_tokens(asset: dict[str, Any]) -> list[str]:
+    tokens: list[str] = []
+    for value in [asset.get("scene"), *(asset.get("tags") or [])]:
+        token = _normalize_scene_text(value)
+        if token and token not in _GENERIC_SCENE_WORDS and token not in tokens:
+            tokens.append(token)
+    return tokens
+
+
+def _normalize_scene_text(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    return re.sub(r"[\s,，。！？!?.、:：;；\-_/]+", "", text)
 
 
 def _split_by_capture_time(bucket: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
@@ -243,10 +324,10 @@ def _capture_time(asset: dict[str, Any]) -> datetime | None:
 def _basis(key: tuple[str, str, str, str, str]) -> list[str]:
     _, subject_type, shot_function, shot_scale, scene_key = key
     return [
-        f"相近主体：{scene_key}",
+        f"相近场景/主体关键词：{scene_key}",
         f"相同主体类型：{subject_type}",
-        f"相同景别：{shot_scale}",
-        f"相同镜头功能：{shot_function}",
+        f"相近景别：{shot_scale}",
+        f"相近镜头功能：{shot_function}",
         "文件拍摄时间或场景摘要接近",
     ]
 

@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 
+from .model_config import ENV_FILE, global_model_config, load_env_file
 from .utils import ensure_dir, slugify, utc_now_iso
 
 
@@ -89,7 +90,13 @@ def load_project_config(config_path: str | Path) -> ProjectConfig:
     )
 
 
-def validate_model_config(model_config: dict[str, Any] | None) -> list[str]:
+def validate_model_config(
+    model_config: dict[str, Any] | None,
+    *,
+    require_analysis_model: bool = True,
+    require_transcription_model: bool = False,
+) -> list[str]:
+    load_env_file(Path.cwd() / ENV_FILE)
     config = model_config or {}
     errors: list[str] = []
     provider = config.get("provider")
@@ -97,8 +104,10 @@ def validate_model_config(model_config: dict[str, Any] | None) -> list[str]:
         errors.append("model_config.provider 必须是 openai_compatible。")
     if not config.get("base_url"):
         errors.append("model_config.base_url 缺失。")
-    if not (config.get("vision_model") or config.get("text_model")):
+    if require_analysis_model and not (config.get("vision_model") or config.get("text_model")):
         errors.append("model_config.vision_model 或 text_model 至少需要一个。")
+    if require_transcription_model and not config.get("transcription_model"):
+        errors.append("model_config.transcription_model 缺失。")
     api_key_env = config.get("api_key_env")
     if not api_key_env:
         errors.append("model_config.api_key_env 缺失。")
@@ -121,6 +130,8 @@ def create_project_config(payload: dict[str, Any], base_dir: str | Path | None =
     source_path = Path(source_folder).expanduser()
     if not source_path.is_absolute():
         source_path = (base / source_path).resolve()
+    model_config = dict(payload.get("model_config") or global_model_config(base))
+    model_config.pop("api_key", None)
     config = {
         "project_name": project_name,
         "project_slug": slug,
@@ -130,7 +141,7 @@ def create_project_config(payload: dict[str, Any], base_dir: str | Path | None =
         "audience": payload.get("audience", "friends"),
         "people_focus": payload.get("people_focus", "medium"),
         "audio_priority": payload.get("audio_priority", "medium"),
-        "model_config": payload.get("model_config") or {},
+        "model_config": model_config,
         "eagle_sync": {
             **{"enabled": True, "mode": "dry-run", "base_url": "http://127.0.0.1:41595/api"},
             **dict(payload.get("eagle_sync") or {}),

@@ -9,6 +9,7 @@ from .index import append_task_log, load_index, record_failure, save_index
 from .model_provider import ModelConfigurationError, ModelProvider, ModelProviderError, create_provider
 from .postprocess import apply_postprocessing
 from .scanner import scan_project
+from .transcriber import transcribe_assets, transcribe_project, transcription_enabled
 from .utils import safe_int, utc_now_iso
 
 
@@ -21,8 +22,10 @@ def analyze_project(
 ) -> dict[str, Any]:
     if stage == "scan":
         return scan_project(config_path)
+    if stage == "transcribe":
+        return transcribe_project(config_path, force=force, provider=provider)
     if stage not in {"sample", "full"}:
-        raise ValueError("stage 必须是 scan、sample 或 full。")
+        raise ValueError("stage 必须是 scan、transcribe、sample 或 full。")
 
     config = load_project_config(config_path)
     materialize_project_config(config)
@@ -62,6 +65,30 @@ def analyze_project(
         apply_postprocessing(data)
         save_index(config.project_dir, data)
         return data
+
+    if transcription_enabled(config.model_config):
+        transcription = transcribe_assets(config, data, targets, model_provider, force=force)
+        transcription_status = "completed_with_failures" if transcription["failed"] else "completed"
+        if transcription["transcribed"] == 0 and transcription["failed"]:
+            transcription_status = "failed"
+        data["transcription"] = {
+            "status": transcription_status,
+            "transcribed": transcription["transcribed"],
+            "skipped": transcription["skipped"],
+            "failed": transcription["failed"],
+            "finished_at": utc_now_iso(),
+            "error_summary": f"{transcription['failed']} 个素材转写失败。" if transcription["failed"] else None,
+        }
+        append_task_log(
+            data,
+            "transcribe",
+            (
+                "分析前音频文本提取："
+                f"成功 {transcription['transcribed']}，"
+                f"跳过 {transcription['skipped']}，"
+                f"失败 {transcription['failed']}。"
+            ),
+        )
 
     _start_analysis(data, config.model_config or {}, stage)
     success_count = 0

@@ -42,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--api-key-env", default="TRIPCLIPPER_MODEL_API_KEY")
     init.add_argument("--vision-model")
     init.add_argument("--text-model")
+    init.add_argument("--transcription-model")
     init.add_argument("--sample-size", type=int, default=25)
     init.set_defaults(func=_cmd_init)
 
@@ -50,9 +51,9 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, default=8765)
     serve.set_defaults(func=_cmd_serve)
 
-    analyze = subcommands.add_parser("analyze", help="run scan, sample analysis, or full analysis")
+    analyze = subcommands.add_parser("analyze", help="run scan, transcription, sample analysis, or full analysis")
     analyze.add_argument("--config", required=True)
-    analyze.add_argument("--stage", required=True, choices=["scan", "sample", "full"])
+    analyze.add_argument("--stage", required=True, choices=["scan", "transcribe", "sample", "full"])
     analyze.add_argument("--force", action="store_true")
     analyze.set_defaults(func=_cmd_analyze)
 
@@ -84,6 +85,7 @@ def _cmd_init(args: argparse.Namespace) -> dict[str, Any]:
             "api_key_env": args.api_key_env,
             "vision_model": args.vision_model,
             "text_model": args.text_model,
+            "transcription_model": args.transcription_model,
             "sample_size": args.sample_size,
             "language": "zh-CN",
         },
@@ -109,11 +111,14 @@ def _cmd_serve(args: argparse.Namespace) -> None:
 
 def _cmd_analyze(args: argparse.Namespace) -> dict[str, Any]:
     data = analyze_project(Path(args.config), args.stage, force=args.force)
+    status_block = data.get("transcription") if args.stage == "transcribe" else data.get("analysis")
     return {
         "project": data.get("project", {}).get("project_slug"),
         "stage": args.stage,
         "assets": len(data.get("assets") or []),
+        "status": (status_block or {}).get("status"),
         "analysis_status": (data.get("analysis") or {}).get("status"),
+        "transcription_status": (data.get("transcription") or {}).get("status"),
         "failures": len(data.get("failures") or []),
         "warnings": len(data.get("warnings") or []),
     }
