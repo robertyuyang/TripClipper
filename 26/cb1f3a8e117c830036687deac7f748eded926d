@@ -1,0 +1,240 @@
+.gitignore
+  s_385bcf77540e12::t_6ebd55675096bb 13-16 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc90243ac6025fd8c30bb","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[13,16]}]}]}
+docs/specs/M3-real-llm-analysis/spec.md
+  s_385bcf77540e12::t_b8ef8b4f03a42f 169-195
+  s_385bcf77540e12::t_81b06a8bf4b500 6
+  s_385bcf77540e12::t_39c97c6c781c74 121-129
+  s_385bcf77540e12::t_4e745a2ab720f9 1,3
+  s_385bcf77540e12::t_27362643a521b3 243-248
+  s_385bcf77540e12::t_e73a5bc13a5cfa 2,4-5,7-120,130-132,138,140-143,147-168,196-242,249-255 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc90b43ac6025fd8c30be","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Single":2},{"Range":[4,5]},{"Range":[7,120]},{"Range":[130,132]},{"Single":138},{"Range":[140,143]},{"Range":[147,168]},{"Range":[196,242]},{"Range":[249,255]}]}]}
+  s_385bcf77540e12::t_3b0744d3de95a0 133-137,139,144-146
+pyproject.toml
+  s_385bcf77540e12::t_a781939ee6736c 15-16 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc8f243ac6025fd8c30b8","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[15,16]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "26cb1f3a8e117c830036687deac7f748eded926d",
+  "prompts": {},
+  "sessions": {
+    "s_385bcf77540e12": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a3a194643ac6025fd8c28fa",
+        "model": "openrouter-2o__dev",
+        "display_model_name": "openrouter-2o"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {
+    ".gitignore": [
+      {
+        "hash": "s_385bcf77540e12::t_6ebd55675096bb",
+        "line_ranges": [
+          {
+            "Range": [
+              13,
+              16
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc90243ac6025fd8c30bb",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  13,
+                  16
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/specs/M3-real-llm-analysis/spec.md": [
+      {
+        "hash": "s_385bcf77540e12::t_e73a5bc13a5cfa",
+        "line_ranges": [
+          {
+            "Single": 2
+          },
+          {
+            "Range": [
+              4,
+              5
+            ]
+          },
+          {
+            "Range": [
+              7,
+              120
+            ]
+          },
+          {
+            "Range": [
+              130,
+              132
+            ]
+          },
+          {
+            "Single": 138
+          },
+          {
+            "Range": [
+              140,
+              143
+            ]
+          },
+          {
+            "Range": [
+              147,
+              168
+            ]
+          },
+          {
+            "Range": [
+              196,
+              242
+            ]
+          },
+          {
+            "Range": [
+              249,
+              255
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc90b43ac6025fd8c30be",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Single": 2
+              },
+              {
+                "Range": [
+                  4,
+                  5
+                ]
+              },
+              {
+                "Range": [
+                  7,
+                  120
+                ]
+              },
+              {
+                "Range": [
+                  130,
+                  132
+                ]
+              },
+              {
+                "Single": 138
+              },
+              {
+                "Range": [
+                  140,
+                  143
+                ]
+              },
+              {
+                "Range": [
+                  147,
+                  168
+                ]
+              },
+              {
+                "Range": [
+                  196,
+                  242
+                ]
+              },
+              {
+                "Range": [
+                  249,
+                  255
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "pyproject.toml": [
+      {
+        "hash": "s_385bcf77540e12::t_a781939ee6736c",
+        "line_ranges": [
+          {
+            "Range": [
+              15,
+              16
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc8f243ac6025fd8c30b8",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  15,
+                  16
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "s_385bcf77540e12": {
+      "tool": "trae",
+      "conversation_id": "6a3a194643ac6025fd8c28fa",
+      "session_id": "6a3a194643ac6025fd8c28fa",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_385bcf77540e12::t_491c4ac7d87b63": {
+      "tool": "trae",
+      "conversation_id": "6a3a194643ac6025fd8c28fa",
+      "session_id": "6a3a194643ac6025fd8c28fa",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_385bcf77540e12::t_6ebd55675096bb": {
+      "tool": "trae",
+      "conversation_id": "6a3a194643ac6025fd8c28fa",
+      "session_id": "6a3a194643ac6025fd8c28fa",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_385bcf77540e12::t_a781939ee6736c": {
+      "tool": "trae",
+      "conversation_id": "6a3a194643ac6025fd8c28fa",
+      "session_id": "6a3a194643ac6025fd8c28fa",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_385bcf77540e12::t_e73a5bc13a5cfa": {
+      "tool": "trae",
+      "conversation_id": "6a3a194643ac6025fd8c28fa",
+      "session_id": "6a3a194643ac6025fd8c28fa",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
