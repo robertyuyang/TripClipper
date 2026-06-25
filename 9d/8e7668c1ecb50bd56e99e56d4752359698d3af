@@ -1,0 +1,307 @@
+tests/test_project.py
+  s_385bcf77540e12::t_0438d840a2d338 1-382 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc40843ac6025fd8c3096","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,382]}]}]}
+docs/specs/M1-project-config/check_list.md
+  s_ffe1241846e7a1::t_530c0d57712eee 30-34,37-39,42-44,47-49,52-55,58-60,63-64,67-68
+  s_ffe1241846e7a1::t_544b88f743fc59 1-2,29,35-36,40-41,45-46,50-51,56-57,61-62,65-66
+  s_4fbd39ce584951::t_76110dc0e20ae5 3-28
+.gitignore
+  s_385bcf77540e12::t_f40cab5e55e4b6 8-12 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc8c543ac6025fd8c30a9","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[8,12]}]}]}
+docs/specs/M1-project-config/task_list.md
+  s_ffe1241846e7a1::t_c95e1b69fab3da 24
+  s_ffe1241846e7a1::t_daf85c9f79ee54 1-5,37-42
+  s_ffe1241846e7a1::t_4b9893785c3124 6-23,25-36
+src/tripclipper/cli.py
+  s_2b32406de120a1::t_5abe161f77f16d 126-142,145,152-183
+  s_ffe1241846e7a1::t_c796c60ce4336a 9-10,15-20
+  s_71db3983f24312::t_20158aec9e4412 1-8,11-13,22-33,118-125,143-144,146-151,184-209
+  s_2b32406de120a1::t_c081e979403e51 14,21
+  s_ffe1241846e7a1::t_0a45f830e3c503 34-117
+projects/demo-scan/project.yaml
+  s_385bcf77540e12::t_0438d840a2d338 1-7 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc40843ac6025fd8c3096","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,7]}]}]}
+docs/specs/M1-project-config/spec.md
+  s_385bcf77540e12::t_0438d840a2d338 1-116 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc40843ac6025fd8c3096","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,116]}]}]}
+docs/specs/README.md
+  s_385bcf77540e12::t_0438d840a2d338 1-33,37-46 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc40843ac6025fd8c3096","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,33]},{"Range":[37,46]}]}]}
+  s_71db3983f24312::t_c07d49e5971a0e 34
+  s_ffe1241846e7a1::t_e05a8b13e6ccba 35
+  s_2b32406de120a1::t_bee8e8fda1faab 36
+src/tripclipper/project.py
+  s_385bcf77540e12::t_0438d840a2d338 1-193,196-249 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a3cc40843ac6025fd8c3096","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,193]},{"Range":[196,249]}]}]}
+  s_ffe1241846e7a1::t_4c744610c7f8bc 194-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9d8e7668c1ecb50bd56e99e56d4752359698d3af",
+  "prompts": {},
+  "humans": {
+    "h_0ce714411091ba": {
+      "author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "sessions": {
+    "s_2b32406de120a1": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a3933fc43ac6025fd8c27ac",
+        "model": "openrouter-3o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_385bcf77540e12": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a3a194643ac6025fd8c28fa",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_4fbd39ce584951": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a3a28a243ac6025fd8c2a01",
+        "model": "openrouter-3o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_71db3983f24312": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a33bcb143ac6025fd8c251e",
+        "model": "openrouter-3o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_ffe1241846e7a1": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a391a8243ac6025fd8c2648",
+        "model": "openrouter-3o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {
+    ".gitignore": [
+      {
+        "hash": "s_385bcf77540e12::t_f40cab5e55e4b6",
+        "line_ranges": [
+          {
+            "Range": [
+              8,
+              12
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc8c543ac6025fd8c30a9",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  8,
+                  12
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/specs/M1-project-config/spec.md": [
+      {
+        "hash": "s_385bcf77540e12::t_0438d840a2d338",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              116
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc40843ac6025fd8c3096",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  116
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/specs/README.md": [
+      {
+        "hash": "s_385bcf77540e12::t_0438d840a2d338",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              33
+            ]
+          },
+          {
+            "Range": [
+              37,
+              46
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc40843ac6025fd8c3096",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  33
+                ]
+              },
+              {
+                "Range": [
+                  37,
+                  46
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "projects/demo-scan/project.yaml": [
+      {
+        "hash": "s_385bcf77540e12::t_0438d840a2d338",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              7
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc40843ac6025fd8c3096",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  7
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "src/tripclipper/project.py": [
+      {
+        "hash": "s_385bcf77540e12::t_0438d840a2d338",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              193
+            ]
+          },
+          {
+            "Range": [
+              196,
+              249
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc40843ac6025fd8c3096",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  193
+                ]
+              },
+              {
+                "Range": [
+                  196,
+                  249
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tests/test_project.py": [
+      {
+        "hash": "s_385bcf77540e12::t_0438d840a2d338",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              382
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a3cc40843ac6025fd8c3096",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  382
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "s_385bcf77540e12": {
+      "tool": "trae",
+      "conversation_id": "6a3a194643ac6025fd8c28fa",
+      "session_id": "6a3a194643ac6025fd8c28fa",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_385bcf77540e12::t_0438d840a2d338": {
+      "tool": "trae",
+      "conversation_id": "6a3a194643ac6025fd8c28fa",
+      "session_id": "6a3a194643ac6025fd8c28fa",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_385bcf77540e12::t_f40cab5e55e4b6": {
+      "tool": "trae",
+      "conversation_id": "6a3a194643ac6025fd8c28fa",
+      "session_id": "6a3a194643ac6025fd8c28fa",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
