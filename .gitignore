@@ -10,3 +10,7 @@ __pycache__/
 projects/*/cut_index.json
 projects/*/cache/
 projects/*/.cut_index.json.swp
+
+# Secrets and per-project model invocation logs (M3)
+.env
+projects/*/logs/

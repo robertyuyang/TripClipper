@@ -12,6 +12,8 @@ dependencies = [
     "pydantic>=2",
     "pyyaml",
     "click",
+    "httpx",
+    "python-dotenv",
 ]
 
 [project.optional-dependencies]
