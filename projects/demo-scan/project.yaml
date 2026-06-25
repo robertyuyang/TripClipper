@@ -1,0 +1,7 @@
+project_name: "Demo Scan"
+source_folder: "/Users/bytedance/Documents/TripClipper_Trae/tests/videos"
+model_config:
+  provider: "openai_compatible"
+  base_url: "https://api.example.com/v1"
+  api_key_env: "TRIPCLIPPER_MODEL_API_KEY"
+  vision_model: "vision-model-name"
