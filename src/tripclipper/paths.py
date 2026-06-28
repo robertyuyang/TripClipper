@@ -87,6 +87,22 @@ def transcripts_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     return cache_dir(slug, base_dir) / "transcripts"
 
 
+def logs_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
+    """Return ``projects/<slug>/logs/`` (M3 / Q24 structured JSONL logs)."""
+    return project_dir(slug, base_dir) / "logs"
+
+
+def analyze_log_path(slug: str, ts: str, base_dir: Optional[_PathLike] = None) -> Path:
+    """Return the JSONL log file path for an analyze/run invocation.
+
+    ``ts`` is a compact ISO 8601 timestamp (e.g. ``20260625T140000Z``); the
+    caller is responsible for producing one. Layout::
+
+        projects/<slug>/logs/analyze-<ts>.jsonl
+    """
+    return logs_dir(slug, base_dir) / f"analyze-{ts}.jsonl"
+
+
 def ensure_project_dirs(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     """Idempotently create the project directory and cache sub-directories.
 
@@ -118,5 +134,7 @@ __all__ = [
     "thumbnails_dir",
     "frames_dir",
     "transcripts_dir",
+    "logs_dir",
+    "analyze_log_path",
     "ensure_project_dirs",
 ]

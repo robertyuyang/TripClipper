@@ -32,7 +32,7 @@ PRD 把 Stage 2 的"真实模型分析"列为产品核心承诺：FR-3 样本分
   - 启动时自动加载项目根目录的 `.env`（`python-dotenv`），把密钥注入 `os.environ`。
 - 修改 `pyproject.toml`：新增依赖 `httpx`、`python-dotenv`（已落地）。
 - 修改 `.gitignore`：新增 `.env`（已落地）。
-- 新增 `tests/test_provider.py` 与 `tests/test_analyzer.py`：见「测试策略」。
+- 新增 `tests/test_provider.py`、`tests/test_analyzer.py` 与 `tests/test_integration_m3.py`：见「测试策略」。集成测试集中放在 `tests/test_integration_m3.py`（避免与 unit 部分混跑），与原"放在 test_provider/test_analyzer 里"是同等纪律的落地变体。
 
 不在 M3 范围（明确延后）：
 - **转写（whisper）**：当前版本 audio_strategy 由 vision 推断，已知精度有限；用户 `.env` 即使配了 `transcription_model` 也不调用。
@@ -46,7 +46,7 @@ PRD 把 Stage 2 的"真实模型分析"列为产品核心承诺：FR-3 样本分
   - 新增 `src/tripclipper/provider.py`、`src/tripclipper/analyzer.py`（可能含 `runner.py`）。
   - 修改 `src/tripclipper/cli.py`：接线 `analyze --stage sample/full` 与 `run` 命令、加载 `.env`。
   - 修改 `pyproject.toml`、`.gitignore`（已落地）。
-  - 新增 `tests/test_provider.py`、`tests/test_analyzer.py`、`tests/test_cli_analyze.py`。
+  - 新增 `tests/test_provider.py`、`tests/test_analyzer.py`、`tests/test_integration_m3.py`、`tests/test_cli_analyze.py`。
   - 回写 `docs/specs/README.md` 模块状态（M3 → 已完成）。
 - 不改动 M0 数据契约与字段口径；M3 仅**消费** M0 已定义的 `Asset` 分析字段、`AnalysisStatus` 枚举、`AnalysisInfo`、`Failure`、`SubjectType`/`PeoplePresence`/`ShotScale`/`ShotFunction`。无 **BREAKING**。
 

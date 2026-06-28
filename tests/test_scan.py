@@ -150,16 +150,16 @@ def test_detect_capabilities_real_env() -> None:
 
 def test_discovers_all_real_videos(real_scan) -> None:
     result, cut, _base, _slug = real_scan
-    # tests/videos 有 8 个视频（4 个 .mp4 + 4 个 .MP4），全部 type=video。
-    assert result.total == 8
-    assert result.by_type["video"] == 8
+    # tests/videos 有 9 个视频（4 个 .MP4 + 4 个 .mp4 + 1 个 .mov），全部 type=video。
+    assert result.total == 9
+    assert result.by_type["video"] == 9
     assert result.by_type["image"] == 0
     assert result.by_type["audio"] == 0
-    assert len(cut.assets) == 8
+    assert len(cut.assets) == 9
     assert all(a.type == AssetType.video for a in cut.assets)
     # 大小写不敏感：大写 .MP4 与小写 .mp4 都被识别。
     exts = {a.extension for a in cut.assets}
-    assert exts == {".mp4"}  # extension 统一小写
+    assert exts == {".mp4", ".mov"}  # extension 统一小写
 
 
 def test_non_media_skipped(tmp_path: Path) -> None:
@@ -191,7 +191,7 @@ def test_base_info_complete_and_sorted(real_scan) -> None:
         assert a.filename
         assert a.path and Path(a.path).is_absolute()
         assert a.relative_path
-        assert a.extension == ".mp4"
+        assert a.extension in {".mp4", ".mov"}
         assert isinstance(a.size, int) and a.size > 0
         assert a.modified_time
         assert a.analysis_status == AnalysisStatus.scanned
