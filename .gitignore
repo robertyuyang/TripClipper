@@ -14,3 +14,6 @@ projects/*/.cut_index.json.swp
 # Secrets and per-project model invocation logs (M3)
 .env
 projects/*/logs/
+
+# M5-early HTML report and any future export artefacts
+projects/*/exports/

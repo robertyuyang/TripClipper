@@ -7,8 +7,10 @@ from pathlib import Path
 from tripclipper.paths import (
     cut_index_path,
     ensure_project_dirs,
+    exports_dir,
     frames_dir,
     project_dir,
+    review_html_path,
     thumbnails_dir,
     transcripts_dir,
 )
@@ -48,3 +50,16 @@ def test_standard_paths_are_under_project_dir(tmp_path: Path) -> None:
     slug = "demo"
     pdir = project_dir(slug, base_dir=tmp_path)
     assert cut_index_path(slug, base_dir=tmp_path) == pdir / "cut_index.json"
+
+
+def test_exports_dir_is_under_project_dir(tmp_path: Path) -> None:
+    slug = "demo"
+    pdir = project_dir(slug, base_dir=tmp_path)
+    assert exports_dir(slug, base_dir=tmp_path) == pdir / "exports"
+
+
+def test_review_html_path_is_under_exports_dir(tmp_path: Path) -> None:
+    slug = "demo"
+    assert review_html_path(slug, base_dir=tmp_path) == exports_dir(
+        slug, base_dir=tmp_path
+    ) / "review.html"

@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from tripclipper.analyzer import sample_analyze
 from tripclipper.config import EditingIntent, ModelConfig
 from tripclipper.cut_index import read_cut_index
+from tripclipper.exporter import render_review_html
 from tripclipper.models import (
     AnalysisStatus,
     AssetType,
@@ -273,6 +274,17 @@ def test_full_pipeline_sample_real_model(tmp_path: Path):
     api_key = os.environ[_API_KEY_ENV]
     assert api_key not in log_text
     assert "Bearer " + api_key not in log_text
+
+    # SubTask 8.1（M5-early）：sample 完成后立即跑 render_review_html，
+    # 验证 HTML 报告可生成、行数对齐 cut_index.assets、不泄露 API key。
+    html_path = render_review_html(summary.project_slug, base_dir=base_dir)
+    assert html_path.is_file()
+    html_text = html_path.read_text(encoding="utf-8")
+    assert "<table" in html_text
+    assert "<tbody" in html_text
+    row_count = html_text.count('class="asset-row')
+    assert row_count == len(cut.assets)
+    assert api_key not in html_text
 
 
 # ---------------------------------------------------------------------------

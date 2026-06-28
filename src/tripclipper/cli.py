@@ -15,6 +15,7 @@ M3 在本文件接通 ``analyze --stage sample/full`` 与 ``run`` 命令，并�
 from __future__ import annotations
 
 import sys
+import webbrowser
 from pathlib import Path
 
 import click
@@ -29,6 +30,7 @@ from .analyzer import (
 )
 from .config import ConfigError, load_config
 from .cut_index import read_cut_index
+from .exporter import ExportError, render_review_html
 from .models import AnalysisStatus
 from .paths import cut_index_path
 from .project import (
@@ -423,10 +425,38 @@ def run(slug: str, base_dir: str, pause_after: str, concurrency: int) -> None:
 
 
 @main.command()
-@click.option("--project", "project", default=None, help="Project slug.")
-def export(project: str) -> None:
-    """Generate derived artefacts from cut_index.json (placeholder)."""
-    click.echo(f"export (project={project}): {_PLACEHOLDER}")
+@click.argument("slug")
+@click.option("--base-dir", "base_dir", default=None, help="项目根目录基准。")
+@click.option(
+    "--html/--no-html",
+    "html_flag",
+    default=True,
+    show_default=True,
+    help="是否产出 review.html（M5-early 当前只支持 HTML）。",
+)
+@click.option(
+    "--open/--no-open",
+    "open_flag",
+    default=False,
+    show_default=True,
+    help="生成成功后是否用系统浏览器打开。",
+)
+def export(slug: str, base_dir: str, html_flag: bool, open_flag: bool) -> None:
+    """生成派生产物（M5-early：仅 review.html）。"""
+    if not html_flag:
+        click.echo(
+            "M5-early 当前只支持 HTML 导出，CSV/MD 留给 M5 完整版。",
+            err=True,
+        )
+        sys.exit(2)
+    try:
+        out_path = render_review_html(slug, base_dir=base_dir)
+    except ExportError as exc:
+        click.echo(f"导出失败：{exc}", err=True)
+        sys.exit(1)
+    click.echo(f"已生成 review.html: {out_path}")
+    if open_flag:
+        webbrowser.open(f"file://{out_path}")
 
 
 @main.command(name="sync-eagle")

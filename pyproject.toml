@@ -25,6 +25,9 @@ tripclipper = "tripclipper.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+tripclipper = ["templates/*.tmpl"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

@@ -8,9 +8,10 @@ Layout::
       assets.csv
       segments.csv
       summary.md
-      review.html
       eagle_dry_run.json
       eagle_apply_result.json
+      exports/
+        review.html
       cache/
         thumbnails/
         frames/
@@ -59,8 +60,13 @@ def summary_md_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     return project_dir(slug, base_dir) / "summary.md"
 
 
+def exports_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
+    """Return ``projects/<slug>/exports/`` (M5 / M5-early HTML report output)."""
+    return project_dir(slug, base_dir) / "exports"
+
+
 def review_html_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
-    return project_dir(slug, base_dir) / "review.html"
+    return exports_dir(slug, base_dir) / "review.html"
 
 
 def eagle_dry_run_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
@@ -127,6 +133,7 @@ __all__ = [
     "assets_csv_path",
     "segments_csv_path",
     "summary_md_path",
+    "exports_dir",
     "review_html_path",
     "eagle_dry_run_path",
     "eagle_apply_result_path",

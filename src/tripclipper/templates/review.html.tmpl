@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data:; img-src 'self' file: data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<title>TripClipper Review</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; margin: 0; padding: 16px; color: #222; background: #fafafa; }
+  h1 { font-size: 18px; margin: 0 0 12px 0; }
+  h2 { font-size: 14px; margin: 12px 0 6px 0; color: #555; }
+  .header { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; }
+  .header dl { display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; margin: 0; font-size: 12px; }
+  .header dt { color: #888; }
+  .header dd { margin: 0; word-break: break-all; }
+  .header .failures { background: #fff7f7; border-left: 3px solid #d04848; padding: 6px 10px; margin-top: 8px; font-size: 12px; }
+  .header .notice { background: #fff8e1; border-left: 3px solid #d4a017; padding: 6px 10px; margin-top: 8px; font-size: 12px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .controls input, .controls select { font-size: 12px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+  .controls input { min-width: 220px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; font-size: 12px; }
+  th, td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f0f0f0; cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 1; }
+  th:hover { background: #e6e6e6; }
+  tr.row-pending { background: #fffbe6; }
+  tr.row-failed { background: #fff1f0; }
+  tr:hover { background: #f5f9ff !important; cursor: pointer; }
+  td.thumb-cell { width: 360px; }
+  td.thumb-cell .thumb-strip { display: flex; flex-wrap: wrap; gap: 3px; }
+  td.thumb-cell .thumb-strip img { width: 110px; height: auto; max-height: 80px; display: block; object-fit: cover; border-radius: 3px; }
+  td.thumb-cell img { width: 110px; height: auto; max-height: 80px; display: block; object-fit: cover; border-radius: 3px; }
+  .no-thumb { display: inline-block; padding: 24px 12px; background: #ddd; color: #777; font-size: 11px; border-radius: 3px; text-align: center; }
+  .status-analyzed { color: #2a8a2a; font-weight: 600; }
+  .status-scanned { color: #c08010; font-weight: 600; }
+  .status-failed { color: #c03030; font-weight: 600; }
+  .status-other { color: #888; }
+  .stars { color: #f5a623; letter-spacing: 1px; }
+  .segment { color: #555; font-family: SFMono-Regular, Consolas, monospace; font-size: 11px; }
+  .summary-cell { max-width: 280px; word-break: break-word; }
+  .summary-cell .scan-info { color: #c08010; font-weight: 600; display: inline-block; margin-bottom: 2px; }
+  .filename-cell { width: 200px; max-width: 240px; font-family: SFMono-Regular, Consolas, monospace; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  td.media-cell { font-size: 11px; line-height: 1.5; min-width: 140px; }
+  td.media-cell .media-line { display: inline-block; }
+  td.media-cell .media-line:first-child { font-weight: 600; color: #333; }
+  td.media-cell .media-line + .media-line { color: #777; }
+  .placeholder-m4 { color: #999; font-style: italic; }
+  .drawer { display: none; background: #f4f7fc; border: 1px solid #c8d4e8; padding: 12px; border-radius: 4px; margin: 6px 0; }
+  .drawer.open { display: block; }
+  .drawer pre { white-space: pre-wrap; word-break: break-all; font-size: 11px; max-height: 320px; overflow: auto; background: #fff; padding: 8px; border-radius: 3px; margin: 4px 0; }
+  .drawer .frame-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .drawer .frame-grid img { width: 160px; max-height: 100px; object-fit: cover; border-radius: 3px; border: 1px solid #ccc; }
+</style>
+</head>
+<body>
+<h1>TripClipper · review.html</h1>
+__PROJECT_HEADER_HTML__
+
+<div class="controls">
+  <input id="search" type="text" placeholder="搜索 filename / summary / tags ...">
+  <select id="filter-subject-type"><option value="">subject_type: 全部</option></select>
+  <select id="filter-shot-scale"><option value="">shot_scale: 全部</option></select>
+  <select id="filter-status"><option value="">analysis_status: 全部</option></select>
+  <span id="row-count" style="color:#888; font-size:12px;"></span>
+</div>
+
+<table id="assets-table">
+  <thead>
+    <tr>
+      <th data-key="thumb">缩略图</th>
+      <th data-key="filename">文件名</th>
+      <th data-key="type">媒体信息</th>
+      <th data-key="rating">星级</th>
+      <th data-key="subject_type">subject_type</th>
+      <th data-key="people_presence">people_presence</th>
+      <th data-key="shot_scale">shot_scale</th>
+      <th data-key="shot_function">shot_function</th>
+      <th data-key="tags">tags</th>
+      <th data-key="summary">summary</th>
+      <th data-key="segments">segments</th>
+      <th data-key="audio_strategy">audio_strategy</th>
+      <th data-key="similar_group">similar_group</th>
+      <th data-key="edit_candidate_status">edit_candidate_status</th>
+      <th data-key="status">analysis_status</th>
+    </tr>
+  </thead>
+  <tbody id="assets-tbody">
+__TABLE_ROWS_HTML__
+  </tbody>
+</table>
+
+<script id="cut-index-json" type="application/json">__JSON_DATA__</script>
+<script>
+(function(){
+  var raw = document.getElementById('cut-index-json').textContent || '{}';
+  var data = JSON.parse(raw);
+  window.__CUT_INDEX_DATA__ = data;
+  var assetsById = {};
+  (data.assets || []).forEach(function(a){ if (a.asset_id) assetsById[a.asset_id] = a; });
+
+  var tbody = document.getElementById('assets-tbody');
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.asset-row'));
+
+  function fillFilterOptions(selectId, attr){
+    var sel = document.getElementById(selectId);
+    var seen = {};
+    rows.forEach(function(r){
+      var v = r.getAttribute(attr) || '';
+      if (v && !seen[v]){ seen[v] = true; var o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); }
+    });
+  }
+  fillFilterOptions('filter-subject-type', 'data-subject-type');
+  fillFilterOptions('filter-shot-scale', 'data-shot-scale');
+  fillFilterOptions('filter-status', 'data-status');
+
+  function applyFilters(){
+    var q = (document.getElementById('search').value || '').toLowerCase().trim();
+    var fst = document.getElementById('filter-subject-type').value;
+    var fss = document.getElementById('filter-shot-scale').value;
+    var fst2 = document.getElementById('filter-status').value;
+    var visible = 0;
+    rows.forEach(function(r){
+      var match = true;
+      if (q){
+        var hay = ((r.getAttribute('data-search') || '') + '').toLowerCase();
+        if (hay.indexOf(q) === -1) match = false;
+      }
+      if (match && fst && r.getAttribute('data-subject-type') !== fst) match = false;
+      if (match && fss && r.getAttribute('data-shot-scale') !== fss) match = false;
+      if (match && fst2 && r.getAttribute('data-status') !== fst2) match = false;
+      var drawer = r.nextElementSibling;
+      if (match){
+        r.style.display = '';
+        visible += 1;
+      } else {
+        r.style.display = 'none';
+        if (drawer && drawer.classList && drawer.classList.contains('drawer-row')) drawer.style.display = 'none';
+      }
+    });
+    document.getElementById('row-count').textContent = '显示 ' + visible + ' / ' + rows.length;
+  }
+
+  ['search', 'filter-subject-type', 'filter-shot-scale', 'filter-status'].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener(id === 'search' ? 'input' : 'change', applyFilters);
+  });
+
+  // sorting
+  var sortDir = {};
+  document.querySelectorAll('#assets-table thead th').forEach(function(th, idx){
+    th.addEventListener('click', function(){
+      var key = th.getAttribute('data-key');
+      var dir = sortDir[key] === 'asc' ? 'desc' : 'asc';
+      sortDir = {}; sortDir[key] = dir;
+      var sorted = rows.slice().sort(function(a, b){
+        var av = a.children[idx] ? a.children[idx].textContent.trim() : '';
+        var bv = b.children[idx] ? b.children[idx].textContent.trim() : '';
+        var an = parseFloat(av), bn = parseFloat(bv);
+        var cmp;
+        if (!isNaN(an) && !isNaN(bn) && av !== '' && bv !== ''){ cmp = an - bn; }
+        else { cmp = av.localeCompare(bv); }
+        return dir === 'asc' ? cmp : -cmp;
+      });
+      sorted.forEach(function(r){
+        var d = r.nextElementSibling;
+        tbody.appendChild(r);
+        if (d && d.classList && d.classList.contains('drawer-row')) tbody.appendChild(d);
+      });
+    });
+  });
+
+  // drawer
+  rows.forEach(function(r){
+    r.addEventListener('click', function(){
+      var aid = r.getAttribute('data-asset-id');
+      var existing = r.nextElementSibling;
+      if (existing && existing.classList && existing.classList.contains('drawer-row')){
+        existing.parentNode.removeChild(existing);
+        return;
+      }
+      var asset = assetsById[aid] || {};
+      var dr = document.createElement('tr');
+      dr.className = 'drawer-row';
+      var td = document.createElement('td');
+      td.colSpan = r.children.length;
+      var div = document.createElement('div');
+      div.className = 'drawer open';
+      var meta = document.createElement('pre');
+      meta.textContent = JSON.stringify({
+        path: asset.path, relative_path: asset.relative_path, type: asset.type,
+        size: asset.size, modified_time: asset.modified_time, metadata: asset.metadata || {},
+        thumbnail_path: asset.thumbnail_path, frame_paths: asset.frame_paths || [],
+        segments: asset.segments || [], failures: asset.failures || [],
+        warnings: asset.warnings || []
+      }, null, 2);
+      div.appendChild(meta);
+      var frames = asset.frame_paths || [];
+      if (frames.length){
+        var grid = document.createElement('div'); grid.className = 'frame-grid';
+        frames.forEach(function(fp){
+          var img = document.createElement('img'); img.src = 'file://' + fp; img.alt = fp;
+          img.onerror = function(){ img.style.display = 'none'; };
+          grid.appendChild(img);
+        });
+        div.appendChild(grid);
+      }
+      td.appendChild(div);
+      dr.appendChild(td);
+      r.parentNode.insertBefore(dr, r.nextSibling);
+    });
+  });
+
+  applyFilters();
+})();
+</script>
+</body>
+</html>
