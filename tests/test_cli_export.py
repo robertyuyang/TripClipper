@@ -15,7 +15,10 @@ from tripclipper.models import (
     Asset,
     AssetType,
     CutIndex,
+    EditCandidateStatus,
     ProjectInfo,
+    SimilarGroup,
+    SimilarSelection,
 )
 from tripclipper.paths import cut_index_path, ensure_project_dirs
 
@@ -109,3 +112,100 @@ def test_export_open_invokes_webbrowser(tmp_path: Path, monkeypatch) -> None:
     assert len(calls) == 1
     assert calls[0].startswith("file://")
     assert calls[0].endswith("review.html")
+
+
+def _seed_project_with_m4(tmp_path: Path, slug: str) -> Path:
+    ensure_project_dirs(slug, base_dir=tmp_path)
+    project = ProjectInfo(
+        project_name="Demo",
+        project_slug=slug,
+        source_folder=str(tmp_path / "source"),
+        config_path=str(tmp_path / "source" / "project.yaml"),
+        model_config_summary={
+            "provider": "openai",
+            "vision_model": "gpt-vision",
+            "api_key_env": "TRIPCLIPPER_MODEL_API_KEY",
+        },
+    )
+    primary = Asset(
+        asset_id="asset_primary",
+        filename="primary.mp4",
+        relative_path="primary.mp4",
+        type=AssetType.video,
+        analysis_status=AnalysisStatus.analyzed,
+        similar_group_id="group_1",
+        similar_selection=SimilarSelection.primary,
+        similar_rank=1,
+        similar_reason="画面清晰",
+        edit_candidate_status=EditCandidateStatus.default_selected,
+        edit_candidate_priority=1,
+        edit_candidate_reason="组『group_1』主选，默认入选",
+        rating=4,
+    )
+    alt = Asset(
+        asset_id="asset_alt",
+        filename="alt.mp4",
+        relative_path="alt.mp4",
+        type=AssetType.video,
+        analysis_status=AnalysisStatus.analyzed,
+        similar_group_id="group_1",
+        similar_selection=SimilarSelection.alternate,
+        similar_rank=2,
+        similar_reason="备选",
+        edit_candidate_status=EditCandidateStatus.alternate,
+        edit_candidate_reason="组『group_1』备选",
+        rating=3,
+    )
+    solo = Asset(
+        asset_id="asset_solo",
+        filename="solo.mp4",
+        relative_path="solo.mp4",
+        type=AssetType.video,
+        analysis_status=AnalysisStatus.analyzed,
+        edit_candidate_status=EditCandidateStatus.default_selected,
+        edit_candidate_priority=2,
+        edit_candidate_reason="非雷同高星素材，默认入选",
+        rating=4,
+    )
+    ci = CutIndex(
+        schema_version=SCHEMA_VERSION,
+        project=project,
+        assets=[primary, alt, solo],
+        similar_groups=[
+            SimilarGroup(
+                similar_group_id="group_1",
+                asset_ids=["asset_primary", "asset_alt"],
+                basis=["同一景点", "相近构图"],
+                primary_asset_id="asset_primary",
+                alternate_asset_ids=["asset_alt"],
+                confidence=0.85,
+                needs_review=False,
+            )
+        ],
+    )
+    write_cut_index(cut_index_path(slug, base_dir=tmp_path), ci)
+    return tmp_path / slug
+
+
+def test_export_with_m4_data_renders_group_card(tmp_path: Path) -> None:
+    slug = "demo_m4"
+    pdir = _seed_project_with_m4(tmp_path, slug)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["export", slug, "--base-dir", str(tmp_path), "--html"],
+    )
+    assert result.exit_code == 0, result.output
+    out_file = pdir / "exports" / "review.html"
+    assert out_file.is_file()
+    text = out_file.read_text(encoding="utf-8")
+
+    assert 'class="group-card"' in text
+    assert "group_1" in text
+    assert "85%" in text
+    assert 'class="sel-primary"' in text
+    assert 'class="cand-default"' in text
+    assert 'class="cand-alternate"' in text
+    assert "（待 M4）" not in text
+    assert "__SIMILAR_GROUPS_HTML__" not in text

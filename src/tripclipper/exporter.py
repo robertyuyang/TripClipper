@@ -31,7 +31,10 @@ from .models import (
     AnalysisStatus,
     Asset,
     CutIndex,
+    EditCandidateStatus,
     Segment,
+    SimilarGroup,
+    SimilarSelection,
 )
 from .paths import cut_index_path, exports_dir, project_dir, review_html_path
 
@@ -40,6 +43,8 @@ _TEMPLATE_PATH = Path(__file__).parent / "templates" / "review.html.tmpl"
 # Truncation limits (kept here, not in spec — easy to adjust)
 _SUMMARY_MAX_LEN = 80
 _FAILURE_REASON_MAX_LEN = 80
+_SIMILAR_REASON_MAX_LEN = 80
+_CANDIDATE_REASON_MAX_LEN = 80
 _TAGS_VISIBLE = 5
 _KIB = 1024
 _MIB = _KIB * 1024
@@ -295,6 +300,191 @@ def _enum_value(v) -> str:
     return str(v)
 
 
+_SIMILAR_SELECTION_CLASS = {
+    SimilarSelection.primary: "sel-primary",
+    SimilarSelection.alternate: "sel-alternate",
+    SimilarSelection.rejected: "sel-rejected",
+    SimilarSelection.needs_review: "sel-needs-review",
+}
+
+_CANDIDATE_STATUS_CLASS = {
+    EditCandidateStatus.default_selected: "cand-default",
+    EditCandidateStatus.alternate: "cand-alternate",
+    EditCandidateStatus.excluded: "cand-excluded",
+    EditCandidateStatus.needs_review: "cand-needs-review",
+}
+
+
+def _format_similar_cell(asset: Asset) -> str:
+    """Render the similar_group column for one asset.
+
+    Empty string for assets that aren't part of any similar group.
+    """
+    sel = asset.similar_selection
+    if sel is None or sel == SimilarSelection.none:
+        return ""
+
+    sel_value = _enum_value(sel)
+    sel_class = _SIMILAR_SELECTION_CLASS.get(sel, "")
+    group_id = html.escape(asset.similar_group_id or "")
+    rank_text = ""
+    if asset.similar_rank is not None:
+        rank_text = f" · rank={int(asset.similar_rank)}"
+
+    head_parts = []
+    if group_id:
+        head_parts.append(group_id)
+    head_parts.append(
+        f'<span class="{sel_class}">{html.escape(sel_value)}</span>'
+        if sel_class
+        else html.escape(sel_value)
+    )
+    head = " · ".join(head_parts) + rank_text
+
+    reason = asset.similar_reason or ""
+    if reason:
+        truncated = _truncate(reason, _SIMILAR_REASON_MAX_LEN)
+        return f'{head}<br><span class="muted">{html.escape(truncated)}</span>'
+    return head
+
+
+def _format_candidate_cell(asset: Asset) -> str:
+    """Render the edit_candidate_status column for one asset."""
+    status = asset.edit_candidate_status
+    if status is None:
+        return ""
+
+    status_value = _enum_value(status)
+    status_class = _CANDIDATE_STATUS_CLASS.get(status, "")
+    head = (
+        f'<span class="{status_class}">{html.escape(status_value)}</span>'
+        if status_class
+        else html.escape(status_value)
+    )
+    if status == EditCandidateStatus.default_selected and asset.edit_candidate_priority is not None:
+        head = f"{head} · priority={int(asset.edit_candidate_priority)}"
+
+    reason = asset.edit_candidate_reason or ""
+    if reason:
+        truncated = _truncate(reason, _CANDIDATE_REASON_MAX_LEN)
+        return f'{head}<br><span class="muted">{html.escape(truncated)}</span>'
+    return head
+
+
+def _render_similar_groups_section(cut: CutIndex) -> str:
+    """Render the top-of-page similar-groups panel.
+
+    Returns an empty string when there are no groups, so the template placeholder
+    collapses without leaving an empty section container.
+    """
+    groups = cut.similar_groups or []
+    if not groups:
+        return ""
+
+    assets_by_id: dict[str, Asset] = {}
+    for asset in cut.assets:
+        if asset.asset_id:
+            assets_by_id[asset.asset_id] = asset
+
+    cards: list[str] = []
+    for group in groups:
+        cards.append(_render_group_card(group, assets_by_id))
+
+    inner = "\n".join(cards)
+    return f'<section class="similar-groups">\n{inner}\n</section>'
+
+
+def _render_group_card(group: SimilarGroup, assets_by_id: dict[str, Asset]) -> str:
+    gid = group.similar_group_id or ""
+    header_bits: list[str] = []
+
+    head_text = html.escape(gid) if gid else ""
+    if group.confidence is not None:
+        try:
+            pct = int(round(float(group.confidence) * 100))
+            head_text = f"{head_text} · 置信度 {pct}%" if head_text else f"置信度 {pct}%"
+        except (TypeError, ValueError):
+            pass
+    if head_text:
+        header_bits.append(f"<span>{head_text}</span>")
+    for basis in group.basis or []:
+        header_bits.append(f'<span class="basis-chip">{html.escape(basis)}</span>')
+    if group.needs_review:
+        header_bits.append('<span class="chip-warn">待人工确认</span>')
+    header_html = "".join(header_bits)
+
+    members: list[Asset] = []
+    for aid in group.asset_ids or []:
+        a = assets_by_id.get(aid)
+        if a is not None:
+            members.append(a)
+    members.sort(
+        key=lambda a: (
+            a.similar_rank is None,
+            a.similar_rank if a.similar_rank is not None else 0,
+        )
+    )
+
+    rows: list[str] = []
+    for asset in members:
+        rows.append(_render_group_member(asset))
+    members_html = "".join(rows)
+
+    return (
+        f'<div class="group-card" data-group-id="{html.escape(gid)}">'
+        f"<h3>{header_html}</h3>"
+        f'<ul class="members">{members_html}</ul>'
+        "</div>"
+    )
+
+
+def _render_group_member(asset: Asset) -> str:
+    aid = asset.asset_id or ""
+    thumb_uris = _thumbnail_uris(asset)
+    if thumb_uris:
+        thumb_html = (
+            f'<img class="group-thumb" src="{html.escape(thumb_uris[0])}" alt="" '
+            f'onerror="this.style.display=&quot;none&quot;">'
+        )
+    else:
+        thumb_html = '<div class="no-thumb-mini">×</div>'
+
+    filename = asset.filename or asset.relative_path or asset.path or ""
+    tail6 = aid[-6:] if aid else ""
+    name_html = (
+        f'{html.escape(filename)} '
+        f'<span class="muted">{html.escape(tail6)}</span>'
+    )
+
+    sel = asset.similar_selection
+    if sel is not None and sel != SimilarSelection.none:
+        sel_value = _enum_value(sel)
+        sel_class = _SIMILAR_SELECTION_CLASS.get(sel, "")
+        chip = (
+            f'<span class="{sel_class}">{html.escape(sel_value)}</span>'
+            if sel_class
+            else html.escape(sel_value)
+        )
+    else:
+        chip = ""
+
+    reason_html = ""
+    if asset.similar_reason:
+        truncated = _truncate(asset.similar_reason, _SIMILAR_REASON_MAX_LEN)
+        reason_html = f'<span class="muted">{html.escape(truncated)}</span>'
+
+    stars_html = f'<span class="stars">{_format_rating(asset.rating)}</span>'
+
+    return (
+        f'<li data-asset-id="{html.escape(aid)}">'
+        f"<div>{thumb_html}</div>"
+        f"<div>{name_html}<br>{reason_html}</div>"
+        f"<div>{chip}</div>"
+        f"<div>{stars_html}</div>"
+        "</li>"
+    )
+
+
 def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
     """Render a single asset as a ``<tr>...</tr>`` HTML string."""
     status = asset.analysis_status
@@ -347,10 +537,14 @@ def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
         ]
     ).strip()
 
-    placeholder_m4 = '<span class="placeholder-m4">（待 M4）</span>'
+    placeholder_m4_similar = _format_similar_cell(asset)
+    placeholder_m4_candidate = _format_candidate_cell(asset)
     status_label = (
         f'<span class="{status_class}">{html.escape(status_value)}</span>'
     )
+
+    similar_gid_attr = html.escape(asset.similar_group_id or "")
+    candidate_status_attr = html.escape(_enum_value(asset.edit_candidate_status))
 
     return (
         f'<tr class="asset-row {row_class}"'
@@ -359,6 +553,8 @@ def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
         f' data-shot-scale="{html.escape(shot_scale)}"'
         f' data-status="{html.escape(status_value)}"'
         f' data-rating="{html.escape(rating_value)}"'
+        f' data-similar-group-id="{similar_gid_attr}"'
+        f' data-edit-candidate-status="{candidate_status_attr}"'
         f' data-search="{html.escape(search_blob)}">'
         f'<td class="thumb-cell">{thumb_html}</td>'
         f'<td class="filename-cell" title="{html.escape(filename)}">{html.escape(filename)}</td>'
@@ -372,8 +568,8 @@ def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
         f'<td class="summary-cell">{summary_html}</td>'
         f'<td>{segments_html}</td>'
         f'<td>{audio_strategy}</td>'
-        f'<td>{placeholder_m4}</td>'
-        f'<td>{placeholder_m4}</td>'
+        f'<td>{placeholder_m4_similar}</td>'
+        f'<td>{placeholder_m4_candidate}</td>'
         f'<td>{status_label}</td>'
         f'</tr>'
     )
@@ -496,11 +692,13 @@ def render_review_html(
     pdir = project_dir(slug, base_dir=base_dir)
     rows_html = "\n".join(_asset_to_row(a, pdir) for a in cut_index.assets)
     header_html = _render_project_header(cut_index)
+    groups_html = _render_similar_groups_section(cut_index)
     json_data = _dump_cut_index_json(cut_index)
 
     template = _TEMPLATE_PATH.read_text(encoding="utf-8")
     rendered = (
         template.replace("__PROJECT_HEADER_HTML__", header_html)
+        .replace("__SIMILAR_GROUPS_HTML__", groups_html)
         .replace("__TABLE_ROWS_HTML__", rows_html)
         .replace("__JSON_DATA__", json_data)
     )

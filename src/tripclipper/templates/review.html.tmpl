@@ -42,7 +42,29 @@
   td.media-cell .media-line { display: inline-block; }
   td.media-cell .media-line:first-child { font-weight: 600; color: #333; }
   td.media-cell .media-line + .media-line { color: #777; }
-  .placeholder-m4 { color: #999; font-style: italic; }
+  .similar-groups { margin: 8px 0 12px; }
+  .group-card { background: #fff; border: 1px solid #d0d7e2; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+  .group-card h3 { font-size: 13px; margin: 0 0 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .basis-chip { display: inline-block; background: #eef3fa; color: #2a5db0; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: normal; }
+  .chip-warn { background: #fff3e0; color: #c47200; padding: 1px 8px; border-radius: 10px; font-size: 11px; }
+  .members { list-style: none; padding: 0; margin: 0; }
+  .members li { display: grid; grid-template-columns: 110px 1fr auto auto; gap: 10px; align-items: center; padding: 4px 0; border-top: 1px dashed #eee; cursor: pointer; }
+  .members li:first-child { border-top: none; }
+  .members li:hover { background: #f5f9ff; }
+  .group-thumb { width: 110px; max-height: 70px; object-fit: cover; border-radius: 3px; }
+  .no-thumb-mini { width: 110px; height: 60px; background: #eee; display: flex; align-items: center; justify-content: center; color: #888; font-size: 18px; border-radius: 3px; }
+  .muted { color: #888; font-size: 11px; }
+  .sel-primary { color: #2a8a2a; font-weight: 600; }
+  .sel-alternate { color: #1e60c2; }
+  .sel-rejected { color: #888; }
+  .sel-needs-review { color: #c47200; }
+  .cand-default { color: #2a8a2a; font-weight: 600; }
+  .cand-alternate { color: #1e60c2; }
+  .cand-excluded { color: #888; }
+  .cand-needs-review { color: #c47200; }
+  tr.same-group-hover { background: #eaf3ff !important; }
+  tr.flash { animation: flash 1.5s ease-out; }
+  @keyframes flash { 0% { background: #fff3a8; } 100% { background: transparent; } }
   .drawer { display: none; background: #f4f7fc; border: 1px solid #c8d4e8; padding: 12px; border-radius: 4px; margin: 6px 0; }
   .drawer.open { display: block; }
   .drawer pre { white-space: pre-wrap; word-break: break-all; font-size: 11px; max-height: 320px; overflow: auto; background: #fff; padding: 8px; border-radius: 3px; margin: 4px 0; }
@@ -53,12 +75,25 @@
 <body>
 <h1>TripClipper · review.html</h1>
 __PROJECT_HEADER_HTML__
+__SIMILAR_GROUPS_HTML__
 
 <div class="controls">
   <input id="search" type="text" placeholder="搜索 filename / summary / tags ...">
   <select id="filter-subject-type"><option value="">subject_type: 全部</option></select>
   <select id="filter-shot-scale"><option value="">shot_scale: 全部</option></select>
   <select id="filter-status"><option value="">analysis_status: 全部</option></select>
+  <select id="filter-similar">
+    <option value="">相似组: 全部</option>
+    <option value="in-group">仅相似组成员</option>
+    <option value="not-in-group">仅非相似组</option>
+  </select>
+  <select id="filter-candidate">
+    <option value="">候选池: 全部</option>
+    <option value="default_selected">default_selected</option>
+    <option value="alternate">alternate</option>
+    <option value="excluded">excluded</option>
+    <option value="needs_review">needs_review</option>
+  </select>
   <span id="row-count" style="color:#888; font-size:12px;"></span>
 </div>
 
@@ -77,8 +112,8 @@ __PROJECT_HEADER_HTML__
       <th data-key="summary">summary</th>
       <th data-key="segments">segments</th>
       <th data-key="audio_strategy">audio_strategy</th>
-      <th data-key="similar_group">similar_group</th>
-      <th data-key="edit_candidate_status">edit_candidate_status</th>
+      <th data-key="similar_group">相似组</th>
+      <th data-key="edit_candidate_status">候选池状态</th>
       <th data-key="status">analysis_status</th>
     </tr>
   </thead>
@@ -116,6 +151,8 @@ __TABLE_ROWS_HTML__
     var fst = document.getElementById('filter-subject-type').value;
     var fss = document.getElementById('filter-shot-scale').value;
     var fst2 = document.getElementById('filter-status').value;
+    var fsim = document.getElementById('filter-similar').value;
+    var fcand = document.getElementById('filter-candidate').value;
     var visible = 0;
     rows.forEach(function(r){
       var match = true;
@@ -126,6 +163,12 @@ __TABLE_ROWS_HTML__
       if (match && fst && r.getAttribute('data-subject-type') !== fst) match = false;
       if (match && fss && r.getAttribute('data-shot-scale') !== fss) match = false;
       if (match && fst2 && r.getAttribute('data-status') !== fst2) match = false;
+      if (match && fsim){
+        var gid = r.getAttribute('data-similar-group-id') || '';
+        if (fsim === 'in-group' && !gid) match = false;
+        if (fsim === 'not-in-group' && gid) match = false;
+      }
+      if (match && fcand && r.getAttribute('data-edit-candidate-status') !== fcand) match = false;
       var drawer = r.nextElementSibling;
       if (match){
         r.style.display = '';
@@ -138,7 +181,7 @@ __TABLE_ROWS_HTML__
     document.getElementById('row-count').textContent = '显示 ' + visible + ' / ' + rows.length;
   }
 
-  ['search', 'filter-subject-type', 'filter-shot-scale', 'filter-status'].forEach(function(id){
+  ['search', 'filter-subject-type', 'filter-shot-scale', 'filter-status', 'filter-similar', 'filter-candidate'].forEach(function(id){
     var el = document.getElementById(id);
     el.addEventListener(id === 'search' ? 'input' : 'change', applyFilters);
   });
@@ -205,6 +248,35 @@ __TABLE_ROWS_HTML__
       td.appendChild(div);
       dr.appendChild(td);
       r.parentNode.insertBefore(dr, r.nextSibling);
+    });
+  });
+
+  // group card member click → scroll + flash on the matching row
+  document.querySelectorAll('.members li').forEach(function(li){
+    li.addEventListener('click', function(){
+      var aid = li.getAttribute('data-asset-id');
+      if (!aid) return;
+      var tr = document.querySelector('tr.asset-row[data-asset-id="' + aid + '"]');
+      if (!tr) return;
+      tr.scrollIntoView({behavior: 'smooth', block: 'center'});
+      tr.classList.add('flash');
+      setTimeout(function(){ tr.classList.remove('flash'); }, 1500);
+    });
+  });
+
+  // row hover → highlight same-group rows
+  rows.forEach(function(r){
+    var gid = r.getAttribute('data-similar-group-id') || '';
+    if (!gid) return;
+    r.addEventListener('mouseenter', function(){
+      rows.forEach(function(other){
+        if (other !== r && other.getAttribute('data-similar-group-id') === gid){
+          other.classList.add('same-group-hover');
+        }
+      });
+    });
+    r.addEventListener('mouseleave', function(){
+      rows.forEach(function(other){ other.classList.remove('same-group-hover'); });
     });
   });
 
