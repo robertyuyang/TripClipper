@@ -1,4 +1,4 @@
-"""CLI tests for ``tripclipper export <slug>`` (M5-early)."""
+"""CLI tests for ``tripclipper export <slug>`` (M5)."""
 
 from __future__ import annotations
 
@@ -196,3 +196,81 @@ def test_export_with_m4_data_renders_group_card(tmp_path: Path) -> None:
     assert 'class="cand-alternate"' in text
     assert "（待 M4）" not in text
     assert "__SIMILAR_GROUPS_HTML__" not in text
+
+
+# ---------------------------------------------------------------------------
+# Task 10：CLI 端到端
+# ---------------------------------------------------------------------------
+
+
+def test_export_writes_both_files_and_prints_summary(tmp_path: Path) -> None:
+    slug = "demo"
+    pdir = _seed_project(tmp_path, slug)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["export", slug, "--base-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    review = pdir / "exports" / "review.html"
+    cut_copy = pdir / "exports" / "cut_index.json"
+    assert review.is_file()
+    assert cut_copy.is_file()
+
+    assert "已生成 cut_index 副本:" in result.output
+    assert "已生成 review.html:" in result.output
+    assert "📊 项目「Demo」总览" in result.output
+    assert "rating 分布：★5 ×" in result.output
+
+    payload = json.loads(cut_copy.read_text(encoding="utf-8"))
+    assert payload["project"]["model_config_summary"] == {}
+
+
+def test_export_cut_index_only(tmp_path: Path) -> None:
+    slug = "demo"
+    pdir = _seed_project(tmp_path, slug)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["export", slug, "--base-dir", str(tmp_path), "--cut-index-only"]
+    )
+
+    assert result.exit_code == 0, result.output
+    cut_copy = pdir / "exports" / "cut_index.json"
+    review = pdir / "exports" / "review.html"
+    assert cut_copy.is_file()
+    assert not review.exists()
+
+    assert "已生成 cut_index 副本:" in result.output
+    assert "已生成 review.html:" not in result.output
+    assert "📊 项目「Demo」总览" in result.output
+
+
+def test_export_open_with_cut_index_only_warns(tmp_path: Path, monkeypatch) -> None:
+    slug = "demo"
+    _seed_project(tmp_path, slug)
+
+    calls: list[str] = []
+
+    def fake_open(url: str, *args, **kwargs) -> bool:
+        calls.append(url)
+        return True
+
+    monkeypatch.setattr("tripclipper.cli.webbrowser.open", fake_open)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "export",
+            slug,
+            "--base-dir",
+            str(tmp_path),
+            "--cut-index-only",
+            "--open",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    # stderr 与 stdout 在新版 click 默认合并，统一断言 output
+    assert "--open 与 --cut-index-only 冲突" in result.output
+    assert calls == []
