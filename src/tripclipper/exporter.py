@@ -746,6 +746,8 @@ def _render_project_header(cut_index: CutIndex) -> str:
             '<div class="notice">尚未运行 sample/full 分析；表中分析字段可能为空。</div>'
         )
 
+    overview_html = _render_overview_section(_compute_overview_counts(cut_index))
+
     failures_html = ""
     if cut_index.failures:
         items = []
@@ -761,6 +763,7 @@ def _render_project_header(cut_index: CutIndex) -> str:
     return (
         '<div class="header">'
         f"<dl>{dl}</dl>"
+        f"{overview_html}"
         f"{notice_html}"
         f"{failures_html}"
         "</div>"

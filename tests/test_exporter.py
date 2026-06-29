@@ -323,6 +323,26 @@ def test_render_project_header_lists_project_failures() -> None:
     assert "ffprobe missing" in html
 
 
+def test_render_project_header_includes_overview_section() -> None:
+    # Task 3：_render_project_header 在 <dl> 之后拼入 _render_overview_section 的输出。
+    ci = _make_cut_index(
+        assets=[
+            Asset(
+                asset_id="a",
+                filename="a.mp4",
+                type=AssetType.video,
+                analysis_status=AnalysisStatus.analyzed,
+                rating=5,
+            )
+        ]
+    )
+    html = _render_project_header(ci)
+    assert 'class="overview"' in html
+    assert 'class="overview-row"' in html
+    # 确认 overview 区块在 <dl>...</dl> 之后出现
+    assert html.index("</dl>") < html.index('class="overview"')
+
+
 def test_dump_cut_index_json_strips_model_config_and_escapes_script() -> None:
     ci = _make_cut_index(
         model_config_summary={
