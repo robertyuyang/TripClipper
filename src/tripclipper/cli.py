@@ -17,6 +17,7 @@ from __future__ import annotations
 import sys
 import webbrowser
 from pathlib import Path
+from typing import Optional
 
 import click
 from dotenv import load_dotenv
@@ -36,7 +37,12 @@ from .cluster_runner import (
 )
 from .config import ConfigError, load_config
 from .cut_index import read_cut_index
-from .exporter import ExportError, render_review_html
+from .exporter import (
+    ExportError,
+    _summarise_for_stdout,
+    copy_cut_index,
+    render_review_html,
+)
 from .models import AnalysisStatus
 from .paths import cut_index_path
 from .project import (
@@ -473,11 +479,11 @@ def run(slug: str, base_dir: str, pause_after: str, concurrency: int) -> None:
 @click.argument("slug")
 @click.option("--base-dir", "base_dir", default=None, help="项目根目录基准。")
 @click.option(
-    "--html/--no-html",
-    "html_flag",
-    default=True,
+    "--cut-index-only/--no-cut-index-only",
+    "cut_index_only",
+    default=False,
     show_default=True,
-    help="是否产出 review.html（M5-early 当前只支持 HTML）。",
+    help="仅生成 cut_index 副本，跳过 review.html。",
 )
 @click.option(
     "--open/--no-open",
@@ -486,22 +492,25 @@ def run(slug: str, base_dir: str, pause_after: str, concurrency: int) -> None:
     show_default=True,
     help="生成成功后是否用系统浏览器打开。",
 )
-def export(slug: str, base_dir: str, html_flag: bool, open_flag: bool) -> None:
-    """生成派生产物（M5-early：仅 review.html）。"""
-    if not html_flag:
-        click.echo(
-            "M5-early 当前只支持 HTML 导出，CSV/MD 留给 M5 完整版。",
-            err=True,
-        )
-        sys.exit(2)
+def export(slug: str, base_dir: str, cut_index_only: bool, open_flag: bool) -> None:
+    """生成派生产物（cut_index 副本 + review.html）。"""
     try:
-        out_path = render_review_html(slug, base_dir=base_dir)
+        cut_index_copy_path = copy_cut_index(slug, base_dir=base_dir)
+        click.echo(f"已生成 cut_index 副本: {cut_index_copy_path}")
+        html_path: Optional[Path] = None
+        if not cut_index_only:
+            html_path = render_review_html(slug, base_dir=base_dir)
+            click.echo(f"已生成 review.html: {html_path}")
+        cut = read_cut_index(cut_index_path(slug, base_dir=base_dir))
+        click.echo("")
+        click.echo(_summarise_for_stdout(cut))
+        if open_flag and not cut_index_only and html_path is not None:
+            webbrowser.open(f"file://{html_path}")
+        elif open_flag and cut_index_only:
+            click.echo("--open 与 --cut-index-only 冲突，跳过打开。", err=True)
     except ExportError as exc:
         click.echo(f"导出失败：{exc}", err=True)
         sys.exit(1)
-    click.echo(f"已生成 review.html: {out_path}")
-    if open_flag:
-        webbrowser.open(f"file://{out_path}")
 
 
 @main.command(name="sync-eagle")

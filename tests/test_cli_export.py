@@ -60,7 +60,7 @@ def test_export_html_writes_review_file(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         main,
-        ["export", slug, "--base-dir", str(tmp_path), "--html"],
+        ["export", slug, "--base-dir", str(tmp_path)],
     )
     assert result.exit_code == 0, result.output
     assert "已生成 review.html" in result.output
@@ -72,23 +72,10 @@ def test_export_missing_project_exits_nonzero(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         main,
-        ["export", "no-such-slug", "--base-dir", str(tmp_path), "--html"],
+        ["export", "no-such-slug", "--base-dir", str(tmp_path)],
     )
     assert result.exit_code != 0
     assert "尚未初始化" in result.output
-
-
-def test_export_no_html_flag_returns_2(tmp_path: Path) -> None:
-    slug = "demo"
-    _seed_project(tmp_path, slug)
-
-    runner = CliRunner()
-    result = runner.invoke(
-        main,
-        ["export", slug, "--base-dir", str(tmp_path), "--no-html"],
-    )
-    assert result.exit_code == 2
-    assert "M5-early 当前只支持 HTML 导出" in result.output
 
 
 def test_export_open_invokes_webbrowser(tmp_path: Path, monkeypatch) -> None:
@@ -106,7 +93,7 @@ def test_export_open_invokes_webbrowser(tmp_path: Path, monkeypatch) -> None:
     runner = CliRunner()
     result = runner.invoke(
         main,
-        ["export", slug, "--base-dir", str(tmp_path), "--html", "--open"],
+        ["export", slug, "--base-dir", str(tmp_path), "--open"],
     )
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
@@ -194,7 +181,7 @@ def test_export_with_m4_data_renders_group_card(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         main,
-        ["export", slug, "--base-dir", str(tmp_path), "--html"],
+        ["export", slug, "--base-dir", str(tmp_path)],
     )
     assert result.exit_code == 0, result.output
     out_file = pdir / "exports" / "review.html"
