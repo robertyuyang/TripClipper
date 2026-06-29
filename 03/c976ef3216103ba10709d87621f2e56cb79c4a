@@ -1,0 +1,1270 @@
+docs/specs/M4-similar-clustering/check_list.md
+  s_958abcc4ee16ad::t_ffd51601792bea 8-12,16-18,22,24-30,34-41,45-56,60-62,64,66-67,69,71,75-76,78-81,85-86,88-89,93,95-97,101-105,109-113,117-118,120,122 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a4259d6efdb06da77991ece","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[8,12]},{"Range":[16,18]},{"Single":22},{"Range":[24,30]},{"Range":[34,41]},{"Range":[45,56]},{"Range":[60,62]},{"Single":64},{"Range":[66,67]},{"Single":69},{"Single":71},{"Range":[75,76]},{"Range":[78,81]},{"Range":[85,86]},{"Range":[88,89]},{"Single":93},{"Range":[95,97]},{"Range":[101,105]},{"Range":[109,113]},{"Range":[117,118]},{"Single":120},{"Single":122}]}]}
+src/tripclipper/cluster_runner.py
+  s_e080c9c2743d67::t_3899796eeee2e7 1-460 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a425bf0efdb06da77991f88","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,460]}]}]}
+src/tripclipper/runner.py
+  s_958abcc4ee16ad::t_ffd51601792bea 26-31,45,120-128 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a4259d6efdb06da77991ece","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[26,31]},{"Single":45},{"Range":[120,128]}]}]}
+src/tripclipper/logs.py
+  s_958abcc4ee16ad::t_ffd51601792bea 19,62-93,324-512 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a4259d6efdb06da77991ece","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Single":19},{"Range":[62,93]},{"Range":[324,512]}]}]}
+tests/test_cli_analyze.py
+  s_958abcc4ee16ad::t_ffd51601792bea 1-15,35-36,38-46,326-669 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a4259d6efdb06da77991ece","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,15]},{"Range":[35,36]},{"Range":[38,46]},{"Range":[326,669]}]}]}
+tests/test_integration_m4.py
+  s_5acc9899d60c37::t_296e4f8a1c57a0 27
+  s_e080c9c2743d67::t_3899796eeee2e7 1-26,28-275 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a425bf0efdb06da77991f88","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,26]},{"Range":[28,275]}]}]}
+tests/test_clusterer.py
+  s_e080c9c2743d67::t_3899796eeee2e7 1-58,60-64,66-166,168-169,197-607 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a425bf0efdb06da77991f88","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[1,58]},{"Range":[60,64]},{"Range":[66,166]},{"Range":[168,169]},{"Range":[197,607]}]}]}
+  s_5acc9899d60c37::t_8800e6176abffe 167,170-196
+  s_5acc9899d60c37::t_3741c5ce8e5c21 59,65
+src/tripclipper/clusterer.py
+  s_5acc9899d60c37::t_a20d1a5debba6e 404-544
+  s_5acc9899d60c37::t_4487891a2a5d43 91,93-94,97
+  s_1ae13bb54b3121::t_458b53b53a60d3 101-280
+  s_e080c9c2743d67::t_3899796eeee2e7 351-399,401-403 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a425bf0efdb06da77991f88","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[351,399]},{"Range":[401,403]}]}]}
+  s_1ae13bb54b3121::t_39de7618735a54 1-90,92,95-96,98-100
+  s_1ae13bb54b3121::t_4529a869b9c50a 281-350,400
+src/tripclipper/arbiter.py
+  s_939dc6e11f828e::t_dc0a62db08f64a 1-26
+  s_e080c9c2743d67::t_3899796eeee2e7 27-80 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a425bf0efdb06da77991f88","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[27,80]}]}]}
+  s_5acc9899d60c37::t_beeaf3ac66ca01 81-454
+docs/specs/M4-similar-clustering/task_list.md
+  s_958abcc4ee16ad::t_ffd51601792bea 13-14,19-20,22-23,26,28-29,33-34,38,42,49,52-53,56,59,62,65,69,75,77,80-81,85,109-110,113-114,116,121,123-125,129,132-134,136,138,141,143,146,150,153,156,158,160,163,165,168,171,173,175,177,180,183,187,194,207,212-213,215-217,219,221-224 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a4259d6efdb06da77991ece","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[13,14]},{"Range":[19,20]},{"Range":[22,23]},{"Single":26},{"Range":[28,29]},{"Range":[33,34]},{"Single":38},{"Single":42},{"Single":49},{"Range":[52,53]},{"Single":56},{"Single":59},{"Single":62},{"Single":65},{"Single":69},{"Single":75},{"Single":77},{"Range":[80,81]},{"Single":85},{"Range":[109,110]},{"Range":[113,114]},{"Single":116},{"Single":121},{"Range":[123,125]},{"Single":129},{"Range":[132,134]},{"Single":136},{"Single":138},{"Single":141},{"Single":143},{"Single":146},{"Single":150},{"Single":153},{"Single":156},{"Single":158},{"Single":160},{"Single":163},{"Single":165},{"Single":168},{"Single":171},{"Single":173},{"Single":175},{"Single":177},{"Single":180},{"Single":183},{"Single":187},{"Single":194},{"Single":207},{"Range":[212,213]},{"Range":[215,217]},{"Single":219},{"Range":[221,224]}]}]}
+src/tripclipper/models.py
+  s_e080c9c2743d67::t_3899796eeee2e7 274-290,300,326 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a425bf0efdb06da77991f88","tool_type":"agent","tool_id":"Shell","line_ranges":[{"Range":[274,290]},{"Single":300},{"Single":326}]}]}
+tests/test_arbiter.py
+  s_5acc9899d60c37::t_1d9c581e624267 1-9,14-18,22-23,25-26,28-31,36-190
+  s_5acc9899d60c37::t_46730fccf2c670 10-13,19-21,24,27,32-35
+  s_5acc9899d60c37::t_9eac9018f3d769 191-327
+tests/test_cluster_runner.py
+  s_5acc9899d60c37::t_17046ef7ac1692 59,62
+  s_5acc9899d60c37::t_d82c02c109a0fc 1-58,60-61,63-425
+docs/specs/README.md
+  s_958abcc4ee16ad::t_753b5afffaa338 38-39 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a425ae5efdb06da77991f43","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[38,39]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "03c976ef3216103ba10709d87621f2e56cb79c4a",
+  "prompts": {},
+  "humans": {
+    "h_0ce714411091ba": {
+      "author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "sessions": {
+    "s_1ae13bb54b3121": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a4093bdefdb06da779906af",
+        "model": "openrouter-2o__dev",
+        "display_model_name": "openrouter-2o"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_5acc9899d60c37": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a412e12efdb06da77990e3d",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_939dc6e11f828e": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a4132b5efdb06da77990ebf",
+        "model": "openrouter-2o__dev",
+        "display_model_name": "openrouter-2o"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_958abcc4ee16ad": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a422c9fefdb06da7799162e",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_e080c9c2743d67": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a42380defdb06da7799175a",
+        "model": "openrouter-2o__dev",
+        "display_model_name": "openrouter-2o"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {
+    "docs/specs/M4-similar-clustering/check_list.md": [
+      {
+        "hash": "s_958abcc4ee16ad::t_ffd51601792bea",
+        "line_ranges": [
+          {
+            "Range": [
+              8,
+              12
+            ]
+          },
+          {
+            "Range": [
+              16,
+              18
+            ]
+          },
+          {
+            "Single": 22
+          },
+          {
+            "Range": [
+              24,
+              30
+            ]
+          },
+          {
+            "Range": [
+              34,
+              41
+            ]
+          },
+          {
+            "Range": [
+              45,
+              56
+            ]
+          },
+          {
+            "Range": [
+              60,
+              62
+            ]
+          },
+          {
+            "Single": 64
+          },
+          {
+            "Range": [
+              66,
+              67
+            ]
+          },
+          {
+            "Single": 69
+          },
+          {
+            "Single": 71
+          },
+          {
+            "Range": [
+              75,
+              76
+            ]
+          },
+          {
+            "Range": [
+              78,
+              81
+            ]
+          },
+          {
+            "Range": [
+              85,
+              86
+            ]
+          },
+          {
+            "Range": [
+              88,
+              89
+            ]
+          },
+          {
+            "Single": 93
+          },
+          {
+            "Range": [
+              95,
+              97
+            ]
+          },
+          {
+            "Range": [
+              101,
+              105
+            ]
+          },
+          {
+            "Range": [
+              109,
+              113
+            ]
+          },
+          {
+            "Range": [
+              117,
+              118
+            ]
+          },
+          {
+            "Single": 120
+          },
+          {
+            "Single": 122
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a4259d6efdb06da77991ece",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  8,
+                  12
+                ]
+              },
+              {
+                "Range": [
+                  16,
+                  18
+                ]
+              },
+              {
+                "Single": 22
+              },
+              {
+                "Range": [
+                  24,
+                  30
+                ]
+              },
+              {
+                "Range": [
+                  34,
+                  41
+                ]
+              },
+              {
+                "Range": [
+                  45,
+                  56
+                ]
+              },
+              {
+                "Range": [
+                  60,
+                  62
+                ]
+              },
+              {
+                "Single": 64
+              },
+              {
+                "Range": [
+                  66,
+                  67
+                ]
+              },
+              {
+                "Single": 69
+              },
+              {
+                "Single": 71
+              },
+              {
+                "Range": [
+                  75,
+                  76
+                ]
+              },
+              {
+                "Range": [
+                  78,
+                  81
+                ]
+              },
+              {
+                "Range": [
+                  85,
+                  86
+                ]
+              },
+              {
+                "Range": [
+                  88,
+                  89
+                ]
+              },
+              {
+                "Single": 93
+              },
+              {
+                "Range": [
+                  95,
+                  97
+                ]
+              },
+              {
+                "Range": [
+                  101,
+                  105
+                ]
+              },
+              {
+                "Range": [
+                  109,
+                  113
+                ]
+              },
+              {
+                "Range": [
+                  117,
+                  118
+                ]
+              },
+              {
+                "Single": 120
+              },
+              {
+                "Single": 122
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/specs/M4-similar-clustering/task_list.md": [
+      {
+        "hash": "s_958abcc4ee16ad::t_ffd51601792bea",
+        "line_ranges": [
+          {
+            "Range": [
+              13,
+              14
+            ]
+          },
+          {
+            "Range": [
+              19,
+              20
+            ]
+          },
+          {
+            "Range": [
+              22,
+              23
+            ]
+          },
+          {
+            "Single": 26
+          },
+          {
+            "Range": [
+              28,
+              29
+            ]
+          },
+          {
+            "Range": [
+              33,
+              34
+            ]
+          },
+          {
+            "Single": 38
+          },
+          {
+            "Single": 42
+          },
+          {
+            "Single": 49
+          },
+          {
+            "Range": [
+              52,
+              53
+            ]
+          },
+          {
+            "Single": 56
+          },
+          {
+            "Single": 59
+          },
+          {
+            "Single": 62
+          },
+          {
+            "Single": 65
+          },
+          {
+            "Single": 69
+          },
+          {
+            "Single": 75
+          },
+          {
+            "Single": 77
+          },
+          {
+            "Range": [
+              80,
+              81
+            ]
+          },
+          {
+            "Single": 85
+          },
+          {
+            "Range": [
+              109,
+              110
+            ]
+          },
+          {
+            "Range": [
+              113,
+              114
+            ]
+          },
+          {
+            "Single": 116
+          },
+          {
+            "Single": 121
+          },
+          {
+            "Range": [
+              123,
+              125
+            ]
+          },
+          {
+            "Single": 129
+          },
+          {
+            "Range": [
+              132,
+              134
+            ]
+          },
+          {
+            "Single": 136
+          },
+          {
+            "Single": 138
+          },
+          {
+            "Single": 141
+          },
+          {
+            "Single": 143
+          },
+          {
+            "Single": 146
+          },
+          {
+            "Single": 150
+          },
+          {
+            "Single": 153
+          },
+          {
+            "Single": 156
+          },
+          {
+            "Single": 158
+          },
+          {
+            "Single": 160
+          },
+          {
+            "Single": 163
+          },
+          {
+            "Single": 165
+          },
+          {
+            "Single": 168
+          },
+          {
+            "Single": 171
+          },
+          {
+            "Single": 173
+          },
+          {
+            "Single": 175
+          },
+          {
+            "Single": 177
+          },
+          {
+            "Single": 180
+          },
+          {
+            "Single": 183
+          },
+          {
+            "Single": 187
+          },
+          {
+            "Single": 194
+          },
+          {
+            "Single": 207
+          },
+          {
+            "Range": [
+              212,
+              213
+            ]
+          },
+          {
+            "Range": [
+              215,
+              217
+            ]
+          },
+          {
+            "Single": 219
+          },
+          {
+            "Range": [
+              221,
+              224
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a4259d6efdb06da77991ece",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  13,
+                  14
+                ]
+              },
+              {
+                "Range": [
+                  19,
+                  20
+                ]
+              },
+              {
+                "Range": [
+                  22,
+                  23
+                ]
+              },
+              {
+                "Single": 26
+              },
+              {
+                "Range": [
+                  28,
+                  29
+                ]
+              },
+              {
+                "Range": [
+                  33,
+                  34
+                ]
+              },
+              {
+                "Single": 38
+              },
+              {
+                "Single": 42
+              },
+              {
+                "Single": 49
+              },
+              {
+                "Range": [
+                  52,
+                  53
+                ]
+              },
+              {
+                "Single": 56
+              },
+              {
+                "Single": 59
+              },
+              {
+                "Single": 62
+              },
+              {
+                "Single": 65
+              },
+              {
+                "Single": 69
+              },
+              {
+                "Single": 75
+              },
+              {
+                "Single": 77
+              },
+              {
+                "Range": [
+                  80,
+                  81
+                ]
+              },
+              {
+                "Single": 85
+              },
+              {
+                "Range": [
+                  109,
+                  110
+                ]
+              },
+              {
+                "Range": [
+                  113,
+                  114
+                ]
+              },
+              {
+                "Single": 116
+              },
+              {
+                "Single": 121
+              },
+              {
+                "Range": [
+                  123,
+                  125
+                ]
+              },
+              {
+                "Single": 129
+              },
+              {
+                "Range": [
+                  132,
+                  134
+                ]
+              },
+              {
+                "Single": 136
+              },
+              {
+                "Single": 138
+              },
+              {
+                "Single": 141
+              },
+              {
+                "Single": 143
+              },
+              {
+                "Single": 146
+              },
+              {
+                "Single": 150
+              },
+              {
+                "Single": 153
+              },
+              {
+                "Single": 156
+              },
+              {
+                "Single": 158
+              },
+              {
+                "Single": 160
+              },
+              {
+                "Single": 163
+              },
+              {
+                "Single": 165
+              },
+              {
+                "Single": 168
+              },
+              {
+                "Single": 171
+              },
+              {
+                "Single": 173
+              },
+              {
+                "Single": 175
+              },
+              {
+                "Single": 177
+              },
+              {
+                "Single": 180
+              },
+              {
+                "Single": 183
+              },
+              {
+                "Single": 187
+              },
+              {
+                "Single": 194
+              },
+              {
+                "Single": 207
+              },
+              {
+                "Range": [
+                  212,
+                  213
+                ]
+              },
+              {
+                "Range": [
+                  215,
+                  217
+                ]
+              },
+              {
+                "Single": 219
+              },
+              {
+                "Range": [
+                  221,
+                  224
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/specs/README.md": [
+      {
+        "hash": "s_958abcc4ee16ad::t_753b5afffaa338",
+        "line_ranges": [
+          {
+            "Range": [
+              38,
+              39
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a425ae5efdb06da77991f43",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  38,
+                  39
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "src/tripclipper/arbiter.py": [
+      {
+        "hash": "s_e080c9c2743d67::t_3899796eeee2e7",
+        "line_ranges": [
+          {
+            "Range": [
+              27,
+              80
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a425bf0efdb06da77991f88",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  27,
+                  80
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "src/tripclipper/cluster_runner.py": [
+      {
+        "hash": "s_e080c9c2743d67::t_3899796eeee2e7",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              460
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a425bf0efdb06da77991f88",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  460
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "src/tripclipper/clusterer.py": [
+      {
+        "hash": "s_e080c9c2743d67::t_3899796eeee2e7",
+        "line_ranges": [
+          {
+            "Range": [
+              351,
+              399
+            ]
+          },
+          {
+            "Range": [
+              401,
+              403
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a425bf0efdb06da77991f88",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  351,
+                  399
+                ]
+              },
+              {
+                "Range": [
+                  401,
+                  403
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "src/tripclipper/logs.py": [
+      {
+        "hash": "s_958abcc4ee16ad::t_ffd51601792bea",
+        "line_ranges": [
+          {
+            "Single": 19
+          },
+          {
+            "Range": [
+              62,
+              93
+            ]
+          },
+          {
+            "Range": [
+              324,
+              512
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a4259d6efdb06da77991ece",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Single": 19
+              },
+              {
+                "Range": [
+                  62,
+                  93
+                ]
+              },
+              {
+                "Range": [
+                  324,
+                  512
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "src/tripclipper/models.py": [
+      {
+        "hash": "s_e080c9c2743d67::t_3899796eeee2e7",
+        "line_ranges": [
+          {
+            "Range": [
+              274,
+              290
+            ]
+          },
+          {
+            "Single": 300
+          },
+          {
+            "Single": 326
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a425bf0efdb06da77991f88",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  274,
+                  290
+                ]
+              },
+              {
+                "Single": 300
+              },
+              {
+                "Single": 326
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "src/tripclipper/runner.py": [
+      {
+        "hash": "s_958abcc4ee16ad::t_ffd51601792bea",
+        "line_ranges": [
+          {
+            "Range": [
+              26,
+              31
+            ]
+          },
+          {
+            "Single": 45
+          },
+          {
+            "Range": [
+              120,
+              128
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a4259d6efdb06da77991ece",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  26,
+                  31
+                ]
+              },
+              {
+                "Single": 45
+              },
+              {
+                "Range": [
+                  120,
+                  128
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tests/test_cli_analyze.py": [
+      {
+        "hash": "s_958abcc4ee16ad::t_ffd51601792bea",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              15
+            ]
+          },
+          {
+            "Range": [
+              35,
+              36
+            ]
+          },
+          {
+            "Range": [
+              38,
+              46
+            ]
+          },
+          {
+            "Range": [
+              326,
+              669
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a4259d6efdb06da77991ece",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  15
+                ]
+              },
+              {
+                "Range": [
+                  35,
+                  36
+                ]
+              },
+              {
+                "Range": [
+                  38,
+                  46
+                ]
+              },
+              {
+                "Range": [
+                  326,
+                  669
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tests/test_clusterer.py": [
+      {
+        "hash": "s_e080c9c2743d67::t_3899796eeee2e7",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              58
+            ]
+          },
+          {
+            "Range": [
+              60,
+              64
+            ]
+          },
+          {
+            "Range": [
+              66,
+              166
+            ]
+          },
+          {
+            "Range": [
+              168,
+              169
+            ]
+          },
+          {
+            "Range": [
+              197,
+              607
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a425bf0efdb06da77991f88",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  58
+                ]
+              },
+              {
+                "Range": [
+                  60,
+                  64
+                ]
+              },
+              {
+                "Range": [
+                  66,
+                  166
+                ]
+              },
+              {
+                "Range": [
+                  168,
+                  169
+                ]
+              },
+              {
+                "Range": [
+                  197,
+                  607
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tests/test_integration_m4.py": [
+      {
+        "hash": "s_e080c9c2743d67::t_3899796eeee2e7",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              26
+            ]
+          },
+          {
+            "Range": [
+              28,
+              275
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a425bf0efdb06da77991f88",
+            "tool_type": "agent",
+            "tool_id": "Shell",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  26
+                ]
+              },
+              {
+                "Range": [
+                  28,
+                  275
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "s_958abcc4ee16ad": {
+      "tool": "trae",
+      "conversation_id": "6a422c9fefdb06da7799162e",
+      "session_id": "6a422c9fefdb06da7799162e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_958abcc4ee16ad::t_0becb26206a6d2": {
+      "tool": "trae",
+      "conversation_id": "6a422c9fefdb06da7799162e",
+      "session_id": "6a422c9fefdb06da7799162e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_958abcc4ee16ad::t_0ec263b826d076": {
+      "tool": "trae",
+      "conversation_id": "6a422c9fefdb06da7799162e",
+      "session_id": "6a422c9fefdb06da7799162e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_958abcc4ee16ad::t_4c8cbac464cf8c": {
+      "tool": "trae",
+      "conversation_id": "6a422c9fefdb06da7799162e",
+      "session_id": "6a422c9fefdb06da7799162e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_958abcc4ee16ad::t_6eeeba975a6724": {
+      "tool": "trae",
+      "conversation_id": "6a422c9fefdb06da7799162e",
+      "session_id": "6a422c9fefdb06da7799162e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_958abcc4ee16ad::t_753b5afffaa338": {
+      "tool": "trae",
+      "conversation_id": "6a422c9fefdb06da7799162e",
+      "session_id": "6a422c9fefdb06da7799162e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_958abcc4ee16ad::t_fbedcef3ab8525": {
+      "tool": "trae",
+      "conversation_id": "6a422c9fefdb06da7799162e",
+      "session_id": "6a422c9fefdb06da7799162e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_958abcc4ee16ad::t_ffd51601792bea": {
+      "tool": "trae",
+      "conversation_id": "6a422c9fefdb06da7799162e",
+      "session_id": "6a422c9fefdb06da7799162e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_e080c9c2743d67": {
+      "tool": "trae",
+      "conversation_id": "6a42380defdb06da7799175a",
+      "session_id": "6a42380defdb06da7799175a",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_e080c9c2743d67::t_3899796eeee2e7": {
+      "tool": "trae",
+      "conversation_id": "6a42380defdb06da7799175a",
+      "session_id": "6a42380defdb06da7799175a",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
