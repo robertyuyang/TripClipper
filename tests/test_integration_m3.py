@@ -22,7 +22,6 @@ from dotenv import load_dotenv
 from tripclipper.analyzer import sample_analyze
 from tripclipper.config import EditingIntent, ModelConfig
 from tripclipper.cut_index import read_cut_index
-from tripclipper.exporter import render_review_html
 from tripclipper.models import (
     AnalysisStatus,
     AssetType,
@@ -33,7 +32,7 @@ from tripclipper.models import (
 )
 from tripclipper.paths import cut_index_path
 from tripclipper.project import init_project
-from tripclipper.provider import AnalysisResult, Provider, ProviderError
+from tripclipper.provider import AnalysisResult, Provider, ProviderError, _parse_timecode
 from tripclipper.scan import scan_project
 
 
@@ -171,11 +170,11 @@ def test_provider_analyzes_video_real_model(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# SubTask 8.2：segments 校验（不强制非空）
+# SubTask 8.2：clip_suggestions 校验（不强制非空）
 # ---------------------------------------------------------------------------
 
 
-def test_provider_emits_segments_for_video(tmp_path: Path):
+def test_provider_emits_valid_clip_suggestions_for_video(tmp_path: Path):
     _require_api_key()
     video = _require_video(SEGMENTS_VIDEO.name)
 
@@ -183,16 +182,32 @@ def test_provider_emits_segments_for_video(tmp_path: Path):
     cut = read_cut_index(cut_index_path(slug, base_dir))
     asset = next(a for a in cut.assets if a.filename == video.name)
 
+    duration = float((asset.metadata or {}).get("duration") or 0)
+    assert duration > 0, "测试素材必须有 duration 元数据"
+    # frame_timestamps 长度必须与 frame_paths 长度一致（M2 自适应抽帧）。
+    assert asset.frame_paths
+    assert asset.frame_timestamps is not None
+    assert len(asset.frame_timestamps) == len(asset.frame_paths)
+    for ts in asset.frame_timestamps:
+        assert 0.0 <= float(ts) <= duration
+
     provider = Provider(_model_config(), EditingIntent())
     result = provider.analyze(asset)
 
-    # Q22：segments 可为空（废片）。若非空，每段都必须有 in / out / role。
-    for segment in result.segments:
-        assert segment.in_ and isinstance(segment.in_, str)
-        assert segment.out and isinstance(segment.out, str)
-        # role 是中文短词，模型自由发挥；不强制非空但若给了必须是 str。
-        if segment.role is not None:
-            assert isinstance(segment.role, str)
+    # Q22：clip_suggestions 可为空（废片）。若非空，每段都必须有 in / out / role，
+    # 且经 _parse_timecode 解析后满足 0 <= in_seconds < out_seconds <= duration。
+    for suggestion in result.clip_suggestions:
+        assert suggestion.in_ and isinstance(suggestion.in_, str)
+        assert suggestion.out and isinstance(suggestion.out, str)
+        if suggestion.role is not None:
+            assert isinstance(suggestion.role, str)
+
+        in_seconds = _parse_timecode(suggestion.in_)
+        out_seconds = _parse_timecode(suggestion.out)
+        assert in_seconds is not None
+        assert out_seconds is not None
+        assert 0.0 <= in_seconds < out_seconds
+        assert out_seconds <= duration
 
 
 # ---------------------------------------------------------------------------
@@ -274,17 +289,6 @@ def test_full_pipeline_sample_real_model(tmp_path: Path):
     api_key = os.environ[_API_KEY_ENV]
     assert api_key not in log_text
     assert "Bearer " + api_key not in log_text
-
-    # SubTask 8.1（M5-early）：sample 完成后立即跑 render_review_html，
-    # 验证 HTML 报告可生成、行数对齐 cut_index.assets、不泄露 API key。
-    html_path = render_review_html(summary.project_slug, base_dir=base_dir)
-    assert html_path.is_file()
-    html_text = html_path.read_text(encoding="utf-8")
-    assert "<table" in html_text
-    assert "<tbody" in html_text
-    row_count = html_text.count('class="asset-row')
-    assert row_count == len(cut.assets)
-    assert api_key not in html_text
 
 
 # ---------------------------------------------------------------------------

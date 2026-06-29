@@ -70,6 +70,9 @@
   .drawer pre { white-space: pre-wrap; word-break: break-all; font-size: 11px; max-height: 320px; overflow: auto; background: #fff; padding: 8px; border-radius: 3px; margin: 4px 0; }
   .drawer .frame-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .drawer .frame-grid img { width: 160px; max-height: 100px; object-fit: cover; border-radius: 3px; border: 1px solid #ccc; }
+  .overview { margin: 6px 0 10px; padding: 8px 12px; background: #f5f9ff; border-left: 3px solid #2a5db0; border-radius: 3px; }
+  .overview-row { font-size: 13px; line-height: 1.7; color: #2b3340; }
+  .overview-row + .overview-row { margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -110,7 +113,7 @@ __SIMILAR_GROUPS_HTML__
       <th data-key="shot_function">shot_function</th>
       <th data-key="tags">tags</th>
       <th data-key="summary">summary</th>
-      <th data-key="segments">segments</th>
+      <th data-key="clip_suggestions">clip_suggestions</th>
       <th data-key="audio_strategy">audio_strategy</th>
       <th data-key="similar_group">相似组</th>
       <th data-key="edit_candidate_status">候选池状态</th>
@@ -231,7 +234,8 @@ __TABLE_ROWS_HTML__
         path: asset.path, relative_path: asset.relative_path, type: asset.type,
         size: asset.size, modified_time: asset.modified_time, metadata: asset.metadata || {},
         thumbnail_path: asset.thumbnail_path, frame_paths: asset.frame_paths || [],
-        segments: asset.segments || [], failures: asset.failures || [],
+        frame_timestamps: asset.frame_timestamps || [],
+        clip_suggestions: asset.clip_suggestions || [], failures: asset.failures || [],
         warnings: asset.warnings || []
       }, null, 2);
       div.appendChild(meta);

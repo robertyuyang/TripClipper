@@ -1,4 +1,4 @@
-"""Data models and field enums for ``cut_index.json`` (schema_version 0.2).
+"""Data models and field enums for ``cut_index.json`` (schema_version 0.3).
 
 This module is the single source of truth for every field name and every
 enumerated value used across TripClipper. Other modules MUST import these
@@ -94,12 +94,18 @@ class EditCandidateStatus(str, Enum):
 # ---------------------------------------------------------------------------
 
 # Shared config: allow population by field name as well as alias, so models with
-# aliased fields (e.g. Segment.in_) can be built either way.
+# aliased fields (e.g. ClipSuggestion.in_) can be built either way.
 _MODEL_CONFIG = ConfigDict(populate_by_name=True)
 
 
-class Segment(BaseModel):
-    """A recommended sub-clip inside an asset (TD 7 ``segment``)."""
+class ClipSuggestion(BaseModel):
+    """A recommended sub-clip suggestion produced by Stage 2 vision analysis.
+
+    Each suggestion is a time range inside the asset; ``in_`` / ``out`` use
+    timecode strings (``HH:MM:SS`` or ``MM:SS``). The 4 asset-level enum
+    fields are duplicated here so a clip can describe itself independently
+    of the asset envelope (TD 7 ``clip_suggestion``).
+    """
 
     model_config = _MODEL_CONFIG
 
@@ -132,6 +138,9 @@ class Asset(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     thumbnail_path: Optional[str] = None
     frame_paths: list[str] = Field(default_factory=list)
+    # Seconds-since-start for each entry in ``frame_paths``; the two lists
+    # are written together and must have matching length and ordering.
+    frame_timestamps: list[float] = Field(default_factory=list)
     transcript_path: Optional[str] = None
     analysis_status: AnalysisStatus = AnalysisStatus.scanned
     scene: Optional[str] = None
@@ -143,7 +152,7 @@ class Asset(BaseModel):
     people_presence: Optional[PeoplePresence] = None
     shot_scale: Optional[ShotScale] = None
     shot_function: Optional[ShotFunction] = None
-    segments: list[Segment] = Field(default_factory=list)
+    clip_suggestions: list[ClipSuggestion] = Field(default_factory=list)
     audio_suggestion: Optional[str] = None
     audio_strategy: Optional[str] = None
     similar_group_id: Optional[str] = None
@@ -287,7 +296,7 @@ __all__ = [
     "ShotFunction",
     "SimilarSelection",
     "EditCandidateStatus",
-    "Segment",
+    "ClipSuggestion",
     "Asset",
     "SimilarGroup",
     "DefaultCandidate",

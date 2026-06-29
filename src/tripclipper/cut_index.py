@@ -25,25 +25,23 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _major(version: str) -> str:
-    """Return the major component (before the first dot) of a version string."""
-    return str(version).split(".")[0]
-
-
 def check_schema_compatible(version: str) -> bool:
     """Return True when ``version`` is compatible with the current schema.
 
-    Compatibility rule: the major version (the segment before the first dot)
-    must equal the current major version. Minor versions are backward
-    compatible. Raises :class:`SchemaVersionError` on incompatibility.
+    Compatibility rule: pre-1.0, every minor bump is treated as **breaking**
+    (we do not yet promise minor backward compatibility); the on-disk version
+    must therefore equal :data:`SCHEMA_VERSION` exactly. Once we reach 1.0
+    minor versions can become backward compatible. Raises
+    :class:`SchemaVersionError` on incompatibility.
     """
     if version is None:
         raise SchemaVersionError("Missing schema_version in cut_index.json")
-    if _major(version) != _major(SCHEMA_VERSION):
+    if str(version) != SCHEMA_VERSION:
         raise SchemaVersionError(
             f"Incompatible schema_version {version!r}; "
-            f"this build supports major version {_major(SCHEMA_VERSION)!r} "
-            f"(current schema {SCHEMA_VERSION!r}). Refusing to migrate silently."
+            f"this build requires {SCHEMA_VERSION!r}. Refusing to migrate silently. "
+            f"Suggestion: run `tripclipper analyze <slug> --stage full --force` "
+            f"to regenerate analysis under the current schema."
         )
     return True
 

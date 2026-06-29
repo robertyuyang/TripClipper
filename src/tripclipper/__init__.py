@@ -8,6 +8,6 @@ is delivered by later modules.
 __version__ = "0.1.0"
 
 # Schema version of the on-disk ``cut_index.json`` data contract.
-SCHEMA_VERSION = "0.2"
+SCHEMA_VERSION = "0.3"
 
 __all__ = ["__version__", "SCHEMA_VERSION"]

@@ -71,8 +71,9 @@ SUPPORTED_EXTENSIONS: dict[str, AssetType] = {
     ".opus": AssetType.audio,
 }
 
-# 抽取关键帧的数量上限（均匀分布），避免大目录产生海量派生文件。
-_MAX_FRAMES = 3
+# 关键帧抽取数量的下/上限：按 duration 自适应（见 _compute_frame_count）。
+_MIN_FRAMES = 3
+_MAX_FRAMES = 12
 # 外部工具调用超时（秒）。大文件抽帧/探测可能偏慢，留足余量。
 _FFPROBE_TIMEOUT = 120
 _FFMPEG_TIMEOUT = 180
@@ -147,6 +148,18 @@ def detect_capabilities() -> Capabilities:
 
 class _ToolError(Exception):
     """ffprobe/ffmpeg 调用失败（非零退出、超时或工具缺失）。"""
+
+
+def _compute_frame_count(duration: Optional[float]) -> int:
+    """按视频时长决定关键帧抽取数量。
+
+    公式：``max(_MIN_FRAMES, min(_MAX_FRAMES, round(duration / 5)))``；
+    ``duration`` 缺失（None/0/负）时退化为下限 3。该函数是纯函数，与外部工具
+    无关，单测可独立覆盖。
+    """
+    if duration is None or duration <= 0:
+        return _MIN_FRAMES
+    return max(_MIN_FRAMES, min(_MAX_FRAMES, round(duration / 5)))
 
 
 def _eval_frame_rate(raw: Optional[str]) -> Optional[float]:
@@ -297,11 +310,13 @@ def _run_ffmpeg_frames(
     out_dir: _PathLike,
     *,
     stem: str,
-    count: int = _MAX_FRAMES,
-) -> list[Path]:
-    """为视频均匀抽取至多 ``count`` 帧到 ``out_dir``，返回生成的文件路径列表。
+) -> list[tuple[Path, float]]:
+    """为视频均匀抽取自适应数量的关键帧到 ``out_dir``。
 
-    无法得到时长时退化为只抽 1 帧（约 1s 处）。失败抛 :class:`_ToolError`。
+    返回 ``(frame_path, timestamp_seconds)`` 元组列表，索引与抽帧顺序对齐；
+    抽帧数由 :func:`_compute_frame_count` 按时长自适应（3 ≤ N ≤ 12）。无法
+    得到时长时退化为下限 3 帧，时间戳取均匀分布（无 duration 时统一以 1.0s
+    一个点回填）。失败抛 :class:`_ToolError`。
     """
     if shutil.which("ffmpeg") is None:
         raise _ToolError("ffmpeg 不可用")
@@ -309,13 +324,15 @@ def _run_ffmpeg_frames(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    count = _compute_frame_count(duration)
     # 计算均匀分布的时间点：避开 0 与末尾，取 (i+1)/(count+1) * duration。
     if duration and duration > 0:
         timestamps = [duration * (i + 1) / (count + 1) for i in range(count)]
     else:
-        timestamps = [1.0]
+        # 无 duration：从 1.0s 起每 1.0s 取一个，至少 count 个点。
+        timestamps = [1.0 * (i + 1) for i in range(count)]
 
-    produced: list[Path] = []
+    produced: list[tuple[Path, float]] = []
     for idx, ts in enumerate(timestamps):
         frame_path = out / f"{stem}_frame{idx + 1:02d}.jpg"
         cmd = [
@@ -335,7 +352,7 @@ def _run_ffmpeg_frames(
         ]
         _invoke_ffmpeg(cmd, label=f"关键帧 {path}@{ts:.3f}")
         if frame_path.is_file():
-            produced.append(frame_path)
+            produced.append((frame_path, float(ts)))
 
     if not produced:
         raise _ToolError(f"ffmpeg 未生成任何关键帧：{path}")
@@ -420,6 +437,7 @@ _FILE_LEVEL_FIELDS = (
     "metadata",
     "thumbnail_path",
     "frame_paths",
+    "frame_timestamps",
 )
 
 
@@ -464,7 +482,8 @@ def _extract_browse_aids(
         frames_dir(slug, base_dir),
         stem=stem,
     )
-    asset.frame_paths = [str(p) for p in frames]
+    asset.frame_paths = [str(p) for p, _ts in frames]
+    asset.frame_timestamps = [float(ts) for _p, ts in frames]
 
 
 def _merge_preserving_analysis(existing: Asset, fresh: Asset) -> Asset:

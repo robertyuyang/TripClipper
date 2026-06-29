@@ -57,7 +57,7 @@ def test_init_write_read_roundtrip(tmp_path: Path) -> None:
 
     # Raw JSON has the eight top-level blocks plus schema_version.
     raw = json.loads(out.read_text(encoding="utf-8"))
-    assert raw["schema_version"] == "0.2"
+    assert raw["schema_version"] == "0.3"
     for block in TOP_LEVEL_BLOCKS:
         assert block in raw
     # Empty list blocks are arrays.
@@ -66,7 +66,7 @@ def test_init_write_read_roundtrip(tmp_path: Path) -> None:
 
     # Read back and check round-trip on key fields.
     loaded = read_cut_index(out)
-    assert loaded.schema_version == "0.2"
+    assert loaded.schema_version == "0.3"
     assert loaded.project.project_name == config.project_name
     assert loaded.project.project_slug == config.project_slug
     assert loaded.project.source_folder == config.source_folder
@@ -85,6 +85,23 @@ def test_incompatible_schema_version_raises(tmp_path: Path) -> None:
 
     with pytest.raises(SchemaVersionError):
         read_cut_index(out)
+
+
+def test_legacy_0_2_schema_version_rejected_with_force_hint(tmp_path: Path) -> None:
+    """A 0.2 cut_index.json must fail to load under the 0.3 code, with a
+    suggestion to rerun analyze --force (BREAKING migration path)."""
+    config = _make_config(tmp_path)
+    cut = init_cut_index(config)
+    out = tmp_path / "cut_index.json"
+    write_cut_index(out, cut)
+
+    data = json.loads(out.read_text(encoding="utf-8"))
+    data["schema_version"] = "0.2"
+    out.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(SchemaVersionError) as excinfo:
+        read_cut_index(out)
+    assert "--force" in str(excinfo.value)
 
 
 def test_generate_asset_id_stable_and_distinct() -> None:

@@ -30,6 +30,7 @@ from tripclipper.scan import (
     SUPPORTED_EXTENSIONS,
     ScanError,
     ScanResult,
+    _compute_frame_count,
     build_asset,
     classify_file,
     detect_capabilities,
@@ -259,18 +260,87 @@ def test_thumbnails_and_frames_extracted(real_scan) -> None:
     tdir = thumbnails_dir(slug, base_dir=base)
     fdir = frames_dir(slug, base_dir=base)
 
+    # 自适应抽帧的真实期望（按 round(duration/5) 夹在 [3, 12]）：
+    # - DJI_20260612134026 (≈4.33s)  → 3
+    # - DJI_20260613145058 (≈16.34s) → 3
+    # - DJI_20260613111939 (≈26.30s) → 5
+    # - IMG_4306 (≈6.43s)            → 3
+    # - DJI_20260613111046 (≈58.54s) → 12
+    # - NO 四个 (≈60s)               → 12
+    expected_counts = {
+        "DJI_20260612134026_0001_D.MP4": 3,
+        "DJI_20260613145058_0115_D.MP4": 3,
+        "DJI_20260613111939_0084_D.MP4": 5,
+        "IMG_4306.mov": 3,
+        "DJI_20260613111046_0072_D.MP4": 12,
+        "NO20250612-114146-064576F.mp4": 12,
+        "NO20250612-114246-064577F.mp4": 12,
+        "NO20250612-114346-064578F.mp4": 12,
+        "NO20250612-184330-064596F.mp4": 12,
+    }
+
     for a in cut.assets:
         # 缩略图回填且真实落盘于 cache/thumbnails。
         assert a.thumbnail_path
         thumb = Path(a.thumbnail_path)
         assert thumb.is_file()
         assert tdir in thumb.parents
-        # 至多 3 帧关键帧，真实落盘于 cache/frames。
-        assert 1 <= len(a.frame_paths) <= 3
+        # 自适应抽帧：路径与时间戳长度严格相等、单调递增。
+        assert len(a.frame_paths) == len(a.frame_timestamps)
+        assert a.frame_timestamps == sorted(a.frame_timestamps)
+        assert all(isinstance(ts, float) for ts in a.frame_timestamps)
+        # 每张关键帧文件真实落盘于 cache/frames。
         for fp in a.frame_paths:
             frame = Path(fp)
             assert frame.is_file()
             assert fdir in frame.parents
+        # 实际抽帧数与按真实 duration 算出的期望值一致。
+        if a.filename in expected_counts:
+            assert len(a.frame_paths) == expected_counts[a.filename], (
+                f"{a.filename} expected {expected_counts[a.filename]} frames, "
+                f"got {len(a.frame_paths)} (duration={a.metadata.get('duration')})"
+            )
+
+
+# ---------------------------------------------------------------------------
+# 6.4b _compute_frame_count 边界单测（纯函数，不依赖外部工具）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "duration, expected",
+    [
+        (None, 3),
+        (0.0, 3),
+        (-1.0, 3),
+        (4.3, 3),       # round(0.86)=1 → 夹到下限 3
+        (15.0, 3),      # round(3.0)=3
+        (26.3, 5),      # round(5.26)=5
+        (60.0, 12),     # round(12.0)=12
+        (100.0, 12),    # round(20.0)=20 → 夹到上限 12
+    ],
+)
+def test_compute_frame_count_boundaries(duration, expected) -> None:
+    assert _compute_frame_count(duration) == expected
+
+
+def test_frame_timestamps_stable_across_rescans(tmp_path: Path) -> None:
+    """重复扫描时 frame_timestamps 完全一致（公式确定性）。"""
+    source = _symlink_source(tmp_path, {"clip.MP4": SMALL_VIDEO})
+    _config, base = _setup_project(tmp_path, source)
+
+    scan_project(SLUG, base_dir=base, extract_media=True)
+    cut1 = read_cut_index(cut_index_path(SLUG, base_dir=base))
+    ts1 = list(cut1.assets[0].frame_timestamps)
+
+    scan_project(SLUG, base_dir=base, extract_media=True)
+    cut2 = read_cut_index(cut_index_path(SLUG, base_dir=base))
+    ts2 = list(cut2.assets[0].frame_timestamps)
+
+    assert ts1 == ts2
+    assert ts1, "frame_timestamps 应当非空（视频抽帧成功）"
+    # 与 frame_paths 长度对齐。
+    assert len(ts1) == len(cut2.assets[0].frame_paths)
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +374,7 @@ def test_graceful_degradation_empty_path(
     assert asset.metadata == {}
     assert asset.thumbnail_path is None
     assert asset.frame_paths == []
+    assert asset.frame_timestamps == []
     # 含一条 stage=scan 的能力警告。
     cap_warnings = [
         w for w in cut.warnings if w.stage == "scan" and "ffmpeg/ffprobe" in (w.reason or "")

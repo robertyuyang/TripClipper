@@ -30,9 +30,9 @@ from .cut_index import read_cut_index
 from .models import (
     AnalysisStatus,
     Asset,
+    ClipSuggestion,
     CutIndex,
     EditCandidateStatus,
-    Segment,
     SimilarGroup,
     SimilarSelection,
 )
@@ -152,12 +152,12 @@ def _format_media_info(asset: Asset) -> str:
     return rendered or html.escape(asset_type)
 
 
-def _format_segments(segments: Optional[list[Segment]]) -> str:
-    """Render segment list as inline HTML divs. Empty -> ``"（无）"``."""
-    if not segments:
+def _format_clip_suggestions(suggestions: Optional[list[ClipSuggestion]]) -> str:
+    """Render clip suggestion list as inline HTML divs. Empty -> ``"（无）"``."""
+    if not suggestions:
         return "（无）"
     parts: list[str] = []
-    for seg in segments:
+    for seg in suggestions:
         in_v = html.escape(seg.in_ or "")
         out_v = html.escape(seg.out or "")
         role = html.escape(seg.role or "")
@@ -516,7 +516,7 @@ def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
     tags_html = _format_tags(asset.tags)
     rating_html = f'<span class="stars">{_format_rating(asset.rating)}</span>'
     summary_html = _render_summary_cell(asset)
-    segments_html = _format_segments(asset.segments)
+    segments_html = _format_clip_suggestions(asset.clip_suggestions)
     audio_strategy = html.escape(asset.audio_strategy or "")
     primary_subject = html.escape(asset.primary_subject or "")
     subject_cell = html.escape(subject_type)

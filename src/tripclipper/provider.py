@@ -39,11 +39,12 @@ from .models import (
     AnalysisStatus,
     Asset,
     AssetType,
+    ClipSuggestion,
     PeoplePresence,
-    Segment,
     ShotFunction,
     ShotScale,
     SubjectType,
+    WarningItem,
 )
 
 # ---------------------------------------------------------------------------
@@ -53,7 +54,6 @@ from .models import (
 _DEFAULT_TIMEOUT_S = 60.0
 _MAX_RETRIES = 2  # 共 3 次尝试
 _RETRY_BACKOFFS = (1.0, 4.0)  # 重试前等待 1s、4s（再 + 随机 0~1s 抖动）
-_MAX_FRAMES_FOR_PROMPT = 3
 _TRANSIENT_HTTP = {429, 500, 502, 503, 504}
 
 
@@ -76,21 +76,33 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一名严谨的旅拍素材剪辑助理，负
    - `shot_scale`：枚举之一 `extreme_wide` / `wide` / `full` / `medium` / `close_up` / `extreme_close_up`。
    - `shot_function`：枚举之一 `establishing` / `highlight` / `transition` / `detail` / `reaction` / `dialogue` / `b_roll` / `other`。
    - `audio_strategy`：中文字符串，对该素材音频去留与处理的建议；若无明确建议可输出空字符串 `""`。
-   - `segments`：可选数组，0-3 个对象；每个对象包含：
+   - `clip_suggestions`：可选数组，0-3 个对象；每个对象包含：
      * `in`：起点时间码，形如 `HH:MM:SS` 或 `MM:SS` 或纯秒数字符串。
      * `out`：终点时间码，同上格式。
      * `role`：中文字符串，描述该片段在成片里的作用（如"开场镜头"、"高光"、"过场"）。
      * `reason`：中文字符串，为何这段值得保留。
      * `audio_strategy`：中文字符串，该片段的音频策略，可空字符串。
-     若整段素材没有值得抽取的高光片段（废片 / 过场），输出 `"segments": []` 即可。
+     * `subject_type`：该片段画面主体类型，枚举与 asset 级一致；不确定输出 `"other"`。
+     * `shot_scale`：该片段镜头景别，枚举与 asset 级一致；不确定可省略。
+     * `rating`：该片段质量打分，整数 1-5。
+     * `tags`：中文字符串数组，3-6 个，描述该片段独有的关键词。
+     若整段素材没有值得抽取的高光片段（废片 / 过场），输出 `"clip_suggestions": []` 即可。
 
 3. 中文强制：`summary`、`tags`、`primary_subject`、`audio_strategy` 以及
-   `segments` 内的 `role`/`reason`/`audio_strategy` 一律使用中文。
+   `clip_suggestions` 内的 `role`/`reason`/`audio_strategy`/`tags` 一律使用中文。
    枚举值保持英文标识符不变。
 
-4. 关于音频：你**无法听到实际音频**。`audio_strategy` 与 `segments[*].audio_strategy`
+4. 关于音频：你**无法听到实际音频**。`audio_strategy` 与 `clip_suggestions[*].audio_strategy`
    仅基于画面（嘴型、场景、人群密度等）与素材元数据（是否含音轨）推测，
    推不出就给出保守建议（如"保留环境声"或空字符串），切勿凭空臆造对白内容。
+
+5. **关键帧时间标注与时间码合法性**：用户消息中每张关键帧前会附带
+   `"第 N 张关键帧 @ MM:SS.S"` 文字标注，指明该帧在素材中的精确时间点。
+   你输出的 `clip_suggestions[*].in` / `out` 必须满足：
+   - 时间码可被解析为非负秒数（推荐格式 `HH:MM:SS`、`MM:SS` 或纯秒）。
+   - `0 <= in < out <= duration`（素材总时长见下方元数据块）。
+   - 在视觉上贴近关键帧标注覆盖的时间区域；如视觉证据不足以确定某个高光段，
+     **请直接不输出该 clip_suggestion**，不要凭感觉编造时间码。
 {editing_intent_block}
 ## 评分参考
 
@@ -128,6 +140,12 @@ class AnalysisResult:
 
     Mirrors the analysis-related subset of :class:`Asset`. Population is by
     :func:`_parse_response`; consumption is by :func:`apply_analysis`.
+
+    ``dropped_clip_suggestions`` is a list of human-readable strings (one per
+    clip_suggestion that failed strict timecode validation) describing the
+    original ``(in, out)`` pair and the reason it was discarded; populated
+    only when ``duration`` is known to the parser and the model returned at
+    least one invalid entry.
     """
 
     summary: Optional[str] = None
@@ -139,7 +157,8 @@ class AnalysisResult:
     shot_scale: Optional[ShotScale] = None
     shot_function: Optional[ShotFunction] = None
     audio_strategy: Optional[str] = None
-    segments: list[Segment] = field(default_factory=list)
+    clip_suggestions: list[ClipSuggestion] = field(default_factory=list)
+    dropped_clip_suggestions: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +309,7 @@ class Provider:
                     transient=False,
                 )
 
-            return _parse_response(content)
+            return _parse_response(content, duration=_extract_duration(asset))
 
         # 防御性兜底：理论上 for 循环要么 return 要么 raise，绝不应走到这里。
         raise ProviderError(
@@ -355,16 +374,60 @@ def _image_data_url(path: str) -> str:
     return f"data:image/jpeg;base64,{encoded}"
 
 
+def _format_frame_timestamp(seconds: float) -> str:
+    """Format a seconds offset as ``MM:SS.X`` (decimal: 1 fractional digit).
+
+    Used for the text block placed immediately before each video keyframe in
+    :func:`_build_user_content`, so the vision model sees an unambiguous time
+    anchor next to every image.
+
+    Examples::
+
+        _format_frame_timestamp(0.0)    == "00:00.0"
+        _format_frame_timestamp(10.5)   == "00:10.5"
+        _format_frame_timestamp(125.0)  == "02:05.0"
+        _format_frame_timestamp(3666.7) == "61:06.7"
+    """
+    seconds = max(0.0, float(seconds))
+    minutes = int(seconds // 60)
+    rest = seconds - minutes * 60
+    # 强制保留 1 位小数；不四舍五入到 60.0 后回环。
+    if rest >= 59.95:
+        # 进位到下一分钟以避免出现 "00:60.0"。
+        minutes += 1
+        rest = 0.0
+    return f"{minutes:02d}:{rest:04.1f}"
+
+
+def _extract_duration(asset: Asset) -> Optional[float]:
+    """Return ``asset.metadata.duration`` as a positive float, or ``None``."""
+    metadata = asset.metadata or {}
+    raw = metadata.get("duration")
+    if raw is None:
+        raw = metadata.get("duration_s")
+    if raw is None:
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 def _build_user_content(asset: Asset) -> list[dict[str, Any]]:
     """Construct the OpenAI-compatible ``user`` content list for one asset.
 
     Branches by :attr:`Asset.type`:
 
-    - ``video``: thumbnail (if any) + up to :data:`_MAX_FRAMES_FOR_PROMPT`
-      keyframes as ``image_url`` blocks + a trailing text block carrying
-      filename / duration / has_audio metadata.
-    - ``image``: a single ``image_url`` block from ``thumbnail_path`` (in M2
-      this equals the source image) + a metadata text block.
+    - ``video``: each ``image_url`` block is preceded by a short text block
+      that names the image and (for keyframes) anchors it to a precise
+      timestamp — so the model knows which slice of the video each frame
+      depicts. All keyframes recorded on the asset are sent (M2 caps the
+      count at 12 via ``_compute_frame_count``); when ``frame_timestamps`` is
+      missing or shorter than ``frame_paths`` we fall back to an unanchored
+      ``"第 N 张关键帧"`` label.
+    - ``image``: a single ``image_url`` block from ``thumbnail_path`` prefixed
+      by a ``"图片素材"`` text block + a metadata text block.
     - ``audio``: no ``image_url`` blocks; just a metadata text block.
     """
     content: list[dict[str, Any]] = []
@@ -372,13 +435,22 @@ def _build_user_content(asset: Asset) -> list[dict[str, Any]]:
 
     if asset_type == AssetType.video:
         if asset.thumbnail_path:
+            content.append({"type": "text", "text": "缩略图：素材封面"})
             content.append(
                 {
                     "type": "image_url",
                     "image_url": {"url": _image_data_url(asset.thumbnail_path)},
                 }
             )
-        for frame_path in (asset.frame_paths or [])[:_MAX_FRAMES_FOR_PROMPT]:
+        frame_paths = list(asset.frame_paths or [])
+        frame_timestamps = list(asset.frame_timestamps or [])
+        for idx, frame_path in enumerate(frame_paths):
+            if idx < len(frame_timestamps):
+                stamp = _format_frame_timestamp(frame_timestamps[idx])
+                label = f"第 {idx + 1} 张关键帧 @ {stamp}"
+            else:
+                label = f"第 {idx + 1} 张关键帧"
+            content.append({"type": "text", "text": label})
             content.append(
                 {
                     "type": "image_url",
@@ -387,6 +459,7 @@ def _build_user_content(asset: Asset) -> list[dict[str, Any]]:
             )
     elif asset_type == AssetType.image:
         if asset.thumbnail_path:
+            content.append({"type": "text", "text": "图片素材"})
             content.append(
                 {
                     "type": "image_url",
@@ -470,46 +543,156 @@ def _coerce_string_list(value: Any) -> list[str]:
     return [item for item in value if isinstance(item, str) and item]
 
 
-def _coerce_segments(value: Any) -> list[Segment]:
-    """Build a list of validated :class:`Segment` objects.
+_TIMECODE_HMS_RE = re.compile(r"^(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$")
+_TIMECODE_MS_RE = re.compile(r"^(\d{1,3}):(\d{2})(?:\.(\d+))?$")
 
-    Tolerant rules (Q22): the whole list is discarded (returns ``[]``) only if
-    the top-level value is not a list. Individual segments are dropped silently
-    when they fail validation, but other valid segments survive. Each segment
-    must have non-empty ``in`` and ``out``; missing or empty values cause that
-    segment to be discarded.
+
+def _parse_timecode(value: Any) -> Optional[float]:
+    """Parse a timecode (``HH:MM:SS[.f]`` / ``MM:SS[.f]`` / bare seconds) into seconds.
+
+    Returns ``None`` on any parse failure. Pure function — unit-tested in
+    ``tests/test_provider.py``.
+
+    Examples::
+
+        _parse_timecode("00:00:05")    == 5.0
+        _parse_timecode("01:23:45.5")  == 5025.5
+        _parse_timecode("01:30")       == 90.0
+        _parse_timecode("30")          == 30.0
+        _parse_timecode("30.5")        == 30.5
+        _parse_timecode("abc")         is None
+        _parse_timecode(5)             == 5.0   (numeric inputs accepted)
+        _parse_timecode(-1)            is None  (negative rejected)
+    """
+    if isinstance(value, bool):
+        # bool 是 int 子类；显式排除。
+        return None
+    if isinstance(value, (int, float)):
+        seconds = float(value)
+        return seconds if seconds >= 0 else None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+
+    hms = _TIMECODE_HMS_RE.match(text)
+    if hms:
+        hours, minutes, secs, frac = hms.groups()
+        try:
+            base = int(hours) * 3600 + int(minutes) * 60 + int(secs)
+        except ValueError:
+            return None
+        if int(minutes) >= 60 or int(secs) >= 60:
+            return None
+        frac_val = float(f"0.{frac}") if frac else 0.0
+        return base + frac_val
+
+    ms = _TIMECODE_MS_RE.match(text)
+    if ms:
+        minutes, secs, frac = ms.groups()
+        try:
+            base = int(minutes) * 60 + int(secs)
+        except ValueError:
+            return None
+        if int(secs) >= 60:
+            return None
+        frac_val = float(f"0.{frac}") if frac else 0.0
+        return base + frac_val
+
+    try:
+        seconds = float(text)
+    except ValueError:
+        return None
+    return seconds if seconds >= 0 else None
+
+
+def _coerce_clip_suggestions(
+    value: Any,
+    *,
+    duration: Optional[float],
+) -> tuple[list[ClipSuggestion], list[str]]:
+    """Parse + strictly validate a ``clip_suggestions`` array from a model response.
+
+    Returns ``(kept, dropped)``:
+
+    - ``kept``: validated :class:`ClipSuggestion` objects (``in`` / ``out``
+      kept as the model's original string forms so downstream rendering still
+      sees a timecode the user can read).
+    - ``dropped``: human-readable strings describing each discarded entry's
+      original ``(in, out)`` and the reason it failed validation; consumed by
+      :func:`apply_analysis` to emit a non-blocking ``WarningItem``.
+
+    Validation rules (spec §严格时间码校验):
+
+    1. **Format**: ``in`` and ``out`` must parse via :func:`_parse_timecode`.
+    2. **Ordering**: ``out_seconds > in_seconds``.
+    3. **Bounds**: ``0 <= in_seconds < out_seconds <= duration`` when
+       ``duration`` is known; with ``duration is None`` only rules 1–2 apply.
+
+    Any single rule failure discards that one entry; valid siblings survive.
+    A top-level non-list returns ``([], [])`` silently (no warning is
+    emitted, mirroring the prior tolerant behaviour for malformed shapes).
     """
     if not isinstance(value, list):
-        return []
+        return [], []
 
-    segments: list[Segment] = []
+    kept: list[ClipSuggestion] = []
+    dropped: list[str] = []
     for entry in value:
         if not isinstance(entry, dict):
+            dropped.append("非对象条目")
             continue
-        # Accept both "in" (model output) and "in_" (Python-internal).
         in_value = entry.get("in", entry.get("in_"))
         out_value = entry.get("out")
-        if not (isinstance(in_value, str) and in_value):
+        in_seconds = _parse_timecode(in_value)
+        out_seconds = _parse_timecode(out_value)
+        if in_seconds is None or out_seconds is None:
+            dropped.append(
+                f"格式非法 in={in_value!r} out={out_value!r}"
+            )
             continue
-        if not (isinstance(out_value, str) and out_value):
+        if not (out_seconds > in_seconds):
+            dropped.append(
+                f"out<=in in={in_value!r} out={out_value!r}"
+            )
             continue
+        if duration is not None and not (
+            in_seconds >= 0 and out_seconds <= duration
+        ):
+            dropped.append(
+                f"越界 in={in_value!r} out={out_value!r} duration={duration}"
+            )
+            continue
+
         try:
-            segment = Segment.model_validate(
+            suggestion = ClipSuggestion.model_validate(
                 {
-                    "in": in_value,
-                    "out": out_value,
+                    "in": in_value if isinstance(in_value, str) else str(in_value),
+                    "out": out_value if isinstance(out_value, str) else str(out_value),
                     "role": entry.get("role"),
                     "reason": entry.get("reason"),
                     "audio_strategy": entry.get("audio_strategy"),
+                    "subject_type": _coerce_enum(
+                        entry.get("subject_type"), SubjectType, None
+                    ),
+                    "shot_scale": _coerce_enum(
+                        entry.get("shot_scale"), ShotScale, None
+                    ),
+                    "rating": _coerce_rating(entry.get("rating")),
+                    "tags": _coerce_string_list(entry.get("tags")),
                 }
             )
         except Exception:
+            dropped.append(
+                f"模型字段不可建模 in={in_value!r} out={out_value!r}"
+            )
             continue
-        segments.append(segment)
-    return segments
+        kept.append(suggestion)
+    return kept, dropped
 
 
-def _parse_response(text: str) -> AnalysisResult:
+def _parse_response(text: str, *, duration: Optional[float] = None) -> AnalysisResult:
     """Parse a model response string into an :class:`AnalysisResult`.
 
     Pure function (no class state) so it is independently unit-testable.
@@ -526,8 +709,13 @@ def _parse_response(text: str) -> AnalysisResult:
        - ``shot_function``: invalid enum → :attr:`ShotFunction.other`.
        - ``people_presence`` / ``shot_scale``: invalid enum → ``None``
          (no ``other`` member exists on these enums).
-       - ``segments``: top-level non-list → ``[]``; per-segment validation
-         failures drop the segment but preserve the rest.
+       - ``clip_suggestions``: top-level non-list → ``[]``; per-entry strict
+         validation (format / order / bounds) — failing entries are dropped
+         and recorded in ``dropped_clip_suggestions``.
+
+    ``duration`` (seconds) — when provided, the bounds rule in
+    :func:`_coerce_clip_suggestions` is enabled. When ``None`` only format
+    and ordering are enforced.
     """
     stripped = _strip_code_fence(text)
     try:
@@ -571,7 +759,13 @@ def _parse_response(text: str) -> AnalysisResult:
     people_presence = _coerce_enum(payload.get("people_presence"), PeoplePresence, None)
     shot_scale = _coerce_enum(payload.get("shot_scale"), ShotScale, None)
 
-    segments = _coerce_segments(payload.get("segments"))
+    # 兼容历史输出键名 segments：若模型还在用 segments 字段，与 clip_suggestions 等价处理。
+    raw_suggestions = payload.get("clip_suggestions")
+    if raw_suggestions is None:
+        raw_suggestions = payload.get("segments")
+    clip_suggestions, dropped = _coerce_clip_suggestions(
+        raw_suggestions, duration=duration
+    )
 
     return AnalysisResult(
         summary=summary,
@@ -583,7 +777,8 @@ def _parse_response(text: str) -> AnalysisResult:
         shot_scale=shot_scale,
         shot_function=shot_function,
         audio_strategy=audio_strategy,
-        segments=segments,
+        clip_suggestions=clip_suggestions,
+        dropped_clip_suggestions=dropped,
     )
 
 
@@ -632,6 +827,12 @@ def apply_analysis(asset: Asset, result: AnalysisResult) -> Asset:
     only be called with results produced by :func:`_parse_response` (or an
     :class:`AnalysisResult` built with already-validated fields) — there is no
     re-validation here.
+
+    ``result.dropped_clip_suggestions`` (if any) is converted into a
+    single non-blocking ``WarningItem`` appended to ``asset.warnings`` so the
+    downstream consumer (M5-early HTML / CLI) can surface "the model emitted
+    N suggestions but K were discarded due to invalid timecodes" without
+    failing the asset.
     """
     asset.summary = result.summary
     asset.tags = list(result.tags)
@@ -642,8 +843,20 @@ def apply_analysis(asset: Asset, result: AnalysisResult) -> Asset:
     asset.shot_scale = result.shot_scale
     asset.shot_function = result.shot_function
     asset.audio_strategy = result.audio_strategy
-    asset.segments = list(result.segments)
+    asset.clip_suggestions = list(result.clip_suggestions)
     asset.analysis_status = AnalysisStatus.analyzed
+    if result.dropped_clip_suggestions:
+        warning = WarningItem(
+            stage="analyze",
+            target=asset.asset_id,
+            reason=(
+                "clip_suggestion 时间码校验失败："
+                + "；".join(result.dropped_clip_suggestions)
+            ),
+            blocking=False,
+        )
+        # Asset.warnings 字段类型是 ``list[Any]``；M3 整体走 dict 形式写入。
+        asset.warnings.append(warning.model_dump())
     return asset
 
 
