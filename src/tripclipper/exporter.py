@@ -1,9 +1,18 @@
-"""HTML report renderer (M5-early).
+"""HTML report renderer + cut_index 副本导出 (M5).
 
 Reads a project's ``cut_index.json`` and writes
 ``projects/<slug>/exports/review.html`` — a single self-contained HTML file
-that lets the user visually verify model output (M3) and, after M4 lands,
-similar-group / edit-candidate decisions.
+that lets the user visually verify model output (M3) and similar-group /
+edit-candidate decisions (M4).
+
+Also provides ``copy_cut_index`` to write an immutable, sanitised snapshot of
+``cut_index.json`` to ``projects/<slug>/exports/cut_index.json``，方便用户拿
+到一份与活动文件解耦的「数据包」副本（脱敏边界与 review.html 内嵌 JSON 一致：
+清空 ``project.model_config_summary``）。
+
+CLI ``tripclipper export`` 完成产出后还会调 ``_summarise_for_stdout`` 在终端
+打印项目级聚合摘要（rating 分布、相似组、候选池），与 review.html 头部的
+overview 区块复用同一份聚合函数 ``_compute_overview_counts``。
 
 Design notes (brainstorming Q1–Q10):
 - No template engine: a single template file with three ``__VARNAME__``
