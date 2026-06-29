@@ -1214,3 +1214,112 @@ def test_summarise_for_stdout_no_groups_no_candidates_four_lines() -> None:
     assert "相似组" not in out
     assert "候选池" not in out
     assert lines[0].startswith("📊 项目「Demo」总览")
+
+
+# ---------------------------------------------------------------------------
+# Task 9：端到端 demo-scan / 手工 cut_index 渲染断言
+# ---------------------------------------------------------------------------
+
+
+def test_render_review_html_includes_overview_section_with_groups_and_pool(
+    tmp_path: Path,
+) -> None:
+    """Task 9.1：有相似组 + 候选池时，三行总览全显示。"""
+    slug = "demo_overview"
+    primary = Asset(
+        asset_id="asset_primary",
+        filename="primary.mp4",
+        relative_path="primary.mp4",
+        type=AssetType.video,
+        analysis_status=AnalysisStatus.analyzed,
+        similar_group_id="group_1",
+        similar_selection=SimilarSelection.primary,
+        similar_rank=1,
+        edit_candidate_status=EditCandidateStatus.default_selected,
+        rating=5,
+    )
+    alt = Asset(
+        asset_id="asset_alt",
+        filename="alt.mp4",
+        relative_path="alt.mp4",
+        type=AssetType.video,
+        analysis_status=AnalysisStatus.analyzed,
+        similar_group_id="group_1",
+        similar_selection=SimilarSelection.alternate,
+        edit_candidate_status=EditCandidateStatus.alternate,
+        rating=4,
+    )
+    ci = _make_cut_index(
+        assets=[primary, alt],
+        analysis=AnalysisInfo(stage="sample", status="completed"),
+    )
+    ci.similar_groups = [
+        SimilarGroup(
+            similar_group_id="group_1",
+            asset_ids=["asset_primary", "asset_alt"],
+            primary_asset_id="asset_primary",
+            alternate_asset_ids=["asset_alt"],
+            confidence=0.9,
+            needs_review=False,
+        )
+    ]
+    _write_cut_index(tmp_path, slug, ci)
+
+    out = render_review_html(slug, base_dir=tmp_path)
+    text = out.read_text(encoding="utf-8")
+
+    assert 'class="overview"' in text
+    assert "★5 ×" in text
+    assert "相似组 1 个" in text
+    assert "候选池：default_selected ×" in text
+
+
+def test_render_no_groups_omits_overview_similar_row(tmp_path: Path) -> None:
+    """Task 9.2：无相似组时，overview 区块在但「相似组」行不在。"""
+    slug = "demo_no_groups"
+    asset = Asset(
+        asset_id="asset_solo",
+        filename="solo.mp4",
+        relative_path="solo.mp4",
+        type=AssetType.video,
+        analysis_status=AnalysisStatus.analyzed,
+        rating=4,
+    )
+    ci = _make_cut_index(
+        assets=[asset],
+        analysis=AnalysisInfo(stage="sample", status="completed"),
+    )
+    ci.similar_groups = []
+    _write_cut_index(tmp_path, slug, ci)
+
+    out = render_review_html(slug, base_dir=tmp_path)
+    text = out.read_text(encoding="utf-8")
+
+    assert 'class="overview"' in text
+    # overview 区块不包含相似组聚合行（无 group → 该行被省略）
+    overview_html = _render_overview_section(_compute_overview_counts(ci))
+    assert "相似组" not in overview_html
+    # 同时确认 review.html 里这块 HTML 字面也不含「相似组 N 个」字样
+    assert "相似组 " not in text or "相似组 0 个" not in text
+    assert overview_html in text
+
+
+def test_copy_cut_index_demo_scan_end_to_end(tmp_path: Path) -> None:
+    """Task 9.3：用真 demo-scan 数据 → 副本里 model_config_summary 为 {}、
+    asset 数量与原值一致。"""
+    real_path = Path("projects/demo-scan/cut_index.json")
+    if not real_path.is_file():
+        pytest.skip("demo-scan baseline not present")
+    slug = "demo-scan"
+    ensure_project_dirs(slug, base_dir=tmp_path)
+    target = cut_index_path(slug, base_dir=tmp_path)
+    target.write_text(real_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    copied = copy_cut_index(slug, base_dir=tmp_path)
+    assert copied == exported_cut_index_path(slug, base_dir=tmp_path)
+    assert copied.is_file()
+
+    copied_payload = json.loads(copied.read_text(encoding="utf-8"))
+    original_payload = json.loads(real_path.read_text(encoding="utf-8"))
+    assert copied_payload["project"]["model_config_summary"] == {}
+    assert len(copied_payload["assets"]) == len(original_payload["assets"])
