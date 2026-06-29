@@ -132,6 +132,44 @@ def _compute_overview_counts(cut_index: CutIndex) -> OverviewCounts:
     )
 
 
+def _render_overview_section(counts: OverviewCounts) -> str:
+    """Render the project-level overview row block for review.html header.
+
+    Returns ``<div class="overview">...</div>`` with up to three rows:
+    - rating distribution (always)
+    - similar-group aggregate (only when at least one group exists)
+    - candidate-pool aggregate (only when at least one candidate is set)
+    """
+    rd = counts.rating_distribution
+    rating_text = (
+        f"★5 ×{rd.get(5, 0)} · ★4 ×{rd.get(4, 0)} · ★3 ×{rd.get(3, 0)} · "
+        f"★2 ×{rd.get(2, 0)} · ★1 ×{rd.get(1, 0)} · 未评级 ×{rd.get(None, 0)}"
+    )
+    rows: list[str] = [
+        f'<div class="overview-row">rating 分布：{html.escape(rating_text)}</div>'
+    ]
+
+    if counts.similar_group_count > 0:
+        sim_text = (
+            f"相似组 {counts.similar_group_count} 个"
+            f"（共 {counts.similar_member_count} 条；"
+            f"{counts.similar_needs_review_count} 条待人工确认）"
+        )
+        rows.append(f'<div class="overview-row">{html.escape(sim_text)}</div>')
+
+    cc = counts.candidate_counts
+    if sum(cc.values()) > 0:
+        cand_text = (
+            f"候选池：default_selected ×{cc.get('default_selected', 0)} · "
+            f"alternate ×{cc.get('alternate', 0)} · "
+            f"excluded ×{cc.get('excluded', 0)} · "
+            f"needs_review ×{cc.get('needs_review', 0)}"
+        )
+        rows.append(f'<div class="overview-row">{html.escape(cand_text)}</div>')
+
+    return f'<div class="overview">{"".join(rows)}</div>'
+
+
 # ---------------------------------------------------------------------------
 # Pure formatters
 # ---------------------------------------------------------------------------

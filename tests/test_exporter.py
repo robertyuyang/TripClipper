@@ -30,6 +30,7 @@ from tripclipper.exporter import (
     _format_similar_cell,
     _format_status_class,
     _format_tags,
+    _render_overview_section,
     _render_project_header,
     _render_similar_groups_section,
     _render_summary_cell,
@@ -912,3 +913,87 @@ def test_compute_overview_counts_empty_assets_zeroes_everything() -> None:
     assert counts.similar_group_count == 0
     assert counts.counts_by_type == {}
     assert counts.counts_by_status == {}
+
+
+# ---------------------------------------------------------------------------
+# M5 Task 2: _render_overview_section
+# ---------------------------------------------------------------------------
+
+
+def _counts(
+    *,
+    rating: dict[int | None, int] | None = None,
+    similar_group_count: int = 0,
+    similar_member_count: int = 0,
+    similar_needs_review_count: int = 0,
+    candidates: dict[str, int] | None = None,
+    total_assets: int = 0,
+) -> OverviewCounts:
+    base_rating = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0, None: 0}
+    if rating:
+        base_rating.update(rating)
+    base_cand = {"default_selected": 0, "alternate": 0, "excluded": 0, "needs_review": 0}
+    if candidates:
+        base_cand.update(candidates)
+    return OverviewCounts(
+        rating_distribution=base_rating,
+        similar_group_count=similar_group_count,
+        similar_member_count=similar_member_count,
+        similar_needs_review_count=similar_needs_review_count,
+        candidate_counts=base_cand,
+        total_assets=total_assets,
+    )
+
+
+def test_render_overview_section_full_data_renders_three_rows() -> None:
+    counts = _counts(
+        rating={5: 2, 4: 3, 3: 1, 2: 1, 1: 0, None: 3},
+        similar_group_count=1,
+        similar_member_count=3,
+        similar_needs_review_count=0,
+        candidates={"default_selected": 6, "alternate": 3, "excluded": 0, "needs_review": 1},
+        total_assets=10,
+    )
+    html_out = _render_overview_section(counts)
+    assert html_out.startswith('<div class="overview">')
+    assert html_out.count('class="overview-row"') == 3
+    assert "★5 ×2 · ★4 ×3 · ★3 ×1 · ★2 ×1 · ★1 ×0 · 未评级 ×3" in html_out
+    assert "相似组 1 个（共 3 条；0 条待人工确认）" in html_out
+    assert "候选池：default_selected ×6 · alternate ×3 · excluded ×0 · needs_review ×1" in html_out
+
+
+def test_render_overview_section_no_similar_groups_omits_row() -> None:
+    counts = _counts(
+        rating={5: 1, 4: 0, 3: 0, 2: 0, 1: 0, None: 0},
+        similar_group_count=0,
+        candidates={"default_selected": 1, "alternate": 0, "excluded": 0, "needs_review": 0},
+        total_assets=1,
+    )
+    html_out = _render_overview_section(counts)
+    assert html_out.count('class="overview-row"') == 2
+    assert "相似组" not in html_out
+    assert "★5 ×1" in html_out
+    assert "候选池：" in html_out
+
+
+def test_render_overview_section_no_candidates_omits_row() -> None:
+    counts = _counts(
+        rating={5: 1, 4: 0, 3: 0, 2: 0, 1: 0, None: 0},
+        similar_group_count=1,
+        similar_member_count=2,
+        candidates={"default_selected": 0, "alternate": 0, "excluded": 0, "needs_review": 0},
+        total_assets=2,
+    )
+    html_out = _render_overview_section(counts)
+    assert "候选池：" not in html_out
+    assert "相似组 1 个" in html_out
+    assert html_out.count('class="overview-row"') == 2
+
+
+def test_render_overview_section_empty_state_only_rating_zeros() -> None:
+    counts = _counts(total_assets=0)
+    html_out = _render_overview_section(counts)
+    assert html_out.count('class="overview-row"') == 1
+    assert "★5 ×0 · ★4 ×0 · ★3 ×0 · ★2 ×0 · ★1 ×0 · 未评级 ×0" in html_out
+    assert "相似组" not in html_out
+    assert "候选池：" not in html_out
