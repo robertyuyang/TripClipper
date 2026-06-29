@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import html
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -53,6 +54,82 @@ _GIB = _MIB * 1024
 
 class ExportError(Exception):
     """Raised when render_review_html fails (project missing, IO error)."""
+
+
+# ---------------------------------------------------------------------------
+# Overview aggregation — shared by review.html header overview row and CLI
+# stdout summary (M5 Task 1).
+# ---------------------------------------------------------------------------
+
+
+_RATING_BUCKETS: tuple[Optional[int], ...] = (5, 4, 3, 2, 1, None)
+_CANDIDATE_KEYS: tuple[str, ...] = (
+    "default_selected",
+    "alternate",
+    "excluded",
+    "needs_review",
+)
+
+
+@dataclass(frozen=True)
+class OverviewCounts:
+    rating_distribution: dict[Optional[int], int] = field(default_factory=dict)
+    similar_group_count: int = 0
+    similar_member_count: int = 0
+    similar_needs_review_count: int = 0
+    candidate_counts: dict[str, int] = field(default_factory=dict)
+    total_assets: int = 0
+    counts_by_type: dict[str, int] = field(default_factory=dict)
+    counts_by_status: dict[str, int] = field(default_factory=dict)
+
+
+def _compute_overview_counts(cut_index: CutIndex) -> OverviewCounts:
+    """Aggregate rating / similar-group / candidate-pool counts.
+
+    Guarantees ``rating_distribution`` has all 6 keys (1-5 + None) and
+    ``candidate_counts`` has all 4 keys, even when their value is 0, so
+    downstream renderers don't need to special-case missing buckets.
+    """
+    rating_dist: dict[Optional[int], int] = {k: 0 for k in _RATING_BUCKETS}
+    candidate_counts: dict[str, int] = {k: 0 for k in _CANDIDATE_KEYS}
+    counts_by_type: dict[str, int] = {}
+    counts_by_status: dict[str, int] = {}
+
+    for asset in cut_index.assets or []:
+        rating_key: Optional[int] = asset.rating if asset.rating in (1, 2, 3, 4, 5) else None
+        rating_dist[rating_key] = rating_dist.get(rating_key, 0) + 1
+
+        type_key = _enum_value(asset.type) or "unknown"
+        counts_by_type[type_key] = counts_by_type.get(type_key, 0) + 1
+
+        status_key = _enum_value(asset.analysis_status) or "unknown"
+        counts_by_status[status_key] = counts_by_status.get(status_key, 0) + 1
+
+        cand = asset.edit_candidate_status
+        if cand is not None:
+            cand_key = _enum_value(cand)
+            if cand_key in candidate_counts:
+                candidate_counts[cand_key] += 1
+
+    similar_group_count = 0
+    similar_member_count = 0
+    similar_needs_review_count = 0
+    for group in cut_index.similar_groups or []:
+        similar_group_count += 1
+        similar_member_count += len(group.asset_ids or [])
+        if group.needs_review:
+            similar_needs_review_count += 1
+
+    return OverviewCounts(
+        rating_distribution=rating_dist,
+        similar_group_count=similar_group_count,
+        similar_member_count=similar_member_count,
+        similar_needs_review_count=similar_needs_review_count,
+        candidate_counts=candidate_counts,
+        total_assets=len(cut_index.assets or []),
+        counts_by_type=counts_by_type,
+        counts_by_status=counts_by_status,
+    )
 
 
 # ---------------------------------------------------------------------------

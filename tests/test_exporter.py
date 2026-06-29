@@ -18,7 +18,9 @@ import pytest
 from tripclipper import SCHEMA_VERSION
 from tripclipper.exporter import (
     ExportError,
+    OverviewCounts,
     _asset_to_row,
+    _compute_overview_counts,
     _dump_cut_index_json,
     _format_candidate_cell,
     _format_clip_suggestions,
@@ -806,3 +808,107 @@ def test_render_demo_scan_real_data_renders_group_card(tmp_path: Path, monkeypat
     assert 'class="sel-primary"' in text
     # demo-scan 至少有几条 default_selected 入选候选池。
     assert text.count('class="cand-default"') >= 1
+
+
+# ---------------------------------------------------------------------------
+# M5 Task 1: _compute_overview_counts
+# ---------------------------------------------------------------------------
+
+
+def _make_asset(
+    *,
+    asset_id: str,
+    rating: int | None = None,
+    asset_type: AssetType = AssetType.video,
+    status: AnalysisStatus = AnalysisStatus.analyzed,
+    candidate: EditCandidateStatus | None = None,
+) -> Asset:
+    return Asset(
+        asset_id=asset_id,
+        filename=f"{asset_id}.mp4",
+        type=asset_type,
+        analysis_status=status,
+        rating=rating,
+        edit_candidate_status=candidate,
+    )
+
+
+def test_compute_overview_counts_full_dataset_matches_spec_scenario() -> None:
+    # spec ADDED §「完整数据」场景：rating=[5,5,4,4,4,3,2,None,None,None]、
+    # 1 组 3 成员 0 待确认、候选池 default×6 / alternate×3 / excluded×0 / needs_review×1。
+    ratings = [5, 5, 4, 4, 4, 3, 2, None, None, None]
+    candidates = (
+        [EditCandidateStatus.default_selected] * 6
+        + [EditCandidateStatus.alternate] * 3
+        + [EditCandidateStatus.needs_review] * 1
+    )
+    assets = [
+        _make_asset(asset_id=f"a{i}", rating=ratings[i], candidate=candidates[i])
+        for i in range(10)
+    ]
+    ci = _make_cut_index(assets=assets)
+    ci.similar_groups = [
+        SimilarGroup(
+            similar_group_id="group_1",
+            asset_ids=["a0", "a1", "a2"],
+            confidence=0.9,
+            needs_review=False,
+        )
+    ]
+
+    counts = _compute_overview_counts(ci)
+    assert isinstance(counts, OverviewCounts)
+    assert counts.rating_distribution == {5: 2, 4: 3, 3: 1, 2: 1, 1: 0, None: 3}
+    assert counts.similar_group_count == 1
+    assert counts.similar_member_count == 3
+    assert counts.similar_needs_review_count == 0
+    assert counts.candidate_counts == {
+        "default_selected": 6,
+        "alternate": 3,
+        "excluded": 0,
+        "needs_review": 1,
+    }
+    assert counts.total_assets == 10
+    assert counts.counts_by_type == {"video": 10}
+    assert counts.counts_by_status == {"analyzed": 10}
+
+
+def test_compute_overview_counts_empty_similar_groups_keeps_rating() -> None:
+    assets = [_make_asset(asset_id="a", rating=5)]
+    ci = _make_cut_index(assets=assets)
+    ci.similar_groups = []
+
+    counts = _compute_overview_counts(ci)
+    assert counts.similar_group_count == 0
+    assert counts.similar_member_count == 0
+    assert counts.similar_needs_review_count == 0
+    assert counts.rating_distribution[5] == 1
+    assert counts.rating_distribution[None] == 0
+
+
+def test_compute_overview_counts_all_candidates_none_keeps_four_keys() -> None:
+    assets = [_make_asset(asset_id=f"a{i}", rating=3, candidate=None) for i in range(3)]
+    ci = _make_cut_index(assets=assets)
+    counts = _compute_overview_counts(ci)
+    assert counts.candidate_counts == {
+        "default_selected": 0,
+        "alternate": 0,
+        "excluded": 0,
+        "needs_review": 0,
+    }
+
+
+def test_compute_overview_counts_empty_assets_zeroes_everything() -> None:
+    ci = _make_cut_index(assets=[])
+    counts = _compute_overview_counts(ci)
+    assert counts.total_assets == 0
+    assert counts.rating_distribution == {5: 0, 4: 0, 3: 0, 2: 0, 1: 0, None: 0}
+    assert counts.candidate_counts == {
+        "default_selected": 0,
+        "alternate": 0,
+        "excluded": 0,
+        "needs_review": 0,
+    }
+    assert counts.similar_group_count == 0
+    assert counts.counts_by_type == {}
+    assert counts.counts_by_status == {}
