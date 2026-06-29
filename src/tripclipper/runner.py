@@ -23,6 +23,12 @@ from pathlib import Path
 from typing import Callable, Optional, Union
 
 from .analyzer import AnalyzeResult, full_analyze, sample_analyze
+from .arbiter import ArbiterError
+from .cluster_runner import (
+    ClusterResult,
+    ClusterRunnerError,
+    cluster as cluster_runner_cluster,
+)
 from .scan import ScanResult, scan_project
 
 _PathLike = Union[str, Path]
@@ -36,6 +42,7 @@ class RunResult:
     scan: Optional[ScanResult] = None
     sample: Optional[AnalyzeResult] = None
     full: Optional[AnalyzeResult] = None
+    cluster: Optional[ClusterResult] = None
     interrupted: bool = False
     interrupted_stage: Optional[str] = None
     notes: list[str] = field(default_factory=list)
@@ -109,6 +116,16 @@ def run(
         result.interrupted = True
         result.interrupted_stage = "full"
         raise
+
+    # ---------- Stage 4: cluster ----------
+    try:
+        result.cluster = cluster_runner_cluster(slug, base_dir=base_dir)
+    except KeyboardInterrupt:
+        result.interrupted = True
+        result.interrupted_stage = "cluster"
+        raise
+    except (ClusterRunnerError, ArbiterError) as exc:
+        result.notes.append(f"cluster 跳过：{exc}")
 
     return result
 

@@ -35,7 +35,8 @@ docs/specs/
 | M1 | 项目创建与配置 | FR-1；TD 4 | M0 | 已完成 |
 | M2 | 本地素材扫描（Stage 1） | FR-2；TD 5 | M0、M1 | 已完成 |
 | M3 | 真实大模型分析引擎 | FR-3/FR-4/FR-5；TD 6/8 | M0、M2 | 已完成 |
-| M4 | 雷同素材识别与候选池 | FR-6；TD 8 | M3 | Spec 定稿（待实施） |
+| M4 | 雷同素材识别与候选池 | FR-6；TD 8 | M3 | 已完成（folder-as-project 重构未做、暂存） |
+| M5-early | 早期 HTML 验证报告 | FR-8（HTML 部分）；TD 9 | M3 | 已完成 |
 | wire-m4-into-review-html | 把 M4 决策接入 review.html | FR-6/FR-8（HTML） | M4、M5-early | 已完成 |
 | trustworthy-clip-timecodes | 视频 segments 时间码可信化（ADR-003） | FR-3/FR-4；TD 6 | M0、M2、M3 | 已完成 |
 | M5 | 数据包导出与只读报告 | FR-7/FR-8；TD 9 | M3、M4 | 待开始 |

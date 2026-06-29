@@ -271,6 +271,23 @@ class AnalysisInfo(BaseModel):
     error_summary: Optional[str] = None
 
 
+class ClusteringInfo(BaseModel):
+    """Clustering block of ``cut_index.json`` (M4 similar-group clustering stage)."""
+
+    model_config = _MODEL_CONFIG
+
+    provider: Optional[str] = None
+    vision_model: Optional[str] = None
+    text_model: Optional[str] = None
+    stage: Optional[str] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    status: Optional[str] = None
+    error_summary: Optional[str] = None
+    groups_count: int = 0
+    arbitration_failures: int = 0
+
+
 class CutIndex(BaseModel):
     """Top-level ``cut_index.json`` model (TD 7)."""
 
@@ -280,6 +297,7 @@ class CutIndex(BaseModel):
     project: ProjectInfo
     capabilities: Capabilities = Field(default_factory=Capabilities)
     analysis: AnalysisInfo = Field(default_factory=AnalysisInfo)
+    clustering: Optional[ClusteringInfo] = None
     assets: list[Asset] = Field(default_factory=list)
     similar_groups: list[SimilarGroup] = Field(default_factory=list)
     default_candidates: list[DefaultCandidate] = Field(default_factory=list)
@@ -305,5 +323,6 @@ __all__ = [
     "ProjectInfo",
     "Capabilities",
     "AnalysisInfo",
+    "ClusteringInfo",
     "CutIndex",
 ]

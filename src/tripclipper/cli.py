@@ -28,6 +28,12 @@ from .analyzer import (
     full_analyze,
     sample_analyze,
 )
+from .arbiter import ArbiterError
+from .cluster_runner import (
+    ClusterResult,
+    ClusterRunnerError,
+    cluster as runner_cluster,
+)
 from .config import ConfigError, load_config
 from .cut_index import read_cut_index
 from .exporter import ExportError, render_review_html
@@ -203,6 +209,20 @@ def _print_analyze_result(result: AnalyzeResult) -> None:
             click.echo(f"    - {asset_id}: {reason}")
 
 
+def _print_cluster_result(result: ClusterResult) -> None:
+    click.echo("聚类完成（cluster）：")
+    click.echo(f"  组总数         : {result.total_groups}")
+    click.echo(f"  主选已决定     : {result.primary_decided}")
+    click.echo(f"  待人工确认组   : {result.needs_review_groups}")
+    click.echo(f"  仲裁失败       : {result.arbitration_failures}")
+    click.echo(f"  候选池规模     : {result.pool_size}")
+    click.echo(f"  备选数         : {result.alternate_count}")
+    click.echo(f"  needs_review N : {result.needs_review_count}")
+    click.echo(f"  被排除         : {result.excluded_count}")
+    click.echo(f"  cut_index      : {result.cut_index_path}")
+    click.echo(f"  日志           : {result.log_path}")
+
+
 def _eligible_assets_or_exit(slug: str, base_dir: str) -> None:
     """SubTask 5.2：sample 阶段硬卡——不存在或无可处理素材即退出。"""
     index_path = cut_index_path(slug, base_dir)
@@ -255,7 +275,7 @@ def _maybe_warn_full_without_sample(slug: str, base_dir: str) -> None:
 @click.option("--base-dir", "base_dir", default=None, help="项目根目录基准。")
 @click.option(
     "--stage",
-    type=click.Choice(["scan", "sample", "full"]),
+    type=click.Choice(["scan", "sample", "full", "cluster"]),
     default=None,
     help="Analysis stage.",
 )
@@ -364,6 +384,25 @@ def analyze(
             click.echo(f"失败 {result.failed} 个素材；下一次 full 会重试。")
         return
 
+    # ---------- stage=cluster：M4 新接线 ----------
+    if stage == "cluster":
+        if not slug:
+            click.echo(
+                "用法：tripclipper analyze <slug> --stage cluster [--base-dir <dir>]",
+                err=True,
+            )
+            sys.exit(2)
+        try:
+            cluster_result = runner_cluster(slug, base_dir=base_dir)
+        except ClusterRunnerError as exc:
+            click.echo(f"聚类失败：{exc}", err=True)
+            sys.exit(1)
+        except ArbiterError as exc:
+            click.echo(f"聚类失败（Arbiter）：{exc}", err=True)
+            sys.exit(1)
+        _print_cluster_result(cluster_result)
+        return
+
     # 无 stage：保留旧的占位提示。
     click.echo(f"analyze (config={config}, stage={stage}): {_PLACEHOLDER}")
 
@@ -397,7 +436,7 @@ def run(slug: str, base_dir: str, pause_after: str, concurrency: int) -> None:
     except KeyboardInterrupt:
         click.echo("\n已收到 Ctrl-C，已落盘的进度保留；下次重跑会从中断处续接。", err=True)
         sys.exit(130)
-    except (AnalyzerError, ScanError) as exc:
+    except (AnalyzerError, ScanError, ClusterRunnerError) as exc:
         click.echo(f"run 失败：{exc}", err=True)
         sys.exit(1)
     except ProviderError as exc:
@@ -419,6 +458,12 @@ def run(slug: str, base_dir: str, pause_after: str, concurrency: int) -> None:
         click.echo(
             f"  [full]   succeeded={result.full.succeeded} "
             f"failed={result.full.failed} skipped={result.full.skipped}"
+        )
+    if result.cluster is not None:
+        cr = result.cluster
+        click.echo(
+            f"  [cluster] groups={cr.total_groups} pool_size={cr.pool_size} "
+            f"arbitration_failures={cr.arbitration_failures}"
         )
     for note in result.notes:
         click.echo(f"  · {note}")

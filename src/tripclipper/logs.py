@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from .paths import analyze_log_path, logs_dir
+from .paths import analyze_log_path, cluster_log_path, logs_dir
 from .security import REDACTION, redact_secrets
 
 # 模块级锁：跨线程、跨 Logger 实例都共用同一把锁，保证 JSONL 行完整。
@@ -57,6 +57,38 @@ _EVENT_WHITELIST: dict[str, tuple[str, ...]] = {
         "prompt_tokens",
         "completion_tokens",
         "error",
+        "project_slug",
+    ),
+    "cluster_start": ("event", "ts", "stage", "total_assets", "project_slug"),
+    "cluster_done": ("event", "ts", "groups_count", "eligible_assets", "project_slug"),
+    "arbitration_start": ("event", "ts", "group_id", "asset_count", "project_slug"),
+    "arbitration_done": (
+        "event",
+        "ts",
+        "group_id",
+        "confidence",
+        "primary_asset_id",
+        "http_code",
+        "latency_ms",
+        "project_slug",
+    ),
+    "arbitration_failed": (
+        "event",
+        "ts",
+        "group_id",
+        "http_code",
+        "error",
+        "retry_attempt",
+        "project_slug",
+    ),
+    "candidates_start": ("event", "ts", "project_slug"),
+    "candidates_done": (
+        "event",
+        "ts",
+        "pool_size",
+        "alternate_count",
+        "needs_review_count",
+        "excluded_count",
         "project_slug",
     ),
 }
@@ -289,4 +321,192 @@ class AnalyzeLogger:
             pass
 
 
-__all__ = ["AnalyzeLogger"]
+class ClusterLogger:
+    """Append-only JSONL logger for one cluster invocation (M4 / Q24)."""
+
+    def __init__(
+        self,
+        project_slug: str,
+        base_dir: Optional[Path] = None,
+        *,
+        now: Optional[Callable[[], datetime]] = None,
+    ) -> None:
+        self._project_slug = project_slug
+        self._now: Callable[[], datetime] = now or _default_now
+        ts = _compact_ts(self._now)
+        self._log_path = cluster_log_path(project_slug, ts, base_dir)
+        self._warned: bool = False
+        try:
+            logs_dir(project_slug, base_dir).mkdir(parents=True, exist_ok=True)
+        except (OSError, PermissionError) as exc:
+            self._emit_warning(exc)
+
+    @property
+    def log_path(self) -> Path:
+        return self._log_path
+
+    # ------------------------------------------------------------------ stage
+    def stage_start(self, *, stage: str, total: int, concurrency: int) -> None:
+        self._write_event(
+            "stage_start",
+            {
+                "stage": stage,
+                "total": total,
+                "concurrency": concurrency,
+                "project_slug": self._project_slug,
+            },
+        )
+
+    def stage_end(
+        self,
+        *,
+        stage: str,
+        succeeded: int,
+        failed: int,
+        skipped: int,
+        duration_ms: int,
+    ) -> None:
+        self._write_event(
+            "stage_end",
+            {
+                "stage": stage,
+                "succeeded": succeeded,
+                "failed": failed,
+                "skipped": skipped,
+                "duration_ms": duration_ms,
+                "project_slug": self._project_slug,
+            },
+        )
+
+    # ---------------------------------------------------------------- cluster
+    def cluster_start(self, *, stage: str, total_assets: int) -> None:
+        self._write_event(
+            "cluster_start",
+            {
+                "stage": stage,
+                "total_assets": total_assets,
+                "project_slug": self._project_slug,
+            },
+        )
+
+    def cluster_done(self, *, groups_count: int, eligible_assets: int) -> None:
+        self._write_event(
+            "cluster_done",
+            {
+                "groups_count": groups_count,
+                "eligible_assets": eligible_assets,
+                "project_slug": self._project_slug,
+            },
+        )
+
+    # ------------------------------------------------------------ arbitration
+    def arbitration_start(self, *, group_id: str, asset_count: int) -> None:
+        self._write_event(
+            "arbitration_start",
+            {
+                "group_id": group_id,
+                "asset_count": asset_count,
+                "project_slug": self._project_slug,
+            },
+        )
+
+    def arbitration_done(
+        self,
+        *,
+        group_id: str,
+        confidence: float,
+        primary_asset_id: Optional[str],
+        http_code: Optional[int] = None,
+        latency_ms: int = 0,
+    ) -> None:
+        self._write_event(
+            "arbitration_done",
+            {
+                "group_id": group_id,
+                "confidence": confidence,
+                "primary_asset_id": primary_asset_id,
+                "http_code": http_code,
+                "latency_ms": latency_ms,
+                "project_slug": self._project_slug,
+            },
+        )
+
+    def arbitration_failed(
+        self,
+        *,
+        group_id: str,
+        error: str,
+        http_code: Optional[int] = None,
+        retry_attempt: int = 0,
+    ) -> None:
+        self._write_event(
+            "arbitration_failed",
+            {
+                "group_id": group_id,
+                "http_code": http_code,
+                "error": error,
+                "retry_attempt": retry_attempt,
+                "project_slug": self._project_slug,
+            },
+        )
+
+    # ------------------------------------------------------------- candidates
+    def candidates_start(self) -> None:
+        self._write_event(
+            "candidates_start",
+            {"project_slug": self._project_slug},
+        )
+
+    def candidates_done(
+        self,
+        *,
+        pool_size: int,
+        alternate_count: int,
+        needs_review_count: int,
+        excluded_count: int,
+    ) -> None:
+        self._write_event(
+            "candidates_done",
+            {
+                "pool_size": pool_size,
+                "alternate_count": alternate_count,
+                "needs_review_count": needs_review_count,
+                "excluded_count": excluded_count,
+                "project_slug": self._project_slug,
+            },
+        )
+
+    # ---------------------------------------------------------------- closing
+    def close(self) -> None:
+        return None
+
+    # --------------------------------------------------------------- internal
+    def _write_event(self, event_type: str, payload: dict[str, Any]) -> None:
+        event: dict[str, Any] = {
+            "event": event_type,
+            "ts": _utc_now_iso(self._now),
+        }
+        event.update(payload)
+        scrubbed = _scrub(event_type, event)
+        line = json.dumps(scrubbed, ensure_ascii=False) + "\n"
+        try:
+            with _WRITE_LOCK:
+                with open(self._log_path, "a", encoding="utf-8") as fp:
+                    fp.write(line)
+        except (OSError, PermissionError) as exc:
+            self._emit_warning(exc)
+
+    def _emit_warning(self, exc: BaseException) -> None:
+        if getattr(self, "_warned", False):
+            return
+        self._warned = True
+        try:
+            sys.stderr.write(
+                f"[tripclipper.logs] WARN: failed to write JSONL log "
+                f"path={self._log_path} error={type(exc).__name__}\n"
+            )
+        except Exception:
+            pass
+
+
+__all__ = ["AnalyzeLogger", "ClusterLogger"]

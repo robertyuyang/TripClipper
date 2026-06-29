@@ -109,6 +109,17 @@ def analyze_log_path(slug: str, ts: str, base_dir: Optional[_PathLike] = None) -
     return logs_dir(slug, base_dir) / f"analyze-{ts}.jsonl"
 
 
+def cluster_log_path(slug: str, ts: str, base_dir: Optional[_PathLike] = None) -> Path:
+    """Return the JSONL log file path for a cluster invocation.
+
+    ``ts`` is a compact ISO 8601 timestamp (e.g. ``20260625T140000Z``); the
+    caller is responsible for producing one. Layout::
+
+        projects/<slug>/logs/cluster-<ts>.jsonl
+    """
+    return logs_dir(slug, base_dir) / f"cluster-{ts}.jsonl"
+
+
 def ensure_project_dirs(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     """Idempotently create the project directory and cache sub-directories.
 
@@ -143,5 +154,6 @@ __all__ = [
     "transcripts_dir",
     "logs_dir",
     "analyze_log_path",
+    "cluster_log_path",
     "ensure_project_dirs",
 ]
