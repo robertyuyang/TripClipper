@@ -37,7 +37,13 @@ from .models import (
     SimilarGroup,
     SimilarSelection,
 )
-from .paths import cut_index_path, exports_dir, project_dir, review_html_path
+from .paths import (
+    cut_index_path,
+    exported_cut_index_path,
+    exports_dir,
+    project_dir,
+    review_html_path,
+)
 
 _TEMPLATE_PATH = Path(__file__).parent / "templates" / "review.html.tmpl"
 
@@ -788,6 +794,35 @@ def _dump_cut_index_json(cut_index: CutIndex) -> str:
 # ---------------------------------------------------------------------------
 
 
+def copy_cut_index(slug: str, *, base_dir: Optional[Path] = None) -> Path:
+    """Write an immutable, redacted copy of ``cut_index.json`` to ``exports/``.
+
+    The copy decouples from the activity file: subsequent ``analyze --force``
+    or ``cluster`` will not touch the export; only the next
+    ``tripclipper export`` rewrites it. ``project.model_config_summary`` is
+    cleared in the copy (M5-early Q9 redaction boundary).
+    """
+    index_path = cut_index_path(slug, base_dir=base_dir)
+    if not index_path.exists():
+        raise ExportError(
+            f"项目 `{slug}` 尚未初始化，请先运行 `tripclipper init`"
+        )
+    try:
+        cut_index = read_cut_index(index_path)
+    except Exception as exc:
+        raise ExportError(f"读取 cut_index.json 失败：{exc}") from exc
+
+    text = _dump_cut_index_json(cut_index)
+    out_dir = exports_dir(slug, base_dir=base_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = exported_cut_index_path(slug, base_dir=base_dir)
+    try:
+        out_path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        raise ExportError(f"写入 cut_index 副本失败：{exc}") from exc
+    return out_path
+
+
 def render_review_html(
     slug: str,
     *,
@@ -830,5 +865,6 @@ def render_review_html(
 
 __all__ = [
     "ExportError",
+    "copy_cut_index",
     "render_review_html",
 ]

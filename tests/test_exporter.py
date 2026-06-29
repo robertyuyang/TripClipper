@@ -35,6 +35,7 @@ from tripclipper.exporter import (
     _render_similar_groups_section,
     _render_summary_cell,
     _thumbnail_uri,
+    copy_cut_index,
     render_review_html,
 )
 from tripclipper.models import (
@@ -54,7 +55,7 @@ from tripclipper.models import (
     SimilarSelection,
     SubjectType,
 )
-from tripclipper.paths import cut_index_path, ensure_project_dirs
+from tripclipper.paths import cut_index_path, ensure_project_dirs, exported_cut_index_path
 
 
 # ---------------------------------------------------------------------------
@@ -1017,3 +1018,113 @@ def test_render_overview_section_empty_state_only_rating_zeros() -> None:
     assert "★5 ×0 · ★4 ×0 · ★3 ×0 · ★2 ×0 · ★1 ×0 · 未评级 ×0" in html_out
     assert "相似组" not in html_out
     assert "候选池：" not in html_out
+
+
+# ---------------------------------------------------------------------------
+# M5 Task 4: copy_cut_index
+# ---------------------------------------------------------------------------
+
+
+def _seed_cut_index_for_copy(
+    tmp_path: Path,
+    slug: str,
+    *,
+    model_config_summary: dict | None = None,
+    extra_assets: list[Asset] | None = None,
+) -> Path:
+    ensure_project_dirs(slug, base_dir=tmp_path)
+    project = ProjectInfo(
+        project_name="Demo",
+        project_slug=slug,
+        source_folder=str(tmp_path / "source"),
+        config_path=str(tmp_path / "source" / "project.yaml"),
+        model_config_summary=model_config_summary
+        or {
+            "provider": "openai",
+            "vision_model": "gpt-vision",
+            "api_key_env": "TRIPCLIPPER_MODEL_API_KEY",
+        },
+    )
+    assets = extra_assets if extra_assets is not None else [
+        Asset(
+            asset_id="a1",
+            filename="a1.mp4",
+            type=AssetType.video,
+            analysis_status=AnalysisStatus.scanned,
+        )
+    ]
+    ci = CutIndex(schema_version=SCHEMA_VERSION, project=project, assets=assets)
+    target = cut_index_path(slug, base_dir=tmp_path)
+    payload = ci.model_dump(mode="json", by_alias=True, exclude_none=False)
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return target
+
+
+def test_copy_cut_index_writes_valid_redacted_json(tmp_path: Path) -> None:
+    slug = "demo"
+    _seed_cut_index_for_copy(tmp_path, slug)
+
+    out = copy_cut_index(slug, base_dir=tmp_path)
+    assert out == exported_cut_index_path(slug, base_dir=tmp_path)
+    assert out.is_file()
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["project"]["project_slug"] == slug
+    assert data["project"]["model_config_summary"] == {}
+
+
+def test_copy_cut_index_decoupled_from_active_file(tmp_path: Path) -> None:
+    slug = "demo"
+    _seed_cut_index_for_copy(tmp_path, slug)
+    first = copy_cut_index(slug, base_dir=tmp_path)
+    snapshot_text = first.read_text(encoding="utf-8")
+    snapshot_mtime = first.stat().st_mtime
+
+    # Mutate the active cut_index by re-seeding with a different asset list.
+    _seed_cut_index_for_copy(
+        tmp_path,
+        slug,
+        extra_assets=[
+            Asset(
+                asset_id="b1",
+                filename="b1.mp4",
+                type=AssetType.video,
+                analysis_status=AnalysisStatus.analyzed,
+                rating=5,
+            ),
+            Asset(
+                asset_id="b2",
+                filename="b2.mp4",
+                type=AssetType.image,
+                analysis_status=AnalysisStatus.analyzed,
+            ),
+        ],
+    )
+
+    # Copy is unchanged: same content + same mtime.
+    assert first.read_text(encoding="utf-8") == snapshot_text
+    assert first.stat().st_mtime == snapshot_mtime
+
+
+def test_copy_cut_index_missing_slug_raises_export_error(tmp_path: Path) -> None:
+    with pytest.raises(ExportError) as excinfo:
+        copy_cut_index("does-not-exist", base_dir=tmp_path)
+    assert "尚未初始化" in str(excinfo.value)
+
+
+def test_copy_cut_index_redacts_model_config_summary(tmp_path: Path) -> None:
+    slug = "demo"
+    _seed_cut_index_for_copy(
+        tmp_path,
+        slug,
+        model_config_summary={
+            "provider": "openrouter",
+            "secret": "DUMMY-LEAK-TOKEN",
+            "api_key_env": "TRIPCLIPPER_MODEL_API_KEY",
+        },
+    )
+    out = copy_cut_index(slug, base_dir=tmp_path)
+    raw = out.read_text(encoding="utf-8")
+    assert "DUMMY-LEAK-TOKEN" not in raw
+    assert "openrouter" not in raw
+    data = json.loads(raw)
+    assert data["project"]["model_config_summary"] == {}

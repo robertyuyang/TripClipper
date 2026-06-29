@@ -12,6 +12,7 @@ Layout::
       eagle_apply_result.json
       exports/
         review.html
+        cut_index.json
       cache/
         thumbnails/
         frames/
@@ -67,6 +68,11 @@ def exports_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
 
 def review_html_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     return exports_dir(slug, base_dir) / "review.html"
+
+
+def exported_cut_index_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
+    """Return ``projects/<slug>/exports/cut_index.json`` (M5 immutable snapshot)."""
+    return exports_dir(slug, base_dir) / "cut_index.json"
 
 
 def eagle_dry_run_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
@@ -146,6 +152,7 @@ __all__ = [
     "summary_md_path",
     "exports_dir",
     "review_html_path",
+    "exported_cut_index_path",
     "eagle_dry_run_path",
     "eagle_apply_result_path",
     "cache_dir",
