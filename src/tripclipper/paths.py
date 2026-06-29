@@ -5,9 +5,6 @@ Layout::
     projects/<project_slug>/
       project.yaml
       cut_index.json
-      assets.csv
-      segments.csv
-      summary.md
       eagle_dry_run.json
       eagle_apply_result.json
       exports/
@@ -47,18 +44,6 @@ def cut_index_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
 
 def project_config_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     return project_dir(slug, base_dir) / "project.yaml"
-
-
-def assets_csv_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
-    return project_dir(slug, base_dir) / "assets.csv"
-
-
-def segments_csv_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
-    return project_dir(slug, base_dir) / "segments.csv"
-
-
-def summary_md_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
-    return project_dir(slug, base_dir) / "summary.md"
 
 
 def exports_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
@@ -147,9 +132,6 @@ __all__ = [
     "project_dir",
     "cut_index_path",
     "project_config_path",
-    "assets_csv_path",
-    "segments_csv_path",
-    "summary_md_path",
     "exports_dir",
     "review_html_path",
     "exported_cut_index_path",

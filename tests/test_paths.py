@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tripclipper.paths import (
     cut_index_path,
     ensure_project_dirs,
@@ -63,3 +65,12 @@ def test_review_html_path_is_under_exports_dir(tmp_path: Path) -> None:
     assert review_html_path(slug, base_dir=tmp_path) == exports_dir(
         slug, base_dir=tmp_path
     ) / "review.html"
+
+
+def test_paths_csv_md_helpers_removed() -> None:
+    with pytest.raises(ImportError):
+        from tripclipper.paths import assets_csv_path  # noqa: F401
+    with pytest.raises(ImportError):
+        from tripclipper.paths import segments_csv_path  # noqa: F401
+    with pytest.raises(ImportError):
+        from tripclipper.paths import summary_md_path  # noqa: F401
