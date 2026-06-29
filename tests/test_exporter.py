@@ -34,6 +34,7 @@ from tripclipper.exporter import (
     _render_project_header,
     _render_similar_groups_section,
     _render_summary_cell,
+    _summarise_for_stdout,
     _thumbnail_uri,
     copy_cut_index,
     render_review_html,
@@ -1128,3 +1129,88 @@ def test_copy_cut_index_redacts_model_config_summary(tmp_path: Path) -> None:
     assert "openrouter" not in raw
     data = json.loads(raw)
     assert data["project"]["model_config_summary"] == {}
+
+
+# ---------------------------------------------------------------------------
+# M5 Task 5: _summarise_for_stdout
+# ---------------------------------------------------------------------------
+
+
+def test_summarise_for_stdout_full_dataset_six_lines() -> None:
+    ratings = [5, 5, 4, 4, 4, 3, 2, None, None, None]
+    candidates = (
+        [EditCandidateStatus.default_selected] * 6
+        + [EditCandidateStatus.alternate] * 3
+        + [EditCandidateStatus.needs_review] * 1
+    )
+    assets = [
+        Asset(
+            asset_id=f"a{i}",
+            filename=f"a{i}.mp4",
+            type=AssetType.video,
+            analysis_status=AnalysisStatus.analyzed,
+            rating=ratings[i],
+            edit_candidate_status=candidates[i],
+        )
+        for i in range(10)
+    ]
+    ci = _make_cut_index(assets=assets)
+    ci.similar_groups = [
+        SimilarGroup(
+            similar_group_id="group_1",
+            asset_ids=["a0", "a1", "a2"],
+            confidence=0.9,
+            needs_review=False,
+        )
+    ]
+
+    out = _summarise_for_stdout(ci)
+    lines = out.split("\n")
+    assert len(lines) == 6
+    assert lines[0] == "📊 项目「Demo」总览"
+    assert "素材总数：10" in lines[1]
+    assert "video=10" in lines[1]
+    assert "analyzed=10" in lines[2]
+    assert "★5 ×2 · ★4 ×3 · ★3 ×1 · ★2 ×1 · ★1 ×0 · 未评级 ×3" in lines[3]
+    assert lines[4].lstrip().startswith("相似组：1 个（共 3 条；0 条待人工确认）")
+    assert "default_selected ×6" in lines[5]
+    assert "alternate ×3" in lines[5]
+    assert "needs_review ×1" in lines[5]
+
+
+def test_summarise_for_stdout_no_similar_groups_five_lines() -> None:
+    asset = Asset(
+        asset_id="a",
+        filename="a.mp4",
+        type=AssetType.video,
+        analysis_status=AnalysisStatus.analyzed,
+        rating=5,
+        edit_candidate_status=EditCandidateStatus.default_selected,
+    )
+    ci = _make_cut_index(assets=[asset])
+    ci.similar_groups = []
+
+    out = _summarise_for_stdout(ci)
+    lines = out.split("\n")
+    assert len(lines) == 5
+    assert "相似组" not in out
+    assert "候选池" in out
+
+
+def test_summarise_for_stdout_no_groups_no_candidates_four_lines() -> None:
+    asset = Asset(
+        asset_id="a",
+        filename="a.mp4",
+        type=AssetType.image,
+        analysis_status=AnalysisStatus.analyzed,
+        rating=3,
+    )
+    ci = _make_cut_index(assets=[asset])
+    ci.similar_groups = []
+
+    out = _summarise_for_stdout(ci)
+    lines = out.split("\n")
+    assert len(lines) == 4
+    assert "相似组" not in out
+    assert "候选池" not in out
+    assert lines[0].startswith("📊 项目「Demo」总览")

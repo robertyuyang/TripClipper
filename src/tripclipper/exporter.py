@@ -176,6 +176,61 @@ def _render_overview_section(counts: OverviewCounts) -> str:
     return f'<div class="overview">{"".join(rows)}</div>'
 
 
+def _summarise_for_stdout(cut_index: CutIndex) -> str:
+    """Render a multi-line stdout summary for `tripclipper export`.
+
+    Shares the same aggregation function ``_compute_overview_counts`` as the
+    review.html overview row, so the numbers are guaranteed to match.
+    Lines that would render as ``0 个`` (empty similar groups, all-None
+    candidate pool) are omitted to keep the output terse.
+    """
+    counts = _compute_overview_counts(cut_index)
+    project = cut_index.project
+    project_name = (project.project_name if project else "") or (
+        project.project_slug if project else ""
+    ) or ""
+
+    by_type_text = (
+        ", ".join(f"{k}={v}" for k, v in sorted(counts.counts_by_type.items()))
+        or "—"
+    )
+    by_status_text = (
+        ", ".join(f"{k}={v}" for k, v in sorted(counts.counts_by_status.items()))
+        or "—"
+    )
+
+    rd = counts.rating_distribution
+    rating_text = (
+        f"★5 ×{rd.get(5, 0)} · ★4 ×{rd.get(4, 0)} · ★3 ×{rd.get(3, 0)} · "
+        f"★2 ×{rd.get(2, 0)} · ★1 ×{rd.get(1, 0)} · 未评级 ×{rd.get(None, 0)}"
+    )
+
+    lines = [
+        f"📊 项目「{project_name}」总览",
+        f"  素材总数：{counts.total_assets}（{by_type_text}）",
+        f"  分析状态：{by_status_text}",
+        f"  rating 分布：{rating_text}",
+    ]
+
+    if counts.similar_group_count > 0:
+        lines.append(
+            f"  相似组：{counts.similar_group_count} 个"
+            f"（共 {counts.similar_member_count} 条；"
+            f"{counts.similar_needs_review_count} 条待人工确认）"
+        )
+
+    cc = counts.candidate_counts
+    if sum(cc.values()) > 0:
+        lines.append(
+            f"  候选池：default_selected ×{cc.get('default_selected', 0)} · "
+            f"alternate ×{cc.get('alternate', 0)} · "
+            f"excluded ×{cc.get('excluded', 0)} · "
+            f"needs_review ×{cc.get('needs_review', 0)}"
+        )
+
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Pure formatters
 # ---------------------------------------------------------------------------
