@@ -68,6 +68,14 @@ def eagle_apply_result_path(slug: str, base_dir: Optional[_PathLike] = None) -> 
     return project_dir(slug, base_dir) / "eagle_apply_result.json"
 
 
+def eagle_mapping_default_template_path() -> Path:
+    """Return the packaged default Eagle mapping template path.
+
+    ``<package_root>/templates/eagle_mapping.default.yaml``
+    """
+    return Path(__file__).parent / "templates" / "eagle_mapping.default.yaml"
+
+
 def cache_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     return project_dir(slug, base_dir) / "cache"
 
@@ -137,6 +145,7 @@ __all__ = [
     "exported_cut_index_path",
     "eagle_dry_run_path",
     "eagle_apply_result_path",
+    "eagle_mapping_default_template_path",
     "cache_dir",
     "thumbnails_dir",
     "frames_dir",

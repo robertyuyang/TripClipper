@@ -17,3 +17,8 @@ projects/*/logs/
 
 # M5-early HTML report and any future export artefacts
 projects/*/exports/
+
+# M6 Eagle sync runtime artefacts (apply result + local Eagle test libraries)
+projects/*/eagle_apply_result.json
+projects/*/eagle_dry_run.json
+tests/eagle/libs/

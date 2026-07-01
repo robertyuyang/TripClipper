@@ -1,0 +1,72 @@
+# TripClipper M6 default Eagle field mapping (ADR-004: thin mapping layer).
+# Field names here MUST match src/tripclipper/models.py Asset field names.
+tag_prefix: "tc"
+project_tag_field: "project"
+auto_map_unknown: true
+
+mappings:
+  rating: { target: eagle_rating }
+
+  type:                   { target: tag }
+  analysis_status:        { target: tag }
+  subject_type:           { target: tag }
+  people_presence:        { target: tag }
+  shot_scale:             { target: tag }
+  shot_function:          { target: tag }
+  similar_selection:      { target: tag }
+  similar_group_id:       { target: tag }
+  edit_candidate_status:  { target: tag }
+
+  edit_candidate_reason:
+    target: note_section
+    title: 候选池理由
+    order: 1
+  similar_reason:
+    target: note_section
+    title: 雷同组理由
+    order: 2
+  summary:
+    target: note_section
+    title: 内容摘要
+    order: 3
+  clip_suggestions:
+    target: note_section
+    title: 建议剪辑片段
+    order: 4
+    renderer: clip_suggestions_list
+  failures:
+    target: note_section
+    title: 分析失败原因
+    order: 5
+    renderer: failures_list
+
+skip_fields:
+  - asset_id
+  - file
+  - filename
+  - path
+  - relative_path
+  - extension
+  - size
+  - modified_time
+  - metadata
+  - thumbnail_path
+  - frame_paths
+  - frame_timestamps
+  - transcript_path
+  - scene
+  - primary_subject
+  - audio_suggestion
+  - audio_strategy
+  - similar_rank
+  - edit_candidate_priority
+  - eagle_item_id
+  - eagle_sync_status
+  - warnings
+
+note_template:
+  header: "_TripClipper · {project_slug} · synced {sync_timestamp}_"
+  empty_section_behavior: skip
+  section_format: markdown_h2
+
+connection_failure_threshold: 5

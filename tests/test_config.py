@@ -124,3 +124,46 @@ def test_generate_project_slug_deterministic() -> None:
     )
     # collapses runs and trims
     assert generate_project_slug("  Hello   World!! ") == "hello-world"
+
+
+def test_config_eagle_sync_defaults(tmp_path: Path) -> None:
+    source = tmp_path / "media"
+    source.mkdir()
+    cfg = _write_yaml(
+        tmp_path / "project.yaml",
+        f"""
+project_name: "Demo"
+source_folder: "{source}"
+model_config:
+  provider: "openai_compatible"
+""",
+    )
+    config = load_config(cfg)
+    assert config.eagle_sync.api_base_url == "http://localhost:41595"
+    assert config.eagle_sync.connection_failure_threshold == 5
+    assert config.eagle_sync.api_token is None
+    assert config.eagle_sync.mapping_overrides is None
+    # existing default still holds.
+    assert config.eagle_sync.mode == "dry-run"
+
+
+def test_config_eagle_sync_from_yaml(tmp_path: Path) -> None:
+    source = tmp_path / "media"
+    source.mkdir()
+    cfg = _write_yaml(
+        tmp_path / "project.yaml",
+        f"""
+project_name: "Demo"
+source_folder: "{source}"
+model_config:
+  provider: "openai_compatible"
+eagle_sync:
+  api_base_url: "http://host:9/api/v2/"
+  connection_failure_threshold: 9
+  api_token: "tok"
+""",
+    )
+    config = load_config(cfg)
+    assert config.eagle_sync.api_base_url == "http://host:9/api/v2/"
+    assert config.eagle_sync.connection_failure_threshold == 9
+    assert config.eagle_sync.api_token == "tok"

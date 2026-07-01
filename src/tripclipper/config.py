@@ -61,6 +61,15 @@ class EagleSync(BaseModel):
     enabled: bool = True
     mode: str = "dry-run"
     base_url: str = "http://127.0.0.1:41595/api"
+    # M6: Eagle Web API client settings. Eagle 4.x uses a hybrid V1/V2 API on
+    # the same host root (item/addFromPath is V1-only, item/update and the
+    # tagGroup/* family are V2), so the client takes the host root only and
+    # routes the /api/v2/ vs /api/ prefix internally. The tolerant loader in
+    # EagleV2Client still accepts old configs that ended in /api/v2/ or /api/.
+    api_base_url: str = "http://localhost:41595"
+    api_token: Optional[str] = None
+    connection_failure_threshold: int = 5
+    mapping_overrides: Optional[dict] = None
 
 
 class EditingIntent(BaseModel):

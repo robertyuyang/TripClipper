@@ -8,6 +8,8 @@ import pytest
 
 from tripclipper.paths import (
     cut_index_path,
+    eagle_apply_result_path,
+    eagle_mapping_default_template_path,
     ensure_project_dirs,
     exports_dir,
     frames_dir,
@@ -74,3 +76,16 @@ def test_paths_csv_md_helpers_removed() -> None:
         from tripclipper.paths import segments_csv_path  # noqa: F401
     with pytest.raises(ImportError):
         from tripclipper.paths import summary_md_path  # noqa: F401
+
+
+def test_eagle_apply_result_path(tmp_path: Path) -> None:
+    slug = "demo"
+    assert eagle_apply_result_path(slug, base_dir=tmp_path) == project_dir(
+        slug, base_dir=tmp_path
+    ) / "eagle_apply_result.json"
+
+
+def test_eagle_mapping_default_template_path_exists() -> None:
+    path = eagle_mapping_default_template_path()
+    assert path.parts[-2:] == ("templates", "eagle_mapping.default.yaml")
+    assert path.exists()

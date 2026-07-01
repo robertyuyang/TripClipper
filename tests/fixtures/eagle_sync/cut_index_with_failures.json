@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.3",
+  "project": {
+    "project_name": "Eagle Sync Failure Fixture",
+    "project_slug": "failure-fixture"
+  },
+  "assets": [
+    {
+      "asset_id": "asset_failed_0001",
+      "filename": "broken_clip.mp4",
+      "path": "/tmp/fixtures/broken_clip.mp4",
+      "relative_path": "broken_clip.mp4",
+      "type": "video",
+      "analysis_status": "analysis_failed",
+      "rating": 2,
+      "shot_function": "b_roll",
+      "edit_candidate_status": "needs_review",
+      "failures": [
+        {
+          "stage": "vision",
+          "reason": "LLM timeout",
+          "blocking": false
+        }
+      ]
+    },
+    {
+      "asset_id": "asset_ok_0002",
+      "filename": "good_clip.mp4",
+      "path": "/tmp/fixtures/good_clip.mp4",
+      "relative_path": "good_clip.mp4",
+      "type": "video",
+      "analysis_status": "analyzed",
+      "rating": 4,
+      "shot_function": "highlight",
+      "edit_candidate_status": "default_selected",
+      "failures": []
+    }
+  ]
+}

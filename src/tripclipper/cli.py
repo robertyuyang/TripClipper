@@ -14,8 +14,11 @@ M3 在本文件接通 ``analyze --stage sample/full`` 与 ``run`` 命令，并�
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import sys
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -35,8 +38,18 @@ from .cluster_runner import (
     ClusterRunnerError,
     cluster as runner_cluster,
 )
-from .config import ConfigError, load_config
-from .cut_index import read_cut_index
+from .config import ConfigError, EagleSync, load_config
+from .cut_index import read_cut_index, write_cut_index
+from .eagle_sync import (
+    AssetMapper,
+    EagleSyncRunner,
+    EagleUnavailableError,
+    EagleV2Client,
+    EagleVersionError,
+    SyncOptions,
+    SyncPreconditionError,
+    load_mapping_config,
+)
 from .exporter import (
     ExportError,
     _summarise_for_stdout,
@@ -44,7 +57,7 @@ from .exporter import (
     render_review_html,
 )
 from .models import AnalysisStatus
-from .paths import cut_index_path
+from .paths import cut_index_path, eagle_apply_result_path
 from .project import (
     ProjectError,
     ProjectSummary,
@@ -514,17 +527,209 @@ def export(slug: str, base_dir: str, cut_index_only: bool, open_flag: bool) -> N
 
 
 @main.command(name="sync-eagle")
-@click.option("--project", "project", default=None, help="Project slug.")
+@click.argument("slug")
+@click.option("--base-dir", "base_dir", default=None, help="项目根目录基准。")
 @click.option(
-    "--dry-run/--apply",
-    "dry_run",
-    default=True,
-    help="Plan only (--dry-run) or write to Eagle (--apply).",
+    "--apply/--dry-run",
+    "apply_flag",
+    default=False,
+    help="写入 Eagle（--apply）或仅预览（--dry-run，默认）。",
 )
-def sync_eagle(project: str, dry_run: bool) -> None:
-    """Sync the project to Eagle in dry-run or apply mode (placeholder)."""
-    mode = "dry-run" if dry_run else "apply"
-    click.echo(f"sync-eagle (project={project}, mode={mode}): {_PLACEHOLDER}")
+@click.option(
+    "--skip",
+    "skip_synced",
+    is_flag=True,
+    default=False,
+    help="跳过已同步(synced)素材。",
+)
+@click.option(
+    "--reset",
+    "reset",
+    is_flag=True,
+    default=False,
+    help="把已同步 items 移到回收站并清除 eagle_item_id 后重建（默认需二次确认）。",
+)
+@click.option(
+    "--retry-failed",
+    "retry_failed",
+    is_flag=True,
+    default=False,
+    help="仅处理上次失败(failed)的素材。",
+)
+@click.option(
+    "--skip-unanalyzed",
+    "skip_unanalyzed",
+    is_flag=True,
+    default=False,
+    help="跳过未分析(scanned)素材而非启动期阻断。",
+)
+@click.option(
+    "--strict-mapping",
+    "strict_mapping",
+    is_flag=True,
+    default=False,
+    help="禁用 auto_map_unknown：未声明字段不产 tag。",
+)
+@click.option(
+    "--library-path",
+    "library_path",
+    default=None,
+    help="预期的 Eagle 库路径（.library 结尾）。若与 Eagle 当前打开的库不一致则中止。",
+)
+@click.option(
+    "--yes",
+    "yes",
+    is_flag=True,
+    default=False,
+    help="跳过 --reset 的二次确认（用于 CI）。",
+)
+def sync_eagle(
+    slug,
+    base_dir,
+    apply_flag,
+    skip_synced,
+    reset,
+    retry_failed,
+    skip_unanalyzed,
+    strict_mapping,
+    library_path,
+    yes,
+):
+    """把项目分析结果同步到 Eagle（dry-run 预览 / apply 写入）。"""
+    index_path = cut_index_path(slug, base_dir)
+    if not index_path.exists():
+        click.echo(f"项目 `{slug}` 不存在或尚未扫描/分析。", err=True)
+        sys.exit(2)
+
+    cut = read_cut_index(index_path)
+
+    config = load_mapping_config()
+    if strict_mapping:
+        config = dataclasses.replace(config, auto_map_unknown=False)
+
+    # Eagle client 连接参数：优先读项目 project.yaml.eagle_sync；缺失则默认。
+    project_config_path = cut.project.config_path
+    eagle_settings = EagleSync()
+    if project_config_path and Path(project_config_path).is_file():
+        try:
+            eagle_settings = load_config(project_config_path).eagle_sync
+        except ConfigError:
+            # 配置损坏时不影响 sync-eagle，仍用默认值。
+            eagle_settings = EagleSync()
+
+    # --reset 二次确认（仅 apply 时 reset 生效）
+    if reset and apply_flag and not yes:
+        count = sum(1 for a in cut.assets if a.eagle_item_id)
+        click.confirm(
+            f"将把 {count} 条 Eagle items 移到回收站，是否继续?", abort=True
+        )
+
+    sync_timestamp = datetime.now(timezone.utc).isoformat()
+
+    options = SyncOptions(
+        apply=apply_flag,
+        skip_synced=skip_synced,
+        reset=reset,
+        retry_failed=retry_failed,
+        skip_unanalyzed=skip_unanalyzed,
+        strict_mapping=strict_mapping,
+    )
+
+    project_slug = cut.project.project_slug or slug
+
+    try:
+        with EagleV2Client(
+            base_url=eagle_settings.api_base_url,
+            api_token=eagle_settings.api_token,
+        ) as client:
+            # 启动期库路径校验：如指定 --library-path，必须与 Eagle 当前打开的库
+            # 一致，避免误把素材写进另一个库。M6 不主动 switch，只做门禁。
+            if library_path:
+                try:
+                    live_library = client.fetch_library()
+                except EagleUnavailableError as exc:
+                    click.echo(
+                        f"无法连接到 Eagle：{exc}\n"
+                        "请确认 Eagle 应用已启动，且版本 ≥ 4.0 Build 21。",
+                        err=True,
+                    )
+                    sys.exit(2)
+                except EagleVersionError as exc:
+                    click.echo(
+                        f"Eagle 版本过低：{exc}\n"
+                        "需要 Eagle V2 Web API（版本 ≥ 4.0 Build 21）。",
+                        err=True,
+                    )
+                    sys.exit(2)
+                live_path = (live_library or {}).get("path") or ""
+                if Path(live_path).resolve() != Path(library_path).resolve():
+                    click.echo(
+                        f"Eagle 当前打开的库与 --library-path 不一致：\n"
+                        f"  期望: {library_path}\n"
+                        f"  当前: {live_path or '(未知)'}\n"
+                        "请在 Eagle 中切换到目标库后重试。",
+                        err=True,
+                    )
+                    sys.exit(2)
+
+            mapper = AssetMapper(
+                config, project_slug=project_slug, sync_timestamp=sync_timestamp
+            )
+            runner = EagleSyncRunner(
+                client,
+                mapper,
+                config,
+                options,
+                eagle_library_path=library_path,
+            )
+            updated_cut, result = runner.run(cut)
+    except EagleUnavailableError as exc:
+        click.echo(
+            f"无法连接到 Eagle：{exc}\n"
+            "请确认 Eagle 应用已启动，且版本 ≥ 4.0 Build 21。",
+            err=True,
+        )
+        sys.exit(2)
+    except EagleVersionError as exc:
+        click.echo(
+            f"Eagle 版本过低：{exc}\n"
+            "需要 Eagle V2 Web API（版本 ≥ 4.0 Build 21）。",
+            err=True,
+        )
+        sys.exit(2)
+    except SyncPreconditionError as exc:
+        click.echo(f"无法开始同步：{exc}", err=True)
+        sys.exit(2)
+
+    if apply_flag:
+        # 持久化成功项（即使中途中止也保留已成功的写回）。
+        write_cut_index(index_path, updated_cut)
+        result_path = eagle_apply_result_path(slug, base_dir)
+        result_path.write_text(
+            json.dumps(result.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    totals = result.totals
+    if not apply_flag:
+        click.echo(
+            f"[dry-run] 待同步 {totals['synced']} 条素材"
+            f"（总计 {totals['total']}，跳过 {totals['skipped']}）。未写入 Eagle。"
+        )
+    else:
+        if result.aborted:
+            click.echo(f"❌ 已中止：{result.abort_reason}", err=True)
+        else:
+            click.echo(
+                f"✅ 已同步 {totals['synced']}/{totals['total']} 条素材到 Eagle。"
+            )
+        if totals["failed"] > 0:
+            click.echo(
+                f"⚠️ {totals['failed']} 条失败，详见 eagle_apply_result.json。"
+            )
+
+    if result.tag_group_warnings:
+        click.echo(f"⚠️ {len(result.tag_group_warnings)} 个 tag group 维护警告。")
 
 
 if __name__ == "__main__":  # pragma: no cover
