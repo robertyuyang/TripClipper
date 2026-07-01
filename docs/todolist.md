@@ -24,6 +24,24 @@
   - 离线跑还是分析时顺便产出
   - 是否需要跨项目共享场景定义
 
+### Eagle 同步防重复导入（sha1 去重）
+
+- 背景：M6 `sync-eagle` 当前实现走"信任 cut_index"路径——若 `cut_index.eagle_item_id` 非空走 update，否则直接 `addFromPath` 创建新 item。
+- 已知风险：在以下场景会让 Eagle 库里出现同一文件的多条 item：
+  - 用户在跑 TripClipper 之前手工把素材拖进了 Eagle，cut_index 不知道这些 item 已存在。
+  - cut_index.json 损坏 / 删除 / 重建，导致已有的 `eagle_item_id` 全部丢失，再次同步会全员 re-import。
+  - 多个 TripClipper 项目共用同一 Eagle 库，且素材文件路径有重叠。
+  - 用户搬移项目目录，cut_index 里的绝对路径变化但 sha1 不变。
+- 想法：在 `sync-eagle` 写入前增加一道 sha1（或 path）匹配步骤——若 Eagle 库中已存在同 sha1 的 item，把它的 id 回写进 `cut_index.eagle_item_id` 后走 update 路径，不再 `addFromPath`。
+- 期望产出：
+  - 同一文件在 Eagle 库里最多一条 item，无论 cut_index 状态如何。
+  - 跨项目、用户手工导入、目录迁移等场景都能自动 link 而非重复导入。
+  - 失败情况（Eagle V2 不支持 sha1 lookup 时）能优雅降级到 path lookup。
+- 待确认：
+  - Eagle V2 Web API 是否支持按 sha1 / 路径批量查询 item（待 spec 阶段实测确认 API 形式）。
+  - N 条素材每条多一次 GET 是否需要批量化（V2 一般支持 POST 带数组批量查）。
+  - cut_index 里命中 sha1 但 path 不一致时（用户搬过目录）的处理：以 sha1 为准 link 还是提示用户。
+
 ### 统一参数输入，统一参数重跑
 
 - 想法：把一次项目运行涉及的所有可调参数（扫描、采样、模型、prompt、导出选项等）收敛成一份统一的"运行参数"对象，整个流水线都从它读取；同一份参数可以用来一键重跑。

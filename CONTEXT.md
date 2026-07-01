@@ -42,10 +42,12 @@ TripClipper 把"从一堆原始素材到一份可剪辑清单"分成三段连续
   组成 = 所有非雷同素材 + 所有高置信组的 `primary_asset_id`，再做"主体 × 景别"基础平衡。
 
 - **`edit_candidate_status`**（枚举：`default_selected` / `alternate` / `excluded` / `needs_review`）：素材在**全局候选池**的角色。
-  - `default_selected`：默认入选（Eagle 主列表展示）
-  - `alternate`：备选（Eagle 折叠在雷同组下展示）
-  - `excluded`：不参与默认候选（rating 太低 / 组内 rejected / 平衡修剪命中）
+  - `default_selected`：默认入选，剪辑会优先使用
+  - `alternate`：备选；review.html 中可在组内一键切换为主选
+  - `excluded`：不参与默认候选（具体来源由 M4 决定，详见 [ADR-002](./docs/adr/ADR-002-deterministic-candidate-pool.md)）
   - `needs_review`：分析或仲裁置信度不足，需用户手动决定
+
+  本字段是**纯候选池角色**定义，不绑定任何下游展示工具的视图形态。M5 review.html / M6 Eagle 同步等下游模块决定如何呈现这些状态，但不能改变它们的语义。
 
 - **`edit_candidate_priority`**（int）：候选池内排序权重；用于 UI 默认排序。
 
@@ -81,6 +83,7 @@ init → scan → sample → full → cluster → export → sync-eagle
 
 - **ADR-001**：M4 雷同主选挑选采用「本地启发式聚组 + 组级 LLM 仲裁」组合方案。
 - **ADR-002**：M4 默认候选池采用确定性后处理（零 LLM），不为候选池本身打模型。
+- **ADR-004**：M6 Eagle 同步设计为通用字段映射层（薄原则），不创造业务语义、不做业务过滤。
 
 ## 数据契约口径
 

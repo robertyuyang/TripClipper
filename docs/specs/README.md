@@ -40,7 +40,7 @@ docs/specs/
 | wire-m4-into-review-html | 把 M4 决策接入 review.html | FR-6/FR-8（HTML） | M4、M5-early | 已完成 |
 | trustworthy-clip-timecodes | 视频 segments 时间码可信化（ADR-003） | FR-3/FR-4；TD 6 | M0、M2、M3 | 已完成 |
 | M5 | 数据包导出与只读报告 | FR-7/FR-8；TD 9 | M3、M4 | 定稿（待用户审） |
-| M6 | Eagle 同步（预览+正式） | FR-9/FR-10；TD 10 | M5 | 待开始 |
+| M6 | Eagle 同步（预览+正式） | FR-9/FR-10；TD 10 | M5 | 定稿（待用户审）|
 | M7 | 本地启动页与状态面板 | PRD 5.2；TD 11 | M1~M6 | 待开始 |
 | M8 | 错误记录与可观测性（横切） | FR-11；PRD 8 | 横切 | 待开始 |
 
