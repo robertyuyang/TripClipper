@@ -1,0 +1,40 @@
+src/tripclipper/templates/review.html.tmpl
+  s_ae285f5bcc95ae::t_fe6d9e7a3b937f 5
+  s_ae285f5bcc95ae::t_193f94bffd20ba 76-92
+  s_ae285f5bcc95ae::t_f27abf1ba62918 146-154
+  s_ae285f5bcc95ae::t_dd7f8fd7565117 337-466
+  s_ae285f5bcc95ae::t_7c261a0b3b655d 244-245,259-278,292,294-296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "222d39bb1ffca9f4c50bf298415f148883a99943",
+  "prompts": {},
+  "sessions": {
+    "s_ae285f5bcc95ae": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a435f32efdb06da77992379",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {
+    "s_88c3e314e8be7c": {
+      "tool": "trae",
+      "conversation_id": "6a44dbf8efdb06da77992e5c",
+      "session_id": "6a44dbf8efdb06da77992e5c",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_88c3e314e8be7c::t_cd6c9c1981a177": {
+      "tool": "trae",
+      "conversation_id": "6a44dbf8efdb06da77992e5c",
+      "session_id": "6a44dbf8efdb06da77992e5c",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
