@@ -92,6 +92,10 @@ _EMPTY_WARNING_SUGGESTION = (
     "确认 source_folder 指向正确的素材目录，或放入受支持的视频/图片/音频文件"
 )
 _MISSING_WARNING_REASON_PREFIX = "源目录中已不存在该素材文件"
+_COMMON_MEDIA_TOOL_DIRS = (
+    Path("/opt/homebrew/bin"),
+    Path("/usr/local/bin"),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -127,10 +131,22 @@ def classify_file(path: _PathLike) -> Optional[AssetType]:
     return SUPPORTED_EXTENSIONS.get(suffix)
 
 
+def _resolve_media_tool(name: str) -> Optional[str]:
+    """Resolve ``ffmpeg``/``ffprobe`` from PATH, then common Homebrew prefixes."""
+    found = shutil.which(name)
+    if found is not None:
+        return found
+    for tool_dir in _COMMON_MEDIA_TOOL_DIRS:
+        candidate = tool_dir / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
 def detect_capabilities() -> Capabilities:
     """用 ``shutil.which`` 探测 ffmpeg/ffprobe 是否可用，返回 M0 ``Capabilities``。"""
-    has_ffmpeg = shutil.which("ffmpeg") is not None
-    has_ffprobe = shutil.which("ffprobe") is not None
+    has_ffmpeg = _resolve_media_tool("ffmpeg") is not None
+    has_ffprobe = _resolve_media_tool("ffprobe") is not None
 
     if has_ffmpeg and has_ffprobe:
         notes = "ffmpeg 与 ffprobe 均可用"
@@ -216,11 +232,12 @@ def _run_ffprobe(path: _PathLike) -> dict:
 
     失败（工具缺失、非零退出、超时、JSON 解析失败、无视频流）抛 :class:`_ToolError`。
     """
-    if shutil.which("ffprobe") is None:
+    ffprobe = _resolve_media_tool("ffprobe")
+    if ffprobe is None:
         raise _ToolError("ffprobe 不可用")
 
     cmd = [
-        "ffprobe",
+        ffprobe,
         "-v",
         "error",
         "-print_format",
@@ -280,13 +297,14 @@ def _run_ffmpeg_thumbnail(path: _PathLike, out_path: _PathLike) -> Path:
 
     失败抛 :class:`_ToolError`。
     """
-    if shutil.which("ffmpeg") is None:
+    ffmpeg = _resolve_media_tool("ffmpeg")
+    if ffmpeg is None:
         raise _ToolError("ffmpeg 不可用")
 
     target = Path(out_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "ffmpeg",
+        ffmpeg,
         "-v",
         "error",
         "-y",
@@ -320,7 +338,8 @@ def _run_ffmpeg_frames(
     得到时长时退化为下限 3 帧，时间戳取均匀分布（无 duration 时统一以 1.0s
     一个点回填）。失败抛 :class:`_ToolError`。
     """
-    if shutil.which("ffmpeg") is None:
+    ffmpeg = _resolve_media_tool("ffmpeg")
+    if ffmpeg is None:
         raise _ToolError("ffmpeg 不可用")
 
     out = Path(out_dir)
@@ -338,7 +357,7 @@ def _run_ffmpeg_frames(
     for idx, ts in enumerate(timestamps):
         frame_path = out / f"{stem}_frame{idx + 1:02d}.jpg"
         cmd = [
-            "ffmpeg",
+            ffmpeg,
             "-v",
             "error",
             "-y",
@@ -540,6 +559,11 @@ def scan_project(
         )
 
     capabilities = detect_capabilities()
+    if extract_media and not (capabilities.ffmpeg and capabilities.ffprobe):
+        raise ScanError(
+            "扫描需要 ffmpeg 与 ffprobe，当前环境不可用。"
+            "请安装 ffmpeg（含 ffprobe）并确认命令在 PATH 中后重试。"
+        )
 
     existing_by_id: dict[str, Asset] = {
         a.asset_id: a for a in cut.assets if a.asset_id

@@ -385,6 +385,41 @@ def test_cluster_arbitration_failures_recorded_three_places(monkeypatch, tmp_pat
     assert cut.clustering.arbitration_failures > 0
 
 
+def test_cluster_success_rerun_clears_previous_project_level_failures(
+    monkeypatch, tmp_path
+):
+    """cluster 首次失败后再次成功，旧的 stage=cluster 项目级 failures 应清空。"""
+    assets = [
+        _make_analyzed_asset(
+            "b1",
+            subject_type=SubjectType.building,
+            modified_time="2025-06-12T11:41:46+00:00",
+        ),
+        _make_analyzed_asset(
+            "b2",
+            subject_type=SubjectType.building,
+            modified_time="2025-06-12T11:41:56+00:00",
+        ),
+    ]
+    slug, base_dir = _setup_project(tmp_path, assets=assets)
+
+    monkeypatch.setattr(cluster_runner, "Arbiter", _FakeArbiterAlwaysFailsTransient)
+    cluster_runner.cluster(slug, base_dir=base_dir)
+
+    monkeypatch.setattr(cluster_runner, "Arbiter", _FakeArbiterSuccess)
+    cluster_runner.cluster(slug, base_dir=base_dir)
+
+    from tripclipper.cut_index import read_cut_index
+
+    cut = read_cut_index(cut_index_path(slug, base_dir))
+    cluster_failures = [f for f in cut.failures if f.stage == "cluster"]
+
+    assert cluster_failures == []
+    assert cut.clustering is not None
+    assert cut.clustering.status == "completed"
+    assert cut.clustering.arbitration_failures == 0
+
+
 # ---------------------------------------------------------------------------
 # SubTask 8.15：日志脱敏（直接测 ClusterLogger）
 # ---------------------------------------------------------------------------

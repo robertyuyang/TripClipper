@@ -91,6 +91,7 @@ def _clear_previous_run(cut: CutIndex) -> None:
     """重跑时清空所有 cluster 相关字段（spec ADDED Requirements: cluster 重跑自动清空旧分组）。"""
     cut.similar_groups = []
     cut.default_candidates = []
+    cut.failures = [f for f in cut.failures if f.stage != _CLUSTER_STAGE]
     for asset in cut.assets:
         asset.similar_group_id = None
         asset.similar_selection = None

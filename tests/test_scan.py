@@ -144,6 +144,22 @@ def test_detect_capabilities_real_env() -> None:
     assert cap.notes
 
 
+def test_detect_capabilities_falls_back_to_homebrew_paths(monkeypatch) -> None:
+    """即使 agent 进程 PATH 缺 /opt/homebrew/bin，也应认出已安装的 ffmpeg。"""
+    if not (
+        Path("/opt/homebrew/bin/ffmpeg").exists()
+        and Path("/opt/homebrew/bin/ffprobe").exists()
+    ):
+        pytest.skip("当前机器未安装 Homebrew ffmpeg/ffprobe")
+
+    monkeypatch.setenv("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+
+    cap = detect_capabilities()
+
+    assert cap.ffmpeg is True
+    assert cap.ffprobe is True
+
+
 # ---------------------------------------------------------------------------
 # 6.1 / 6.2 递归发现 + 大小写不敏感
 # ---------------------------------------------------------------------------
@@ -368,43 +384,24 @@ def test_frame_timestamps_stable_across_rescans(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 6.5 真实空 PATH → 优雅降级（不崩溃，基础信息仍写入）
+# 6.5 真实空 PATH → 默认硬失败（不允许降级）
 # ---------------------------------------------------------------------------
 
 
-def test_graceful_degradation_empty_path(
+def test_scan_requires_media_tools_by_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = _symlink_source(tmp_path, {"clip.MP4": SMALL_VIDEO})
     _config, base = _setup_project(tmp_path, source)
 
-    # 真实地把 PATH 指向一个空目录，让 shutil.which 真实找不到工具。
+    # PATH 为空 + Homebrew 兜底目录也置空，确保真实不可解析到 ffmpeg/ffprobe。
     empty = tmp_path / "empty_bin"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
+    monkeypatch.setattr("tripclipper.scan._COMMON_MEDIA_TOOL_DIRS", ())
 
-    result = scan_project(SLUG, base_dir=base, extract_media=True)
-
-    assert result.capabilities.ffmpeg is False
-    assert result.capabilities.ffprobe is False
-    assert result.total == 1
-
-    cut = read_cut_index(cut_index_path(SLUG, base_dir=base))
-    asset = cut.assets[0]
-    # 基础信息仍写入。
-    assert asset.asset_id
-    assert asset.size and asset.size > 0
-    # 无媒体信息与缩略图/关键帧。
-    assert asset.metadata == {}
-    assert asset.thumbnail_path is None
-    assert asset.frame_paths == []
-    assert asset.frame_timestamps == []
-    # 含一条 stage=scan 的能力警告。
-    cap_warnings = [
-        w for w in cut.warnings if w.stage == "scan" and "ffmpeg/ffprobe" in (w.reason or "")
-    ]
-    assert cap_warnings
-    assert all(w.blocking is False for w in cap_warnings)
+    with pytest.raises(ScanError, match="ffmpeg|ffprobe|安装"):
+        scan_project(SLUG, base_dir=base, extract_media=True)
 
 
 # ---------------------------------------------------------------------------
