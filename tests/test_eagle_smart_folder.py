@@ -52,6 +52,33 @@ def test_smart_folder_list_empty() -> None:
     assert _client_with(handler).smart_folder_list() == []
 
 
+def test_smart_folder_list_unwraps_paginated_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {
+                    "data": [
+                        {
+                            "id": "SF1",
+                            "name": "TC · demo · 精选高光",
+                            "conditions": [],
+                            "match": "AND",
+                        }
+                    ],
+                    "total": 1,
+                    "offset": 0,
+                    "limit": 50,
+                },
+            },
+        )
+
+    result = _client_with(handler).smart_folder_list()
+    assert len(result) == 1
+    assert result[0]["id"] == "SF1"
+
+
 def test_smart_folder_create_returns_id() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/api/v2/smartFolder/create")

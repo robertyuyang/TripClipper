@@ -320,7 +320,11 @@ class EagleV2Client:
     def smart_folder_list(self) -> list[dict]:
         """Return the raw smart-folder list from Eagle V2."""
         data = self._get(self._V2 + "smartFolder/get")
-        return data if isinstance(data, list) else []
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and isinstance(data.get("data"), list):
+            return data["data"]
+        return []
 
     def smart_folder_create(self, payload: dict) -> str:
         """Create one smart folder and return its id."""

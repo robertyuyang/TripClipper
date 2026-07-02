@@ -52,6 +52,14 @@ def test_load_default_smart_folders() -> None:
     ]
 
 
+def test_default_smart_folder_rules_match_eagle_tag_set_schema() -> None:
+    cfg = load_mapping_config()
+    for preset in cfg.smart_folder_presets:
+        for rule in preset.rules:
+            assert rule.property == "tags"
+            assert rule.method == "intersection"
+
+
 def test_smart_folder_override_replaces_by_key() -> None:
     overrides = {
         "smart_folders": [
