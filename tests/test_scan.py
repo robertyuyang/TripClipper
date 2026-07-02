@@ -163,6 +163,30 @@ def test_discovers_all_real_videos(real_scan) -> None:
     assert exts == {".mp4", ".mov"}  # extension 统一小写
 
 
+def test_scan_assigns_sessions(real_scan) -> None:
+    _result, cut, _base, _slug = real_scan
+    # session 切分随 scan 自动发生：cut.sessions 非空。
+    assert cut.sessions, "scan 应产出至少一个 session"
+    # 每个 session 的计数与其成员数一致。
+    for s in cut.sessions:
+        assert s.asset_count == len(s.asset_ids)
+    # 每个 asset 都被贴上 session_id，且属于其所在 session 的成员集合。
+    by_session: dict[str, set[str]] = {
+        s.session_id: set(s.asset_ids) for s in cut.sessions
+    }
+    for a in cut.assets:
+        assert a.session_id, f"{a.asset_id} 缺 session_id"
+        assert a.asset_id in by_session[a.session_id]
+    # 所有 session 覆盖全部 asset，无重复无遗漏。
+    covered = [aid for s in cut.sessions for aid in s.asset_ids]
+    assert sorted(covered) == sorted(a.asset_id for a in cut.assets)
+
+
+def test_scan_result_reports_session_count(real_scan) -> None:
+    result, cut, _base, _slug = real_scan
+    assert result.session_count == len(cut.sessions)
+
+
 def test_non_media_skipped(tmp_path: Path) -> None:
     source = _symlink_source(tmp_path, {"clip.MP4": SMALL_VIDEO})
     (source / "note.txt").write_text("hello", encoding="utf-8")

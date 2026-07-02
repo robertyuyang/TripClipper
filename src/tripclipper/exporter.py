@@ -46,6 +46,7 @@ from .models import (
     SimilarGroup,
     SimilarSelection,
 )
+from .session_splitter import UNKNOWN_SESSION_ID
 from .paths import (
     cut_index_path,
     exported_cut_index_path,
@@ -62,6 +63,7 @@ _FAILURE_REASON_MAX_LEN = 80
 _SIMILAR_REASON_MAX_LEN = 80
 _CANDIDATE_REASON_MAX_LEN = 80
 _TAGS_VISIBLE = 5
+_THUMB_GRID_VISIBLE = 9
 _KIB = 1024
 _MIB = _KIB * 1024
 _GIB = _MIB * 1024
@@ -96,6 +98,8 @@ class OverviewCounts:
     total_assets: int = 0
     counts_by_type: dict[str, int] = field(default_factory=dict)
     counts_by_status: dict[str, int] = field(default_factory=dict)
+    session_count: int = 0
+    session_unknown_count: int = 0
 
 
 def _compute_overview_counts(cut_index: CutIndex) -> OverviewCounts:
@@ -135,6 +139,13 @@ def _compute_overview_counts(cut_index: CutIndex) -> OverviewCounts:
         if group.needs_review:
             similar_needs_review_count += 1
 
+    session_count = 0
+    session_unknown_count = 0
+    for session in cut_index.sessions or []:
+        session_count += 1
+        if session.session_id == UNKNOWN_SESSION_ID:
+            session_unknown_count += session.asset_count or len(session.asset_ids or [])
+
     return OverviewCounts(
         rating_distribution=rating_dist,
         similar_group_count=similar_group_count,
@@ -144,6 +155,8 @@ def _compute_overview_counts(cut_index: CutIndex) -> OverviewCounts:
         total_assets=len(cut_index.assets or []),
         counts_by_type=counts_by_type,
         counts_by_status=counts_by_status,
+        session_count=session_count,
+        session_unknown_count=session_unknown_count,
     )
 
 
@@ -181,6 +194,12 @@ def _render_overview_section(counts: OverviewCounts) -> str:
             f"needs_review ×{cc.get('needs_review', 0)}"
         )
         rows.append(f'<div class="overview-row">{html.escape(cand_text)}</div>')
+
+    if counts.session_count > 0:
+        session_text = f"共 {counts.session_count} 个 session"
+        if counts.session_unknown_count > 0:
+            session_text += f"（含 unknown {counts.session_unknown_count} 张）"
+        rows.append(f'<div class="overview-row">{html.escape(session_text)}</div>')
 
     return f'<div class="overview">{"".join(rows)}</div>'
 
@@ -556,6 +575,21 @@ def _format_candidate_cell(asset: Asset) -> str:
     return head
 
 
+def _format_session_cell(asset: Asset) -> str:
+    """Render the session column for one asset in the flat table.
+
+    Empty string for assets without a session. ``session_00_unknown`` renders as
+    a muted grey badge so the "time missing" bucket reads differently from real
+    activity segments.
+    """
+    sid = asset.session_id
+    if not sid:
+        return ""
+    if sid == UNKNOWN_SESSION_ID:
+        return f'<span class="session-badge session-unknown">{html.escape(sid)}</span>'
+    return f'<span class="session-badge">{html.escape(sid)}</span>'
+
+
 def _render_similar_groups_section(cut: CutIndex) -> str:
     """Render the top-of-page similar-groups panel.
 
@@ -670,10 +704,20 @@ def _render_group_member(asset: Asset) -> str:
     )
 
 
-def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
-    """Render a single asset as a ``<tr>...</tr>`` HTML string."""
+def _asset_to_row(
+    asset: Asset,
+    project_dir_path: Path,
+    *,
+    row_class: str = "asset-row",
+    include_session: bool = True,
+) -> str:
+    """Render a single asset as a ``<tr>...</tr>`` HTML string.
+
+    ``include_session`` toggles the trailing session column for callers that want
+    the same row layout without repeating the flat-table session badge.
+    """
     status = asset.analysis_status
-    row_class = _format_row_class(status)
+    row_status_class = _format_row_class(status)
     status_class = _format_status_class(status)
 
     asset_id = html.escape(asset.asset_id or "")
@@ -689,12 +733,17 @@ def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
 
     thumb_uris = _thumbnail_uris(asset)
     if thumb_uris:
+        visible_thumb_uris = thumb_uris[:_THUMB_GRID_VISIBLE]
         thumb_imgs = "".join(
             f'<img src="{html.escape(uri)}" alt="" '
             f'onerror="this.style.display=&quot;none&quot;">'
-            for uri in thumb_uris
+            for uri in visible_thumb_uris
         )
-        thumb_html = f'<div class="thumb-strip">{thumb_imgs}</div>'
+        overflow = len(thumb_uris) - len(visible_thumb_uris)
+        overflow_html = (
+            f'<span class="thumb-overflow">+{overflow}</span>' if overflow > 0 else ""
+        )
+        thumb_html = f'<div class="thumb-strip">{thumb_imgs}{overflow_html}</div>'
     else:
         thumb_html = '<div class="no-thumb">[无缩略图]</div>'
 
@@ -724,15 +773,21 @@ def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
 
     placeholder_m4_similar = _format_similar_cell(asset)
     placeholder_m4_candidate = _format_candidate_cell(asset)
+    session_html = _format_session_cell(asset)
     status_label = (
         f'<span class="{status_class}">{html.escape(status_value)}</span>'
     )
 
     similar_gid_attr = html.escape(asset.similar_group_id or "")
     candidate_status_attr = html.escape(_enum_value(asset.edit_candidate_status))
+    session_id_attr = html.escape(asset.session_id or "")
+
+    session_cell_html = (
+        f'<td class="session-cell">{session_html}</td>' if include_session else ""
+    )
 
     return (
-        f'<tr class="asset-row {row_class}"'
+        f'<tr class="{row_class} {row_status_class}"'
         f' data-asset-id="{asset_id}"'
         f' data-subject-type="{html.escape(subject_type)}"'
         f' data-shot-scale="{html.escape(shot_scale)}"'
@@ -740,6 +795,7 @@ def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
         f' data-rating="{html.escape(rating_value)}"'
         f' data-similar-group-id="{similar_gid_attr}"'
         f' data-edit-candidate-status="{candidate_status_attr}"'
+        f' data-session-id="{session_id_attr}"'
         f' data-search="{html.escape(search_blob)}">'
         f'<td class="thumb-cell">{thumb_html}</td>'
         f'<td class="filename-cell" title="{html.escape(filename)}">{html.escape(filename)}</td>'
@@ -749,21 +805,20 @@ def _asset_to_row(asset: Asset, project_dir_path: Path) -> str:
         f'<td>{html.escape(people_presence)}</td>'
         f'<td>{html.escape(shot_scale)}</td>'
         f'<td>{html.escape(shot_function)}</td>'
-        f'<td>{tags_html}</td>'
+        f'<td class="tags-cell">{tags_html}</td>'
         f'<td class="summary-cell">{summary_html}</td>'
         f'<td>{segments_html}</td>'
         f'<td>{audio_strategy}</td>'
         f'<td>{placeholder_m4_similar}</td>'
         f'<td>{placeholder_m4_candidate}</td>'
+        f'{session_cell_html}'
         f'<td>{status_label}</td>'
         f'</tr>'
     )
 
-
 def _render_project_header(cut_index: CutIndex) -> str:
     project = cut_index.project
     model = project.model_config_summary or {}
-
     counts_by_type: dict[str, int] = {}
     counts_by_status: dict[str, int] = {}
     for asset in cut_index.assets:

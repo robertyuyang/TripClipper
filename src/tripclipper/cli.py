@@ -204,9 +204,52 @@ def _print_scan_result(result: ScanResult) -> None:
     click.echo(f"  单文件失败     : {result.failures}")
     click.echo(f"  ffmpeg 可用    : {cap.ffmpeg}")
     click.echo(f"  ffprobe 可用   : {cap.ffprobe}")
+    click.echo(f"  切分 session   : {result.session_count} 个（gap=1h）")
     click.echo(f"  cut_index      : {result.cut_index_path}")
     if result.is_empty:
         click.echo("  提示：未发现可处理媒体。")
+
+
+def _format_session_preview_line(session) -> str:
+    """One ``Sessions preview`` row: id + time range + count."""
+    label = session.session_id.ljust(20)
+    count = f"n={session.asset_count}"
+    if session.started_at is not None and session.ended_at is not None:
+        # started_at/ended_at are stored in UTC; show local wall-clock time.
+        start_dt = session.started_at
+        end_dt = session.ended_at
+        if start_dt.tzinfo is not None:
+            start_dt = start_dt.astimezone()
+        if end_dt.tzinfo is not None:
+            end_dt = end_dt.astimezone()
+        start = start_dt.strftime("%Y-%m-%d %H:%M")
+        end = end_dt.strftime("%H:%M")
+        return f"  {label}  {start} → {end}  {count}"
+    return f"  {label}  {'':<24}{count}"
+
+
+def _render_sessions_preview(sessions) -> list[str]:
+    """Build the ``Sessions preview (gap=1h)`` block for dry-run output.
+
+    When there are more than 12 sessions, show the first 5 and last 5 with a
+    ``... (N sessions omitted) ...`` marker in between.
+    """
+    if not sessions:
+        return []
+    lines = ["Sessions preview (gap=1h):"]
+    if len(sessions) > 12:
+        head = sessions[:5]
+        tail = sessions[-5:]
+        omitted = len(sessions) - 10
+        for s in head:
+            lines.append(_format_session_preview_line(s))
+        lines.append(f"  ... ({omitted} sessions omitted) ...")
+        for s in tail:
+            lines.append(_format_session_preview_line(s))
+    else:
+        for s in sessions:
+            lines.append(_format_session_preview_line(s))
+    return lines
 
 
 def _render_tag_group_warning_lines(warnings) -> list[str]:
@@ -584,7 +627,8 @@ def export(slug: str, base_dir: str, cut_index_only: bool) -> None:
     "--library-path",
     "library_path",
     default=None,
-    help="预期的 Eagle 库路径（.library 结尾）。若与 Eagle 当前打开的库不一致则中止。",
+    help="预期的 Eagle 库路径（.library 结尾）。若与 Eagle 当前打开的库不一致则中止。"
+    "未传时回落到 project.yaml 的 eagle_sync.library_path。",
 )
 @click.option(
     "--yes",
@@ -627,6 +671,9 @@ def sync_eagle(
             # 配置损坏时不影响 sync-eagle，仍用默认值。
             eagle_settings = EagleSync()
 
+    # 库路径门禁：命令行 --library-path 优先；未传则回落到 project.yaml。
+    effective_library_path = library_path or eagle_settings.library_path
+
     # --reset 二次确认（仅 apply 时 reset 生效）
     if reset and apply_flag and not yes:
         count = sum(1 for a in cut.assets if a.eagle_item_id)
@@ -652,9 +699,10 @@ def sync_eagle(
             base_url=eagle_settings.api_base_url,
             api_token=eagle_settings.api_token,
         ) as client:
-            # 启动期库路径校验：如指定 --library-path，必须与 Eagle 当前打开的库
-            # 一致，避免误把素材写进另一个库。M6 不主动 switch，只做门禁。
-            if library_path:
+            # 启动期库路径校验：如指定 --library-path（或 project.yaml 里配置了
+            # library_path），必须与 Eagle 当前打开的库一致，避免误把素材写进
+            # 另一个库。M6 不主动 switch，只做门禁。
+            if effective_library_path:
                 try:
                     live_library = client.fetch_library()
                 except EagleUnavailableError as exc:
@@ -672,10 +720,15 @@ def sync_eagle(
                     )
                     sys.exit(2)
                 live_path = (live_library or {}).get("path") or ""
-                if Path(live_path).resolve() != Path(library_path).resolve():
+                if Path(live_path).resolve() != Path(effective_library_path).resolve():
+                    source = (
+                        "--library-path"
+                        if library_path
+                        else "project.yaml 的 eagle_sync.library_path"
+                    )
                     click.echo(
-                        f"Eagle 当前打开的库与 --library-path 不一致：\n"
-                        f"  期望: {library_path}\n"
+                        f"Eagle 当前打开的库与期望不一致（期望值来自 {source}）：\n"
+                        f"  期望: {effective_library_path}\n"
                         f"  当前: {live_path or '(未知)'}\n"
                         "请在 Eagle 中切换到目标库后重试。",
                         err=True,
@@ -690,7 +743,7 @@ def sync_eagle(
                 mapper,
                 config,
                 options,
-                eagle_library_path=library_path,
+                eagle_library_path=effective_library_path,
             )
             updated_cut, result = runner.run(cut)
     except EagleUnavailableError as exc:
@@ -726,6 +779,8 @@ def sync_eagle(
             f"[dry-run] 待同步 {totals['synced']} 条素材"
             f"（总计 {totals['total']}，跳过 {totals['skipped']}）。未写入 Eagle。"
         )
+        for line in _render_sessions_preview(cut.sessions):
+            click.echo(line)
     else:
         if result.aborted:
             click.echo(f"❌ 已中止：{result.abort_reason}", err=True)
@@ -741,6 +796,8 @@ def sync_eagle(
     if result.tag_group_warnings:
         for line in _render_tag_group_warning_lines(result.tag_group_warnings):
             click.echo(line)
+    if getattr(result, "folder_warnings", None):
+        click.echo(f"⚠️ {len(result.folder_warnings)} 个 session folder 归属警告。")
 
 
 if __name__ == "__main__":  # pragma: no cover

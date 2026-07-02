@@ -10,6 +10,7 @@ Field shape is aligned with the technical design document, chapter 7
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
@@ -156,6 +157,7 @@ class Asset(BaseModel):
     audio_suggestion: Optional[str] = None
     audio_strategy: Optional[str] = None
     similar_group_id: Optional[str] = None
+    session_id: Optional[str] = None
     similar_selection: Optional[SimilarSelection] = None
     similar_rank: Optional[int] = None
     similar_reason: Optional[str] = None
@@ -183,6 +185,24 @@ class SimilarGroup(BaseModel):
     confidence: Optional[float] = None
     needs_review: bool = False
     reason: Optional[str] = None
+
+
+class Session(BaseModel):
+    """A time-contiguous activity segment of assets (session-splitting spec §1).
+
+    Dual to :class:`SimilarGroup`: produced by the scan stage's
+    ``session_splitter`` and persisted so Eagle sync, review.html and export
+    consume one shared grouping. ``session_id`` is ``session_01``,
+    ``session_02``, ... or ``session_00_unknown`` for assets missing a time.
+    """
+
+    model_config = _MODEL_CONFIG
+
+    session_id: str
+    asset_ids: list[str] = Field(default_factory=list)
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    asset_count: int = 0
 
 
 class DefaultCandidate(BaseModel):
@@ -300,6 +320,7 @@ class CutIndex(BaseModel):
     clustering: Optional[ClusteringInfo] = None
     assets: list[Asset] = Field(default_factory=list)
     similar_groups: list[SimilarGroup] = Field(default_factory=list)
+    sessions: list[Session] = Field(default_factory=list)
     default_candidates: list[DefaultCandidate] = Field(default_factory=list)
     failures: list[Failure] = Field(default_factory=list)
     warnings: list[WarningItem] = Field(default_factory=list)
@@ -317,6 +338,7 @@ __all__ = [
     "ClipSuggestion",
     "Asset",
     "SimilarGroup",
+    "Session",
     "DefaultCandidate",
     "Failure",
     "WarningItem",

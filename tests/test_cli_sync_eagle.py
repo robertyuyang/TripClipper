@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ from tripclipper.models import (
     AssetType,
     CutIndex,
     ProjectInfo,
+    Session,
 )
 from tripclipper.paths import (
     cut_index_path,
@@ -47,6 +49,7 @@ class FakeClient:
         self.tag_groups_created: list[tuple[str, list[str]]] = []
         self.tag_groups_updated: list[tuple[str, list[str]]] = []
         self.tag_groups_removed: list[str] = []
+        self.folders_created: list[str] = []
         FakeClient.instances.append(self)
 
     def __enter__(self):
@@ -61,9 +64,13 @@ class FakeClient:
     def health_check(self):
         return {"library": "/tmp/lib.library", "tagsGroups": []}
 
-    def add_from_path(self, path, name, tags, rating, annotation):
-        self.added.append((path, tags, rating))
+    def add_from_path(self, path, name, tags, rating, annotation, folder_id=None):
+        self.added.append((path, tags, rating, folder_id))
         return "item_" + str(len(self.added))
+
+    def folder_create(self, name, parent_id=None):
+        self.folders_created.append(name)
+        return "folder_" + str(len(self.folders_created))
 
     def update_item(self, item_id, *, tags=None, rating=None, annotation=None):
         self.updated.append(item_id)
@@ -85,8 +92,8 @@ class FakeClient:
 class FailingSecondAddClient(FakeClient):
     """add_from_path raises EagleClientError on the 2nd call."""
 
-    def add_from_path(self, path, name, tags, rating, annotation):
-        self.added.append((path, tags, rating))
+    def add_from_path(self, path, name, tags, rating, annotation, folder_id=None):
+        self.added.append((path, tags, rating, folder_id))
         if len(self.added) == 2:
             raise EagleClientError(stage="item/addFromPath")
         return "item_" + str(len(self.added))
@@ -397,5 +404,225 @@ def test_strict_mapping_passes_flag(tmp_path: Path, monkeypatch) -> None:
     assert result.exit_code == 0, result.output
     added = FakeClient.instances[0].added
     assert len(added) == 1
-    _, tags, _ = added[0]
+    _, tags, _, _ = added[0]
     assert "tc:tags:custom" not in tags
+
+
+# ---------------------------------------------------------------------------
+# Library-path guard: --library-path CLI flag with project.yaml fallback
+# ---------------------------------------------------------------------------
+
+
+def _write_project_yaml(tmp_path: Path, *, library_path: str | None) -> None:
+    """Write a real project.yaml at the config_path _project_info points to."""
+    cfg_path = tmp_path / "source" / "project.yaml"
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        'project_name: "Demo"',
+        f'source_folder: "{tmp_path / "source"}"',
+        "model_config:",
+        '  provider: "openai_compatible"',
+        "eagle_sync:",
+    ]
+    if library_path is not None:
+        lines.append(f'  library_path: "{library_path}"')
+    cfg_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_library_path_from_config_matches(tmp_path: Path, monkeypatch) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1)])
+    _write_project_yaml(tmp_path, library_path="/tmp/lib.library")
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["sync-eagle", slug, "--base-dir", str(tmp_path), "--apply"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "已同步" in result.output
+
+
+def test_library_path_from_config_mismatch_aborts(tmp_path: Path, monkeypatch) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1)])
+    _write_project_yaml(tmp_path, library_path="/tmp/other.library")
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["sync-eagle", slug, "--base-dir", str(tmp_path), "--apply"]
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "不一致" in result.output
+    # error must attribute the expected value to project.yaml, not --library-path
+    assert "project.yaml" in result.output
+    assert FakeClient.instances[0].added == []
+
+
+def test_library_path_cli_overrides_config(tmp_path: Path, monkeypatch) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1)])
+    # config points at a stale library, but the CLI flag matches the live one.
+    _write_project_yaml(tmp_path, library_path="/tmp/other.library")
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "sync-eagle",
+            slug,
+            "--base-dir",
+            str(tmp_path),
+            "--apply",
+            "--library-path",
+            "/tmp/lib.library",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "已同步" in result.output
+
+
+def test_library_path_cli_mismatch_attributes_flag(
+    tmp_path: Path, monkeypatch
+) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1)])
+    _write_project_yaml(tmp_path, library_path=None)
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "sync-eagle",
+            slug,
+            "--base-dir",
+            str(tmp_path),
+            "--apply",
+            "--library-path",
+            "/tmp/other.library",
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "--library-path" in result.output
+
+
+# ---------------------------------------------------------------------------
+# dry-run "Sessions preview" (session-splitting spec Task 6 / Q11)
+# ---------------------------------------------------------------------------
+
+
+def _seed_with_sessions(
+    tmp_path: Path,
+    slug: str,
+    assets: list[Asset],
+    sessions: list[Session],
+) -> Path:
+    ensure_project_dirs(slug, base_dir=tmp_path)
+    ci = CutIndex(
+        schema_version=SCHEMA_VERSION,
+        project=_project_info(slug, tmp_path),
+        assets=assets,
+        sessions=sessions,
+    )
+    write_cut_index(cut_index_path(slug, base_dir=tmp_path), ci)
+    return tmp_path / slug
+
+
+def test_dry_run_sessions_preview(tmp_path: Path, monkeypatch) -> None:
+    slug = "demo"
+    start = datetime(2026, 6, 15, 9, 30, tzinfo=timezone.utc)
+    end = datetime(2026, 6, 15, 10, 15, tzinfo=timezone.utc)
+    assets = [
+        _analyzed_asset(1, session_id="session_01"),
+        _analyzed_asset(2, session_id="session_01"),
+    ]
+    sessions = [
+        Session(
+            session_id="session_01",
+            asset_ids=["asset_1", "asset_2"],
+            started_at=start,
+            ended_at=end,
+            asset_count=2,
+        )
+    ]
+    _seed_with_sessions(tmp_path, slug, assets, sessions)
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["sync-eagle", slug, "--base-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "Sessions preview (gap=1h):" in result.output
+    assert "session_01" in result.output
+    assert start.astimezone().strftime("%Y-%m-%d %H:%M") in result.output
+    assert "n=2" in result.output
+
+
+def test_dry_run_sessions_preview_unknown_no_time(
+    tmp_path: Path, monkeypatch
+) -> None:
+    slug = "demo"
+    assets = [_analyzed_asset(1, session_id="session_00_unknown")]
+    sessions = [
+        Session(
+            session_id="session_00_unknown",
+            asset_ids=["asset_1"],
+            asset_count=1,
+        )
+    ]
+    _seed_with_sessions(tmp_path, slug, assets, sessions)
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["sync-eagle", slug, "--base-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "Sessions preview (gap=1h):" in result.output
+    assert "session_00_unknown" in result.output
+    assert "n=1" in result.output
+    # unknown session has no timestamp arrow
+    unknown_line = next(
+        line for line in result.output.splitlines() if "session_00_unknown" in line
+    )
+    assert "→" not in unknown_line
+
+
+def test_dry_run_sessions_preview_truncated(tmp_path: Path, monkeypatch) -> None:
+    slug = "demo"
+    base = datetime(2026, 6, 15, 8, 0, tzinfo=timezone.utc)
+    assets = []
+    sessions = []
+    for i in range(1, 16):  # 15 sessions -> truncated (>12)
+        sid = f"session_{i:02d}"
+        assets.append(_analyzed_asset(i, session_id=sid))
+        start = base + timedelta(hours=2 * i)
+        sessions.append(
+            Session(
+                session_id=sid,
+                asset_ids=[f"asset_{i}"],
+                started_at=start,
+                ended_at=start + timedelta(minutes=30),
+                asset_count=1,
+            )
+        )
+    _seed_with_sessions(tmp_path, slug, assets, sessions)
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["sync-eagle", slug, "--base-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "Sessions preview (gap=1h):" in result.output
+    # head 5 + tail 5, middle omitted marker
+    assert "... (5 sessions omitted) ..." in result.output
+    assert "session_01" in result.output
+    assert "session_15" in result.output
+    # a middle session is omitted
+    assert "session_08" not in result.output

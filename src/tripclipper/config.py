@@ -68,6 +68,10 @@ class EagleSync(BaseModel):
     # EagleV2Client still accepts old configs that ended in /api/v2/ or /api/.
     api_base_url: str = "http://localhost:41595"
     api_token: Optional[str] = None
+    # Expected Eagle library path (ends with ``.library``). Acts as a guard:
+    # if set, sync-eagle aborts when it differs from the library Eagle currently
+    # has open. The ``--library-path`` CLI flag overrides this when provided.
+    library_path: Optional[str] = None
     connection_failure_threshold: int = 5
     mapping_overrides: Optional[dict] = None
 

@@ -147,6 +147,38 @@ def test_add_from_path_returns_id() -> None:
     assert item_id == "UUID-123"
 
 
+def test_add_from_path_omits_folder_id_when_absent() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200, json={"status": "success", "data": {"id": "UUID-1"}}
+        )
+
+    with _client(handler) as client:
+        client.add_from_path("/x/a.mp4", "a.mp4", [], None, "")
+
+    assert "folderId" not in captured["body"]
+
+
+def test_add_from_path_includes_folder_id_when_given() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200, json={"status": "success", "data": {"id": "UUID-2"}}
+        )
+
+    with _client(handler) as client:
+        client.add_from_path(
+            "/x/a.mp4", "a.mp4", [], None, "", folder_id="folder-123"
+        )
+
+    assert captured["body"]["folderId"] == "folder-123"
+
+
 def test_update_item_omits_none_fields() -> None:
     captured: dict = {}
 
@@ -211,6 +243,41 @@ def test_tag_group_remove_batch() -> None:
     assert captured["path"].endswith("tagGroup/remove")
     # Eagle's remove endpoint reuses the ``itemIds`` key for group ids.
     assert captured["body"] == {"itemIds": ["g1", "g2", "g3"]}
+
+
+def test_folder_create_returns_id_and_posts_name() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.path
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200, json={"status": "success", "data": {"id": "folder-xyz"}}
+        )
+
+    with _client(handler) as client:
+        folder_id = client.folder_create("tokyo · session_01 · 2026-06-15 09:30")
+
+    assert folder_id == "folder-xyz"
+    assert captured["path"].endswith("folder/create")
+    assert captured["body"]["name"] == "tokyo · session_01 · 2026-06-15 09:30"
+    # Flat by default: no parent key when parent_id is absent.
+    assert "parent" not in captured["body"]
+
+
+def test_folder_create_includes_parent_when_given() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200, json={"status": "success", "data": {"id": "child"}}
+        )
+
+    with _client(handler) as client:
+        client.folder_create("child", parent_id="parent-1")
+
+    assert captured["body"]["parent"] == "parent-1"
 
 
 def test_business_error_status_raises() -> None:

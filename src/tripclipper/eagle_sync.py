@@ -257,6 +257,7 @@ class EagleV2Client:
         tags: list[str],
         rating: Optional[int],
         annotation: str,
+        folder_id: Optional[str] = None,
     ) -> str:
         body: dict[str, Any] = {
             "path": path,
@@ -266,6 +267,8 @@ class EagleV2Client:
         }
         if rating is not None:
             body["star"] = rating
+        if folder_id:
+            body["folderId"] = folder_id
         # V1-only endpoint (V2 returns 404 "method not allowed").
         data = self._post(self._V1 + "item/addFromPath", body)
         return self._extract_id(data)
@@ -295,6 +298,19 @@ class EagleV2Client:
         data = self._post(
             self._V2 + "tagGroup/create", {"name": name, "tags": tags}
         )
+        return self._extract_id(data)
+
+    def folder_create(self, name: str, parent_id: Optional[str] = None) -> str:
+        """Create an Eagle folder and return its id.
+
+        Wraps ``POST /api/v2/folder/create``; symmetric with
+        :meth:`tag_group_create`. ``parent_id`` is optional — session folders
+        are created flat (session-splitting spec Q13).
+        """
+        body: dict[str, Any] = {"name": name}
+        if parent_id:
+            body["parent"] = parent_id
+        data = self._post(self._V2 + "folder/create", body)
         return self._extract_id(data)
 
     def tag_group_update(
@@ -671,6 +687,7 @@ class EagleApplyResult:
     tag_group_warnings: list  # of TagGroupWarning
     aborted: bool
     abort_reason: Optional[str]
+    folder_warnings: list = dataclasses.field(default_factory=list)  # of str
 
     def to_dict(self) -> dict:
         return {
@@ -682,6 +699,7 @@ class EagleApplyResult:
             "tag_group_warnings": [w.to_dict() for w in self.tag_group_warnings],
             "aborted": self.aborted,
             "abort_reason": self.abort_reason,
+            "folder_warnings": list(self.folder_warnings),
         }
 
 
@@ -701,6 +719,31 @@ def _dedupe(seq: list[str]) -> list[str]:
             seen.add(item)
             out.append(item)
     return out
+
+
+# Separator for Eagle session folder names (U+00B7 middle dot, space-padded);
+# avoids characters Eagle rejects in folder names (session-splitting spec Q14).
+SESSION_FOLDER_SEP = " · "
+
+# Warning emitted when an already-synced asset can't be moved into a folder
+# (Eagle's item/update has no folderId; session-splitting spec Q5=B).
+FOLDER_SKIP_WARNING = "item already synced; folder assignment skipped"
+
+
+def session_folder_name(slug: str, session: Any) -> str:
+    """Human-readable Eagle folder name for one session (spec Q14).
+
+    ``{slug} · {session_id} · {started_at:%Y-%m-%d %H:%M}`` for timed sessions;
+    ``{slug} · session_00_unknown`` (no time) for the unknown bucket.
+    """
+    parts = [slug, session.session_id]
+    started_at = getattr(session, "started_at", None)
+    if started_at is not None:
+        # started_at is stored in UTC; show local wall-clock time.
+        if started_at.tzinfo is not None:
+            started_at = started_at.astimezone()
+        parts.append(started_at.strftime("%Y-%m-%d %H:%M"))
+    return SESSION_FOLDER_SEP.join(parts)
 
 
 class EagleSyncRunner:
@@ -771,6 +814,14 @@ class EagleSyncRunner:
         aborted = False
         abort_reason: Optional[str] = None
 
+        # 6b. session folders (spec §4 / Q13 flat + Q14 naming). Old projects
+        #     with no sessions degrade to plain root-level adds.
+        cut_sessions = list(getattr(cut_index, "sessions", []) or [])
+        sessions_by_id = {s.session_id: s for s in cut_sessions}
+        session_folders_enabled = bool(cut_sessions)
+        session_folder_id: dict[str, str] = {}
+        folder_warnings: list[str] = []
+
         # 7. iterate assets
         for asset in assets:
             status = asset.analysis_status.value
@@ -799,6 +850,32 @@ class EagleSyncRunner:
                 totals["synced"] += 1
                 continue
 
+            # resolve session folder for the (new-item) apply path
+            folder_id: Optional[str] = None
+            if session_folders_enabled:
+                if asset.eagle_item_id:
+                    # Q5=B: item/update has no folderId; existing items stay put.
+                    folder_warnings.append(
+                        f"{asset.asset_id or asset.path or '?'}: {FOLDER_SKIP_WARNING}"
+                    )
+                elif asset.session_id and asset.session_id in sessions_by_id:
+                    folder_id = session_folder_id.get(asset.session_id)
+                    if folder_id is None:
+                        session = sessions_by_id[asset.session_id]
+                        try:
+                            folder_id = self.client.folder_create(
+                                session_folder_name(
+                                    self.mapper.project_slug, session
+                                )
+                            )
+                            session_folder_id[asset.session_id] = folder_id
+                        except (EagleClientError, EagleUnavailableError) as exc:
+                            folder_warnings.append(
+                                f"session {asset.session_id}: "
+                                f"folder_create failed: {exc}"
+                            )
+                            folder_id = None
+
             # apply path
             try:
                 if asset.eagle_item_id:
@@ -815,6 +892,7 @@ class EagleSyncRunner:
                         plan.tags,
                         plan.rating,
                         plan.annotation,
+                        folder_id=folder_id,
                     )
                     asset.eagle_item_id = new_id
                 asset.eagle_sync_status = "synced"
@@ -906,6 +984,7 @@ class EagleSyncRunner:
             tag_group_warnings=tag_group_warnings,
             aborted=aborted,
             abort_reason=abort_reason,
+            folder_warnings=folder_warnings,
         )
         return cut_index, result
 
@@ -933,4 +1012,7 @@ __all__ = [
     "SyncPreconditionError",
     "EagleAbortError",
     "EagleSyncRunner",
+    "session_folder_name",
+    "SESSION_FOLDER_SEP",
+    "FOLDER_SKIP_WARNING",
 ]

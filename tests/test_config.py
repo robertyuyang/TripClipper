@@ -143,6 +143,7 @@ model_config:
     assert config.eagle_sync.connection_failure_threshold == 5
     assert config.eagle_sync.api_token is None
     assert config.eagle_sync.mapping_overrides is None
+    assert config.eagle_sync.library_path is None
     # existing default still holds.
     assert config.eagle_sync.mode == "dry-run"
 
@@ -161,9 +162,11 @@ eagle_sync:
   api_base_url: "http://host:9/api/v2/"
   connection_failure_threshold: 9
   api_token: "tok"
+  library_path: "/Users/me/Trip.library"
 """,
     )
     config = load_config(cfg)
     assert config.eagle_sync.api_base_url == "http://host:9/api/v2/"
     assert config.eagle_sync.connection_failure_threshold == 9
     assert config.eagle_sync.api_token == "tok"
+    assert config.eagle_sync.library_path == "/Users/me/Trip.library"

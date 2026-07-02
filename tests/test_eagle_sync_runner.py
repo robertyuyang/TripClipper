@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
+
 import httpx
 
 from tripclipper.eagle_sync import (
@@ -11,6 +14,7 @@ from tripclipper.eagle_sync import (
     SyncOptions,
     SyncPreconditionError,
     load_mapping_config,
+    session_folder_name,
 )
 from tripclipper.models import (
     AnalysisStatus,
@@ -18,6 +22,7 @@ from tripclipper.models import (
     CutIndex,
     EditCandidateStatus,
     ProjectInfo,
+    Session,
 )
 
 SLUG = "2026-japan-trip"
@@ -40,6 +45,9 @@ class Recorder:
     def __init__(self) -> None:
         self.calls: list[str] = []
         self.addfrompath_count = 0
+        self.folder_create_count = 0
+        self.folder_names: list[str] = []
+        self.addfrompath_folder_ids: list[str | None] = []
         # path suffix -> callable(request, count) -> httpx.Response
         self.fail_addfrompath_on: set[int] = set()
         self.connect_error_addfrompath = False
@@ -63,6 +71,8 @@ class Recorder:
             )
         if path.endswith("item/addFromPath"):
             self.addfrompath_count += 1
+            body = json.loads(request.content.decode("utf-8"))
+            self.addfrompath_folder_ids.append(body.get("folderId"))
             if self.connect_error_addfrompath:
                 raise httpx.ConnectError("refused", request=request)
             if self.addfrompath_count in self.fail_addfrompath_on:
@@ -70,6 +80,17 @@ class Recorder:
             new_id = f"item-{self.addfrompath_count}"
             return httpx.Response(
                 200, json={"status": "success", "data": {"id": new_id}}
+            )
+        if path.endswith("folder/create"):
+            self.folder_create_count += 1
+            body = json.loads(request.content.decode("utf-8"))
+            self.folder_names.append(body.get("name", ""))
+            return httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "data": {"id": f"folder-{self.folder_create_count}"},
+                },
             )
         if path.endswith("item/update"):
             return httpx.Response(200, json={"status": "success", "data": None})
@@ -252,3 +273,84 @@ def test_tag_group_failure_warning_only() -> None:
     # Main sync still succeeds.
     assert result.totals["synced"] == 2
     assert result.tag_group_warnings
+
+
+# ---------------------------------------------------------------------------
+# Session folders (session-splitting spec §4 / Q13 flat / Q14 naming)
+# ---------------------------------------------------------------------------
+
+_S1_START = datetime(2026, 6, 15, 9, 30, tzinfo=timezone.utc)
+_S2_START = datetime(2026, 6, 15, 14, 20, tzinfo=timezone.utc)
+
+
+def _cut_with_sessions(assets: list[Asset], sessions: list[Session]) -> CutIndex:
+    return CutIndex(
+        project=ProjectInfo(project_slug=SLUG), assets=assets, sessions=sessions
+    )
+
+
+def test_session_folder_created_once_per_session_and_used() -> None:
+    rec = Recorder()
+    assets = [
+        _analyzed(asset_id="a1", session_id="session_01"),
+        _analyzed(asset_id="a2", session_id="session_01"),
+        _analyzed(asset_id="a3", session_id="session_02"),
+    ]
+    sessions = [
+        Session(session_id="session_01", asset_ids=["a1", "a2"], started_at=_S1_START),
+        Session(session_id="session_02", asset_ids=["a3"], started_at=_S2_START),
+    ]
+    cut = _cut_with_sessions(assets, sessions)
+    _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
+
+    # One folder per distinct session, created on first encounter.
+    assert rec.folder_create_count == 2
+    _s1 = _S1_START.astimezone().strftime("%Y-%m-%d %H:%M")
+    _s2 = _S2_START.astimezone().strftime("%Y-%m-%d %H:%M")
+    assert rec.folder_names == [
+        f"{SLUG} · session_01 · {_s1}",
+        f"{SLUG} · session_02 · {_s2}",
+    ]
+    # Two items in session_01 -> same folder; third -> the other folder.
+    assert rec.addfrompath_folder_ids == ["folder-1", "folder-1", "folder-2"]
+
+
+def test_no_sessions_degrades_to_flat_root() -> None:
+    rec = Recorder()
+    assets = [_analyzed(asset_id="a1"), _analyzed(asset_id="a2")]
+    cut = _cut_index(assets)  # sessions == []
+    _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
+
+    assert rec.folder_create_count == 0
+    assert rec.addfrompath_folder_ids == [None, None]
+
+
+def test_existing_item_skips_folder_with_warning() -> None:
+    rec = Recorder()
+    assets = [
+        _analyzed(asset_id="a1", session_id="session_01", eagle_item_id="existing-1"),
+    ]
+    sessions = [
+        Session(session_id="session_01", asset_ids=["a1"], started_at=_S1_START),
+    ]
+    cut = _cut_with_sessions(assets, sessions)
+    _, result = _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
+
+    # No folder created; item updated in place; warning recorded (Q5=B).
+    assert rec.folder_create_count == 0
+    assert _called(rec, "item/update")
+    assert any("already synced" in w for w in result.folder_warnings)
+
+
+def test_unknown_session_folder_has_no_time() -> None:
+    session = Session(session_id="session_00_unknown", asset_ids=["a1"])
+    assert session_folder_name(SLUG, session) == f"{SLUG} · session_00_unknown"
+
+
+def test_timed_session_folder_name_format() -> None:
+    session = Session(session_id="session_01", asset_ids=["a1"], started_at=_S1_START)
+    expected_time = _S1_START.astimezone().strftime("%Y-%m-%d %H:%M")
+    assert (
+        session_folder_name(SLUG, session)
+        == f"{SLUG} · session_01 · {expected_time}"
+    )

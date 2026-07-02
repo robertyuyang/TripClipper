@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ from tripclipper.exporter import (
     _format_duration,
     _format_rating,
     _format_row_class,
+    _format_session_cell,
     _format_similar_cell,
     _format_status_class,
     _format_tags,
@@ -50,6 +52,7 @@ from tripclipper.models import (
     Failure,
     PeoplePresence,
     ProjectInfo,
+    Session,
     ShotFunction,
     ShotScale,
     SimilarGroup,
@@ -262,6 +265,22 @@ def test_asset_to_row_failed_row_has_row_failed_class() -> None:
     html = _asset_to_row(asset, Path("/tmp/proj"))
     assert "row-failed" in html
     assert "boom" in html
+
+
+def test_asset_to_row_thumbnail_strip_caps_at_nine_frames() -> None:
+    frames = [f"/tmp/frame_{i:02d}.jpg" for i in range(12)]
+    asset = Asset(
+        asset_id="asset_frames",
+        filename="frames.mp4",
+        frame_paths=frames,
+        analysis_status=AnalysisStatus.analyzed,
+    )
+    html = _asset_to_row(asset, Path("/tmp/proj"))
+
+    assert html.count("<img ") == 9
+    assert 'class="thumb-overflow">+3</span>' in html
+    assert "file:///tmp/frame_08.jpg" in html
+    assert "file:///tmp/frame_09.jpg" not in html
 
 
 # ---------------------------------------------------------------------------
@@ -1323,3 +1342,168 @@ def test_copy_cut_index_demo_scan_end_to_end(tmp_path: Path) -> None:
     original_payload = json.loads(real_path.read_text(encoding="utf-8"))
     assert copied_payload["project"]["model_config_summary"] == {}
     assert len(copied_payload["assets"]) == len(original_payload["assets"])
+
+
+# ---------------------------------------------------------------------------
+# session-splitting Task 7: flat session column + overview
+# ---------------------------------------------------------------------------
+
+
+def test_format_session_cell_variants() -> None:
+    # no session -> empty
+    assert _format_session_cell(Asset(asset_id="a")) == ""
+    assert _format_session_cell(Asset(asset_id="a", session_id="")) == ""
+    # numbered session -> blue badge
+    numbered = _format_session_cell(Asset(asset_id="a", session_id="session_01"))
+    assert 'class="session-badge"' in numbered
+    assert "session_01" in numbered
+    assert "session-unknown" not in numbered
+    # unknown -> grey badge
+    unknown = _format_session_cell(
+        Asset(asset_id="a", session_id="session_00_unknown")
+    )
+    assert 'class="session-badge session-unknown"' in unknown
+    assert "session_00_unknown" in unknown
+
+
+def test_render_overview_section_includes_session_summary_with_unknown() -> None:
+    counts = OverviewCounts(session_count=3, session_unknown_count=2)
+    html_out = _render_overview_section(counts)
+    assert "共 3 个 session（含 unknown 2 张）" in html_out
+
+
+def test_render_overview_section_session_summary_omits_unknown_when_zero() -> None:
+    counts = OverviewCounts(session_count=2, session_unknown_count=0)
+    html_out = _render_overview_section(counts)
+    assert "共 2 个 session" in html_out
+    assert "unknown" not in html_out
+
+
+def test_compute_overview_counts_counts_sessions_and_unknown() -> None:
+    ci = _make_cut_index(assets=[_make_asset(asset_id="a", rating=3)])
+    ci.sessions = [
+        Session(session_id="session_01", asset_ids=["a"], asset_count=1),
+        Session(
+            session_id="session_00_unknown",
+            asset_ids=["u1", "u2"],
+            asset_count=2,
+        ),
+    ]
+    counts = _compute_overview_counts(ci)
+    assert counts.session_count == 2
+    assert counts.session_unknown_count == 2
+
+
+def test_render_review_html_with_sessions_end_to_end(tmp_path: Path) -> None:
+    slug = "demo_sessions"
+    assets = [
+        Asset(
+            asset_id="asset_1",
+            filename="morning.mp4",
+            relative_path="morning.mp4",
+            type=AssetType.video,
+            analysis_status=AnalysisStatus.analyzed,
+            session_id="session_01",
+            rating=4,
+        ),
+        Asset(
+            asset_id="asset_2",
+            filename="afternoon.mp4",
+            relative_path="afternoon.mp4",
+            type=AssetType.video,
+            analysis_status=AnalysisStatus.analyzed,
+            session_id="session_02",
+            rating=3,
+        ),
+        Asset(
+            asset_id="asset_u",
+            filename="unknown.mp4",
+            relative_path="unknown.mp4",
+            type=AssetType.video,
+            analysis_status=AnalysisStatus.analyzed,
+            session_id="session_00_unknown",
+        ),
+    ]
+    ci = _make_cut_index(
+        assets=assets,
+        analysis=AnalysisInfo(stage="sample", status="completed"),
+    )
+    ci.sessions = [
+        Session(
+            session_id="session_01",
+            asset_ids=["asset_1"],
+            started_at=datetime(2026, 7, 2, 9, 0),
+            ended_at=datetime(2026, 7, 2, 9, 30),
+            asset_count=1,
+        ),
+        Session(
+            session_id="session_02",
+            asset_ids=["asset_2"],
+            started_at=datetime(2026, 7, 2, 14, 0),
+            ended_at=datetime(2026, 7, 2, 14, 45),
+            asset_count=1,
+        ),
+        Session(
+            session_id="session_00_unknown",
+            asset_ids=["asset_u"],
+            started_at=None,
+            ended_at=None,
+            asset_count=1,
+        ),
+    ]
+    _write_cut_index(tmp_path, slug, ci)
+
+    out = render_review_html(slug, base_dir=tmp_path)
+    text = out.read_text(encoding="utf-8")
+
+    # single flat view only: no tabs and no duplicated session card view
+    assert "扁平视图" not in text
+    assert "Session 视图" not in text
+    assert 'class="view-tab' not in text
+    assert 'id="sessions-view"' not in text
+    assert 'class="session-card"' not in text
+    # flat table session column: blue badge + grey unknown badge + data attr
+    assert 'class="session-badge"' in text
+    assert 'class="session-badge session-unknown"' in text
+    assert 'data-session-id="session_01"' in text
+    assert 'data-session-id="session_00_unknown"' in text
+    # overview summary line
+    assert "共 3 个 session（含 unknown 1 张）" in text
+    # session filter select present; option labels are expanded client-side
+    # from embedded session metadata, while values remain the stable session_id.
+    assert 'id="filter-session"' in text
+    assert "formatSessionOptionLabel" in text
+    assert "sessionLabelsById" in text
+    assert "2026-07-02T09:00:00" in text
+    assert "时间信息缺失" in text
+
+
+def test_render_review_html_no_sessions_collapses_view(tmp_path: Path) -> None:
+    slug = "demo_no_sessions"
+    assets = [
+        Asset(
+            asset_id="asset_1",
+            filename="ok.mp4",
+            relative_path="ok.mp4",
+            type=AssetType.video,
+            analysis_status=AnalysisStatus.analyzed,
+            rating=4,
+        )
+    ]
+    ci = _make_cut_index(
+        assets=assets,
+        analysis=AnalysisInfo(stage="sample", status="completed"),
+    )
+    ci.sessions = []
+    _write_cut_index(tmp_path, slug, ci)
+
+    out = render_review_html(slug, base_dir=tmp_path)
+    text = out.read_text(encoding="utf-8")
+
+    # no session card view is rendered
+    assert 'id="sessions-view"' not in text
+    assert 'class="session-card"' not in text
+    # overview has no session summary line
+    assert "个 session" not in text
+    # flat table session column is empty for this asset (no badge)
+    assert 'class="session-badge"' not in text

@@ -18,6 +18,8 @@ Grilling 阶段对 M6 形态做了密集推敲，关键张力是：**M6 是"业�
 
 PRD §FR-10 的 JSON 示例（`folders_to_create: ["项目/高光"]`）在本 spec 中**不被字面兑现**，按 ADR-004 的解读：示例为数据形状演示，验收文字仅要求"成功素材在 Eagle 中具备 ... 标签、星级、状态和备注"，本 spec 通过 tag + Eagle V2 tag group 的组合完整覆盖该验收口径，未实现 folder 维度。
 
+> **后续扩展**：[session-splitting](../session-splitting/spec.md) 在本模块产出之上补齐了 folder 维度——按 `Asset.session_id` 一级平铺创建 Eagle folder 并归属素材（详见该 spec §Eagle 同步扩展）。本 spec 的 tag/rating/status 映射口径保持不变，folder 归属是叠加能力。
+
 ## What Changes
 
 ### 1. CLI：`tripclipper sync-eagle` 升级为完整命令

@@ -34,6 +34,7 @@ from .models import (
 )
 from .paths import cut_index_path, frames_dir, thumbnails_dir
 from .security import assert_read_only_source
+from .session_splitter import SESSION_GAP_HOURS, apply_sessions, split_sessions
 
 _PathLike = Union[str, Path]
 
@@ -108,6 +109,7 @@ class ScanResult(BaseModel):
     is_empty: bool = False
     capabilities: Capabilities = Capabilities()
     cut_index_path: str = ""
+    session_count: int = 0
 
 
 class ScanError(Exception):
@@ -649,6 +651,12 @@ def scan_project(
         )
 
     cut.project.updated_at = datetime.now(timezone.utc).isoformat()
+
+    # session 切分（分析阶段的一等公民；纯确定性，无 IO/LLM）。
+    sessions = split_sessions(cut.assets)
+    apply_sessions(cut.assets, sessions)
+    cut.sessions = sessions
+
     write_cut_index(index_path, cut)
 
     return ScanResult(
@@ -659,6 +667,7 @@ def scan_project(
         is_empty=is_empty,
         capabilities=capabilities,
         cut_index_path=str(index_path),
+        session_count=len(sessions),
     )
 
 

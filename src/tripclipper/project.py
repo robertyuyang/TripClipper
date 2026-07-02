@@ -156,6 +156,9 @@ eagle_sync:
   enabled: true
   mode: dry-run
   base_url: http://127.0.0.1:41595/api
+  # 预期的 Eagle 库路径（.library 结尾）。填写后 sync-eagle 会校验 Eagle
+  # 当前打开的库是否一致，不一致则中止；命令行 --library-path 可临时覆盖。
+  library_path:
 """
 
     target.parent.mkdir(parents=True, exist_ok=True)
