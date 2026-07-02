@@ -48,7 +48,7 @@ def _write_yaml(path: Path, content: str) -> Path:
 
 
 def _full_model_block(extra_lines: str = "") -> str:
-    """A complete (usable) ``model_config`` block; no plaintext key."""
+    """A complete (usable) software ``model_config`` block; no plaintext key."""
     block = (
         "model_config:\n"
         '  provider: "openai_compatible"\n'
@@ -57,10 +57,14 @@ def _full_model_block(extra_lines: str = "") -> str:
         '  vision_model: "vision-model-name"\n'
         '  text_model: "text-model-name"\n'
         '  transcription_model: "audio-model-name"\n'
-        '  language: "zh-CN"\n'
-        "  sample_size: 25\n"
     )
     return block + extra_lines
+
+
+def _software_yaml(model_block: str | None = None) -> str:
+    if model_block is None:
+        model_block = _full_model_block()
+    return "analysis_config:\n  sample_size: 25\n  language: \"zh-CN\"\n" + model_block
 
 
 def _project_yaml(
@@ -68,11 +72,8 @@ def _project_yaml(
     *,
     project_name: str = PROJECT_NAME,
     target_length: str = "3min",
-    model_block: str | None = None,
 ) -> str:
     """Render a syntactically valid ``project.yaml`` string from parameters."""
-    if model_block is None:
-        model_block = _full_model_block()
     return (
         f'project_name: "{project_name}"\n'
         f'source_folder: "{source_folder}"\n'
@@ -81,7 +82,6 @@ def _project_yaml(
         'audience: "internal_team"\n'
         'people_focus: "high"\n'
         'audio_priority: "high"\n'
-        + model_block
     )
 
 
@@ -96,12 +96,29 @@ def _base(tmp_path: Path) -> Path:
     return tmp_path / "projects"
 
 
+def _set_software_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    content: str | None = None,
+) -> Path:
+    if content is None:
+        content = _software_yaml()
+    path = tmp_path / "software.yaml"
+    path.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("TRIPCLIPPER_SOFTWARE_CONFIG", str(path))
+    return path
+
+
 # ---------------------------------------------------------------------------
 # Project creation / structure
 # ---------------------------------------------------------------------------
 
 
-def test_init_project_creates_structure(tmp_path: Path) -> None:
+def test_init_project_creates_structure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_software_config(tmp_path, monkeypatch)
     source = _make_source(tmp_path)
     base = _base(tmp_path)
     cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(source))
@@ -125,7 +142,10 @@ def test_init_project_creates_structure(tmp_path: Path) -> None:
     assert cut_index_path(SLUG, base_dir=base).is_file()
 
 
-def test_init_project_cut_index_project_block(tmp_path: Path) -> None:
+def test_init_project_cut_index_project_block(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_software_config(tmp_path, monkeypatch)
     source = _make_source(tmp_path)
     base = _base(tmp_path)
     cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(source))
@@ -162,15 +182,19 @@ def test_init_project_cut_index_project_block(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_summary_has_model_usable_and_no_secret(tmp_path: Path) -> None:
+def test_summary_has_model_usable_and_no_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     source = _make_source(tmp_path)
     base = _base(tmp_path)
-    # Deliberately (mis)place a plaintext key in model_config — it must never
-    # surface in the summary or on disk.
-    model_block = _full_model_block('  api_key: "secret123"\n')
-    cfg = _write_yaml(
-        tmp_path / "project.yaml", _project_yaml(source, model_block=model_block)
+    # Deliberately (mis)place a plaintext key in software model_config — it must
+    # never surface in the summary or on disk.
+    _set_software_config(
+        tmp_path,
+        monkeypatch,
+        content=_software_yaml(_full_model_block('  api_key: "secret123"\n')),
     )
+    cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(source))
 
     summary = init_project(cfg, base_dir=base)
 
@@ -193,7 +217,10 @@ def test_summary_has_model_usable_and_no_secret(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_source_folder_missing_raises(tmp_path: Path) -> None:
+def test_source_folder_missing_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_software_config(tmp_path, monkeypatch)
     base = _base(tmp_path)
     missing = tmp_path / "does-not-exist"
     cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(missing))
@@ -204,7 +231,10 @@ def test_source_folder_missing_raises(tmp_path: Path) -> None:
     assert "不存在" in message or str(missing) in message
 
 
-def test_source_folder_is_file_raises(tmp_path: Path) -> None:
+def test_source_folder_is_file_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_software_config(tmp_path, monkeypatch)
     base = _base(tmp_path)
     as_file = tmp_path / "media.txt"
     as_file.write_text("not a directory", encoding="utf-8")
@@ -220,13 +250,17 @@ def test_source_folder_is_file_raises(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_incomplete_model_config_still_creates(tmp_path: Path) -> None:
+def test_incomplete_model_config_still_creates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_software_config(
+        tmp_path,
+        monkeypatch,
+        content=_software_yaml('model_config:\n  provider: "openai_compatible"\n'),
+    )
     source = _make_source(tmp_path)
     base = _base(tmp_path)
-    incomplete = 'model_config:\n  provider: "openai_compatible"\n'
-    cfg = _write_yaml(
-        tmp_path / "project.yaml", _project_yaml(source, model_block=incomplete)
-    )
+    cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(source))
 
     summary = init_project(cfg, base_dir=base)
 
@@ -247,7 +281,10 @@ def test_incomplete_model_config_still_creates(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_idempotent_init_preserves_assets(tmp_path: Path) -> None:
+def test_idempotent_init_preserves_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_software_config(tmp_path, monkeypatch)
     source = _make_source(tmp_path)
     base = _base(tmp_path)
     cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(source))
@@ -280,7 +317,10 @@ def test_idempotent_init_preserves_assets(tmp_path: Path) -> None:
     assert after["project"]["updated_at"]
 
 
-def test_idempotent_init_no_error_twice(tmp_path: Path) -> None:
+def test_idempotent_init_no_error_twice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_software_config(tmp_path, monkeypatch)
     source = _make_source(tmp_path)
     base = _base(tmp_path)
     cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(source))
@@ -309,7 +349,9 @@ def test_scaffold_creates_loadable_template(tmp_path: Path) -> None:
     assert written.is_file()
     text = out.read_text(encoding="utf-8")
     assert "secret" not in text
-    assert "api_key_env" in text
+    assert "api_key_env" not in text
+    assert "analysis_config:" not in text
+    assert "model_config:" not in text
 
     config = load_config(out)
     assert config.project_name == "My Project"
@@ -332,7 +374,8 @@ def test_scaffold_existing_without_force_raises(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cli_init_success(tmp_path: Path) -> None:
+def test_cli_init_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_software_config(tmp_path, monkeypatch)
     source = _make_source(tmp_path)
     base = _base(tmp_path)
     cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(source))
@@ -345,7 +388,10 @@ def test_cli_init_success(tmp_path: Path) -> None:
     assert PROJECT_NAME in result.output or SLUG in result.output
 
 
-def test_cli_init_missing_source_fails(tmp_path: Path) -> None:
+def test_cli_init_missing_source_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_software_config(tmp_path, monkeypatch)
     base = _base(tmp_path)
     missing = tmp_path / "does-not-exist"
     cfg = _write_yaml(tmp_path / "project.yaml", _project_yaml(missing))

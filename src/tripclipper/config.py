@@ -1,16 +1,8 @@
-"""``project.yaml`` configuration models, loading and validation (TD 4).
-
-Naming note: Pydantic v2 reserves the ``model_config`` attribute name for the
-per-model ``ConfigDict``. The YAML key ``model_config`` therefore cannot be a
-field literally named ``model_config``. Worse, field names beginning with the
-``model_`` prefix are protected and emit warnings. To stay clear of both
-problems the model configuration is stored in a field named ``llm`` with
-``alias="model_config"`` (plus ``populate_by_name=True``), so it can be read
-from the YAML ``model_config`` key while keeping a safe Python attribute name.
-"""
+"""Project-level and software-level configuration models and loaders."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -38,7 +30,6 @@ class ModelConfig(BaseModel):
     text_model: Optional[str] = None
     transcription_model: Optional[str] = None
     language: Optional[str] = "zh-CN"
-    sample_size: Optional[int] = 25
 
     def is_usable(self) -> bool:
         """Return True only when the key model-access fields are all present."""
@@ -51,6 +42,27 @@ class ModelConfig(BaseModel):
                 self.vision_model,
             )
         )
+
+
+class AnalysisConfig(BaseModel):
+    """Analysis/runtime settings for Stage 2 orchestration."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    sample_size: int = 25
+    language: str = "zh-CN"
+
+
+class SoftwareConfig(BaseModel):
+    """Software-level config loaded from ``~/.tripclipper/config.yaml``."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    llm: ModelConfig = Field(default_factory=ModelConfig, alias="model_config")
+    analysis: AnalysisConfig = Field(
+        default_factory=AnalysisConfig, alias="analysis_config"
+    )
+    config_path: Optional[str] = None
 
 
 class EagleSync(BaseModel):
@@ -96,16 +108,13 @@ class ProjectConfig(BaseModel):
     project_name: str
     source_folder: str  # resolved to an absolute path by load_config
     project_slug: Optional[str] = None
-    # See module docstring: ``llm`` with alias "model_config" sidesteps the
-    # Pydantic reserved/protected name conflict.
-    llm: ModelConfig = Field(default_factory=ModelConfig, alias="model_config")
     editing_intent: EditingIntent = Field(default_factory=EditingIntent)
     eagle_sync: EagleSync = Field(default_factory=EagleSync)
     config_path: Optional[str] = None
 
 
 # Required top-level keys in project.yaml.
-_REQUIRED_KEYS = ("project_name", "source_folder", "model_config")
+_REQUIRED_KEYS = ("project_name", "source_folder")
 
 # Editing-intent keys aggregated from the top level of project.yaml.
 _EDITING_INTENT_KEYS = (
@@ -115,6 +124,9 @@ _EDITING_INTENT_KEYS = (
     "people_focus",
     "audio_priority",
 )
+
+_DEFAULT_SOFTWARE_CONFIG_ENV = "TRIPCLIPPER_SOFTWARE_CONFIG"
+_DEFAULT_SOFTWARE_CONFIG_RELATIVE = Path(".tripclipper") / "config.yaml"
 
 
 def generate_project_slug(project_name: str) -> str:
@@ -133,19 +145,14 @@ def generate_project_slug(project_name: str) -> str:
     return text
 
 
-def load_config(path: Union[str, Path]) -> ProjectConfig:
-    """Load and validate ``project.yaml`` into a :class:`ProjectConfig`.
-
-    - Validates the required keys ``project_name``, ``source_folder`` and
-      ``model_config``; missing keys raise :class:`ConfigError` naming them.
-    - Resolves a relative ``source_folder`` against the YAML file's directory.
-    - Generates ``project_slug`` from ``project_name`` when absent.
-    - Aggregates editing-intent fields into :class:`EditingIntent`.
-    - An incomplete ``model_config`` still loads successfully; usability is
-      reflected by ``config.llm.is_usable()``.
-    """
+def _read_yaml_mapping(
+    path: Union[str, Path], *, missing_ok: bool = False
+) -> tuple[Path, dict[str, Any]]:
+    """Read a YAML mapping from ``path`` and return ``(resolved_path, data)``."""
     yaml_path = Path(path).expanduser().resolve()
     if not yaml_path.is_file():
+        if missing_ok:
+            return yaml_path, {}
         raise ConfigError(f"Config file not found: {yaml_path}")
 
     with yaml_path.open("r", encoding="utf-8") as fh:
@@ -157,6 +164,77 @@ def load_config(path: Union[str, Path]) -> ProjectConfig:
         raise ConfigError(
             f"Config root must be a mapping/object, got {type(data).__name__}"
         )
+    return yaml_path, data
+
+
+def software_config_path(path: Optional[Union[str, Path]] = None) -> Path:
+    """Return the resolved software-config path."""
+    if path is not None:
+        return Path(path).expanduser().resolve()
+
+    env_path = os.environ.get(_DEFAULT_SOFTWARE_CONFIG_ENV, "").strip()
+    if env_path:
+        return Path(env_path).expanduser().resolve()
+
+    return (Path.home() / _DEFAULT_SOFTWARE_CONFIG_RELATIVE).resolve()
+
+
+def _parse_software_sections(
+    data: dict[str, Any]
+) -> tuple[ModelConfig, AnalysisConfig]:
+    raw_model_config = data.get("model_config") or {}
+    if not isinstance(raw_model_config, dict):
+        raise ConfigError("model_config must be a mapping/object")
+    llm = ModelConfig.model_validate(raw_model_config)
+
+    raw_analysis_config = data.get("analysis_config") or {}
+    if not isinstance(raw_analysis_config, dict):
+        raise ConfigError("analysis_config must be a mapping/object")
+    if (
+        "sample_size" not in raw_analysis_config
+        and raw_model_config.get("sample_size") is not None
+    ):
+        raw_analysis_config = dict(raw_analysis_config)
+        raw_analysis_config["sample_size"] = raw_model_config["sample_size"]
+    if (
+        "language" not in raw_analysis_config
+        and raw_model_config.get("language") is not None
+    ):
+        raw_analysis_config = dict(raw_analysis_config)
+        raw_analysis_config["language"] = raw_model_config["language"]
+    analysis = AnalysisConfig.model_validate(raw_analysis_config)
+    return llm, analysis
+
+
+def load_software_config(
+    path: Optional[Union[str, Path]] = None,
+    *,
+    legacy_project_path: Optional[Union[str, Path]] = None,
+) -> SoftwareConfig:
+    """Load software-level config, optionally falling back to legacy project keys."""
+    resolved_path = software_config_path(path)
+    _, data = _read_yaml_mapping(resolved_path, missing_ok=True)
+
+    if legacy_project_path is not None:
+        _, legacy_data = _read_yaml_mapping(legacy_project_path, missing_ok=False)
+        if not data.get("model_config") and legacy_data.get("model_config"):
+            data = dict(data)
+            data["model_config"] = legacy_data.get("model_config")
+        if not data.get("analysis_config") and legacy_data.get("analysis_config"):
+            data = dict(data)
+            data["analysis_config"] = legacy_data.get("analysis_config")
+
+    llm, analysis = _parse_software_sections(data)
+    return SoftwareConfig(
+        llm=llm,
+        analysis=analysis,
+        config_path=str(resolved_path),
+    )
+
+
+def load_config(path: Union[str, Path]) -> ProjectConfig:
+    """Load and validate ``project.yaml`` into a :class:`ProjectConfig`."""
+    yaml_path, data = _read_yaml_mapping(path)
 
     missing = [key for key in _REQUIRED_KEYS if not data.get(key)]
     if missing:
@@ -176,12 +254,6 @@ def load_config(path: Union[str, Path]) -> ProjectConfig:
     project_name = str(data["project_name"])
     project_slug = data.get("project_slug") or generate_project_slug(project_name)
 
-    # Model config: tolerate incomplete content.
-    raw_model_config = data.get("model_config") or {}
-    if not isinstance(raw_model_config, dict):
-        raise ConfigError("model_config must be a mapping/object")
-    llm = ModelConfig.model_validate(raw_model_config)
-
     # Aggregate editing intent from top-level keys.
     editing_intent = EditingIntent(
         **{key: data.get(key) for key in _EDITING_INTENT_KEYS}
@@ -197,7 +269,6 @@ def load_config(path: Union[str, Path]) -> ProjectConfig:
         project_name=project_name,
         source_folder=str(source_folder),
         project_slug=project_slug,
-        llm=llm,
         editing_intent=editing_intent,
         eagle_sync=eagle_sync,
         config_path=str(yaml_path),
@@ -207,9 +278,13 @@ def load_config(path: Union[str, Path]) -> ProjectConfig:
 __all__ = [
     "ConfigError",
     "ModelConfig",
+    "AnalysisConfig",
+    "SoftwareConfig",
     "EagleSync",
     "EditingIntent",
     "ProjectConfig",
     "generate_project_slug",
+    "software_config_path",
+    "load_software_config",
     "load_config",
 ]

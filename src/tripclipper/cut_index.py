@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Union
 
 from . import SCHEMA_VERSION
-from .config import ProjectConfig
+from .config import ProjectConfig, SoftwareConfig, load_software_config
 from .models import CutIndex, ProjectInfo
 from .security import summarize_model_config
 
@@ -56,8 +56,13 @@ def generate_asset_id(relative_path: str) -> str:
     return "asset_" + digest[:12]
 
 
-def init_cut_index(config: ProjectConfig) -> CutIndex:
+def init_cut_index(
+    config: ProjectConfig, software: SoftwareConfig | None = None
+) -> CutIndex:
     """Build an empty :class:`CutIndex` from a :class:`ProjectConfig`."""
+    resolved_software = software or load_software_config(
+        legacy_project_path=config.config_path
+    )
     now = _utc_now_iso()
     project = ProjectInfo(
         project_name=config.project_name,
@@ -65,7 +70,7 @@ def init_cut_index(config: ProjectConfig) -> CutIndex:
         source_folder=config.source_folder,
         config_path=config.config_path,
         editing_intent=config.editing_intent.model_dump(),
-        model_config_summary=summarize_model_config(config.llm),
+        model_config_summary=summarize_model_config(resolved_software.llm),
         eagle_sync=config.eagle_sync.model_dump(),
         created_at=now,
         updated_at=now,

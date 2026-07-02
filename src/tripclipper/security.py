@@ -40,8 +40,6 @@ _SUMMARY_FIELDS = (
     "vision_model",
     "text_model",
     "transcription_model",
-    "language",
-    "sample_size",
 )
 
 

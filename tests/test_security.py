@@ -19,8 +19,6 @@ def test_summarize_model_config_drops_plaintext_secret_from_dict() -> None:
         "vision_model": "v",
         "text_model": "t",
         "transcription_model": "a",
-        "language": "zh-CN",
-        "sample_size": 25,
     }
     summary = summarize_model_config(raw)
     assert summary["api_key_env"] == "TRIPCLIPPER_MODEL_API_KEY"
@@ -43,8 +41,6 @@ def test_summarize_model_config_from_model_object() -> None:
         "vision_model",
         "text_model",
         "transcription_model",
-        "language",
-        "sample_size",
     }
     assert summary["api_key_env"] == "KEY_ENV"
 

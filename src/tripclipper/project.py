@@ -16,7 +16,13 @@ from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from .config import ProjectConfig, load_config
+from .config import (
+    ProjectConfig,
+    SoftwareConfig,
+    load_config,
+    load_software_config,
+    software_config_path,
+)
 from .cut_index import init_cut_index, read_cut_index, write_cut_index
 from .models import ProjectInfo, WarningItem
 from .paths import (
@@ -32,11 +38,10 @@ _PathLike = Union[str, Path]
 # 模型配置不完整时面向用户的统一文案（摘要 warnings 与 cut_index 警告共用）。
 _MODEL_INCOMPLETE_REASON = (
     "模型配置不完整，Stage 2 暂不可执行成功，"
-    "请补齐 model_config（provider/base_url/api_key_env/vision_model）"
+    "请补齐软件配置中的 model_config（provider/base_url/api_key_env/vision_model）"
 )
 _MODEL_INCOMPLETE_SUGGESTION = (
-    "在 project.yaml 的 model_config 中补齐 provider、base_url、"
-    "api_key_env、vision_model"
+    "在软件配置文件中补齐 provider、base_url、api_key_env、vision_model"
 )
 
 
@@ -85,12 +90,18 @@ def validate_source_folder(path: _PathLike) -> tuple[bool, Optional[str]]:
 
 
 def build_project_summary(
-    config: ProjectConfig, *, base_dir: Optional[_PathLike] = None
+    config: ProjectConfig,
+    software: Optional[SoftwareConfig] = None,
+    *,
+    base_dir: Optional[_PathLike] = None,
 ) -> ProjectSummary:
     """由 :class:`ProjectConfig` 生成不含密钥的 :class:`ProjectSummary`。"""
     slug = config.project_slug or ""
     ok, _ = validate_source_folder(config.source_folder)
-    model_usable = config.llm.is_usable()
+    resolved_software = software or load_software_config(
+        legacy_project_path=config.config_path
+    )
+    model_usable = resolved_software.llm.is_usable()
 
     warnings: list[str] = []
     if not model_usable:
@@ -102,7 +113,7 @@ def build_project_summary(
         source_folder=config.source_folder,
         source_folder_exists=ok,
         editing_intent=config.editing_intent.model_dump(),
-        model_config_summary=summarize_model_config(config.llm),
+        model_config_summary=summarize_model_config(resolved_software.llm),
         model_usable=model_usable,
         project_dir=str(project_dir(slug, base_dir)),
         config_path=str(project_config_path(slug, base_dir)),
@@ -120,9 +131,9 @@ def scaffold_config_file(
 ) -> Path:
     """在 ``path`` 写出一份带建议字段的 ``project.yaml`` 模板。
 
-    模板必填键齐全（project_name/source_folder/model_config），可被
-    ``load_config`` 解析；``model_config`` 仅以 ``api_key_env`` 指向环境变量名，
-    绝不含密钥明文。``force=False`` 且目标已存在时抛 :class:`ProjectError`。
+    模板只包含项目级字段；模型与分析参数改为软件级配置，默认位置是
+    ``~/.tripclipper/config.yaml``。``force=False`` 且目标已存在时抛
+    :class:`ProjectError`。
     """
     target = Path(path).expanduser()
     if target.exists() and not force:
@@ -131,7 +142,8 @@ def scaffold_config_file(
         )
 
     template = f"""# TripClipper project.yaml（由 scaffold 生成的模板）
-# 安全提示：请勿在本文件中写入密钥明文；api_key_env 指向存放密钥的环境变量名。
+# 软件级配置（model_config / analysis_config）已迁移到：
+#   {_yaml_scalar(str(software_config_path()))}
 project_name: {_yaml_scalar(project_name)}
 source_folder: {_yaml_scalar(source_folder)}
 
@@ -141,16 +153,6 @@ target_length:
 audience:
 people_focus:
 audio_priority:
-
-model_config:
-  provider:
-  base_url:
-  api_key_env: TRIPCLIPPER_MODEL_API_KEY
-  vision_model:
-  text_model:
-  transcription_model:
-  language: zh-CN
-  sample_size: 25
 
 eagle_sync:
   enabled: true
@@ -183,6 +185,7 @@ def init_project(
     目录规范位置 → 初始化或刷新 ``cut_index.json`` 的 ``project`` 块 → 返回摘要。
     """
     config = load_config(config_path)  # ConfigError 向上抛，交由调用方处理
+    software = load_software_config(legacy_project_path=config_path)
 
     ok, reason = validate_source_folder(config.source_folder)
     if not ok:
@@ -205,7 +208,7 @@ def init_project(
     now = _utc_now_iso()
 
     if not index_path.exists():
-        cut = init_cut_index(config)
+        cut = init_cut_index(config, software)
         cut.project.config_path = str(dest_yaml)
     else:
         cut = read_cut_index(index_path)
@@ -216,13 +219,13 @@ def init_project(
             source_folder=config.source_folder,
             config_path=str(dest_yaml),
             editing_intent=config.editing_intent.model_dump(),
-            model_config_summary=summarize_model_config(config.llm),
+            model_config_summary=summarize_model_config(software.llm),
             eagle_sync=config.eagle_sync.model_dump(),
             created_at=created_at,
             updated_at=now,
         )
 
-    if not config.llm.is_usable():
+    if not software.llm.is_usable():
         already = any(
             w.stage == "config" and w.reason == _MODEL_INCOMPLETE_REASON
             for w in cut.warnings
@@ -239,7 +242,7 @@ def init_project(
 
     write_cut_index(index_path, cut)
 
-    return build_project_summary(config, base_dir=base_dir)
+    return build_project_summary(config, software, base_dir=base_dir)
 
 
 __all__ = [

@@ -25,7 +25,7 @@ from .clusterer import (
     build_default_candidates,
     cluster_candidates,
 )
-from .config import EditingIntent, ModelConfig, load_config
+from .config import EditingIntent, ModelConfig, load_config, load_software_config
 from .cut_index import read_cut_index, write_cut_index
 from .logs import ClusterLogger
 from .models import (
@@ -178,7 +178,7 @@ def cluster(slug: str, *, base_dir: Optional[_PathLike] = None) -> ClusterResult
             "建议先跑 full 再 cluster\n"
         )
 
-    # ---------- 加载 ModelConfig + EditingIntent ----------
+    # ---------- 加载软件级配置 + 项目 editing_intent ----------
     config_path = cut.project.config_path
     if not config_path:
         raise ClusterRunnerError(
@@ -186,7 +186,8 @@ def cluster(slug: str, *, base_dir: Optional[_PathLike] = None) -> ClusterResult
             "请重新运行 init。"
         )
     project_config = load_config(config_path)
-    llm_config: ModelConfig = project_config.llm
+    software_config = load_software_config(legacy_project_path=config_path)
+    llm_config: ModelConfig = software_config.llm
     editing_intent: EditingIntent = project_config.editing_intent
 
     # ---------- 重跑清空 ----------
@@ -208,7 +209,7 @@ def cluster(slug: str, *, base_dir: Optional[_PathLike] = None) -> ClusterResult
                 reason=str(exc),
                 suggestion=(
                     "请检查 .env 中 TRIPCLIPPER_MODEL_API_KEY 是否设置，"
-                    "并确认 project.yaml.model_config 的 provider / base_url / "
+                    "并确认软件配置中的 model_config.provider / base_url / "
                     "vision_model 完整"
                 ),
                 blocking=True,

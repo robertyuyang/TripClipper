@@ -79,14 +79,15 @@ def _project_yaml(source_folder: Path) -> str:
         f'source_folder: "{source_folder}"\n'
         'output_style: "activity_recap"\n'
         'target_length: "3min"\n'
+        "analysis_config:\n"
+        '  sample_size: 5\n'
+        '  language: "zh-CN"\n'
         "model_config:\n"
         '  provider: "openai_compatible"\n'
         f'  base_url: "{_PROVIDER_BASE_URL}"\n'
         f'  api_key_env: "{_API_KEY_ENV}"\n'
         f'  vision_model: "{_VISION_MODEL}"\n'
         f'  text_model: "{_VISION_MODEL}"\n'
-        '  language: "zh-CN"\n'
-        '  sample_size: 5\n'
     )
 
 

@@ -7,9 +7,12 @@ from pathlib import Path
 import pytest
 
 from tripclipper.config import (
+    AnalysisConfig,
     ConfigError,
+    load_software_config,
     generate_project_slug,
     load_config,
+    software_config_path,
 )
 
 
@@ -31,15 +34,6 @@ target_length: "3min"
 audience: "internal_team"
 people_focus: "high"
 audio_priority: "high"
-model_config:
-  provider: "openai_compatible"
-  base_url: "https://api.example.com/v1"
-  api_key_env: "TRIPCLIPPER_MODEL_API_KEY"
-  vision_model: "vision-model-name"
-  text_model: "text-model-name"
-  transcription_model: "audio-model-name"
-  language: "zh-CN"
-  sample_size: 25
 """,
     )
 
@@ -56,9 +50,6 @@ model_config:
     # eagle_sync defaults.
     assert config.eagle_sync.enabled is True
     assert config.eagle_sync.mode == "dry-run"
-    # sample_size default present.
-    assert config.llm.sample_size == 25
-    assert config.llm.is_usable() is True
     assert config.config_path == str(Path(cfg).resolve())
 
 
@@ -67,8 +58,6 @@ def test_missing_source_folder_raises(tmp_path: Path) -> None:
         tmp_path / "project.yaml",
         """
 project_name: "Demo"
-model_config:
-  provider: "openai_compatible"
 """,
     )
     with pytest.raises(ConfigError) as excinfo:
@@ -83,11 +72,6 @@ def test_relative_source_folder_resolved_against_yaml_dir(tmp_path: Path) -> Non
         """
 project_name: "Demo"
 source_folder: "./media"
-model_config:
-  provider: "openai_compatible"
-  base_url: "https://api.example.com/v1"
-  api_key_env: "KEY_ENV"
-  vision_model: "v"
 """,
     )
     config = load_config(cfg)
@@ -95,25 +79,68 @@ model_config:
     assert config.source_folder == str((tmp_path / "media").resolve())
 
 
-def test_incomplete_model_config_loads_but_unusable(tmp_path: Path) -> None:
-    source = tmp_path / "media"
-    source.mkdir()
+def test_load_software_config_valid(tmp_path: Path) -> None:
     cfg = _write_yaml(
-        tmp_path / "project.yaml",
-        f"""
-project_name: "Demo"
-source_folder: "{source}"
+        tmp_path / "software.yaml",
+        """
 model_config:
   provider: "openai_compatible"
+  base_url: "https://api.example.com/v1"
+  api_key_env: "TRIPCLIPPER_MODEL_API_KEY"
+  vision_model: "vision-model-name"
+  text_model: "text-model-name"
+  transcription_model: "audio-model-name"
+analysis_config:
+  sample_size: 25
+  language: "zh-CN"
 """,
     )
-    config = load_config(cfg)
-    # Loads successfully...
-    assert config.project_name == "Demo"
-    # ...but is flagged as not usable.
+
+    config = load_software_config(cfg)
+    assert config.llm.is_usable() is True
+    assert config.analysis.sample_size == 25
+    assert config.analysis.language == "zh-CN"
+    assert config.config_path == str(Path(cfg).resolve())
+
+
+def test_legacy_model_config_sample_size_falls_back_to_analysis(tmp_path: Path) -> None:
+    cfg = _write_yaml(
+        tmp_path / "software.yaml",
+        """
+model_config:
+  sample_size: 7
+""",
+    )
+
+    config = load_software_config(cfg)
+    assert config.analysis.sample_size == 7
+
+
+def test_legacy_model_config_language_falls_back_to_analysis(tmp_path: Path) -> None:
+    cfg = _write_yaml(
+        tmp_path / "software.yaml",
+        """
+model_config:
+  language: "en-US"
+""",
+    )
+
+    config = load_software_config(cfg)
+    assert config.analysis.language == "en-US"
+
+
+def test_missing_software_config_returns_defaults(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.yaml"
+    config = load_software_config(missing)
     assert config.llm.is_usable() is False
-    # default sample_size still applied
-    assert config.llm.sample_size == 25
+    assert config.analysis == AnalysisConfig()
+    assert config.config_path == str(missing.resolve())
+
+
+def test_software_config_path_uses_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = tmp_path / "override.yaml"
+    monkeypatch.setenv("TRIPCLIPPER_SOFTWARE_CONFIG", str(cfg))
+    assert software_config_path() == cfg.resolve()
 
 
 def test_generate_project_slug_deterministic() -> None:
@@ -134,8 +161,6 @@ def test_config_eagle_sync_defaults(tmp_path: Path) -> None:
         f"""
 project_name: "Demo"
 source_folder: "{source}"
-model_config:
-  provider: "openai_compatible"
 """,
     )
     config = load_config(cfg)
@@ -156,8 +181,6 @@ def test_config_eagle_sync_from_yaml(tmp_path: Path) -> None:
         f"""
 project_name: "Demo"
 source_folder: "{source}"
-model_config:
-  provider: "openai_compatible"
 eagle_sync:
   api_base_url: "http://host:9/api/v2/"
   connection_failure_threshold: 9

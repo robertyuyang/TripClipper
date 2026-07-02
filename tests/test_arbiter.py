@@ -29,7 +29,7 @@ from tripclipper.arbiter import (
     ArbitrationResult,
     _parse_arbitration,
 )
-from tripclipper.config import load_config
+from tripclipper.config import load_config, load_software_config
 from tripclipper.cut_index import read_cut_index
 from tripclipper.models import AnalysisStatus, Asset
 from tripclipper.paths import cut_index_path
@@ -298,12 +298,13 @@ def test_arbiter_real_model():
     config_path = cut.project.config_path
     assert config_path, "demo-scan/cut_index.json 缺少 project.config_path"
     project_config = load_config(config_path)
-    assert project_config.llm.is_usable(), (
-        "demo-scan/project.yaml 的 model_config 不可用，"
+    software_config = load_software_config(legacy_project_path=config_path)
+    assert software_config.llm.is_usable(), (
+        "软件配置中的 model_config 不可用，"
         "需要 provider/base_url/api_key_env/vision_model 齐全"
     )
 
-    arbiter = Arbiter(project_config.llm, project_config.editing_intent)
+    arbiter = Arbiter(software_config.llm, project_config.editing_intent)
     result = arbiter.arbitrate(group_assets)
 
     assert isinstance(result, ArbitrationResult)

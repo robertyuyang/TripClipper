@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Literal, Optional, Union
 
-from .config import EditingIntent, ModelConfig, load_config
+from .config import EditingIntent, ModelConfig, load_config, load_software_config
 from .cut_index import read_cut_index, write_cut_index
 from .logs import AnalyzeLogger
 from .models import (
@@ -355,7 +355,7 @@ def _run(
             "`tripclipper analyze --stage scan ...`。"
         )
 
-    # ---------- 加载 ModelConfig + EditingIntent ----------
+    # ---------- 加载软件级配置 + 项目 editing_intent ----------
     config_path = cut.project.config_path
     if not config_path:
         raise AnalyzerError(
@@ -363,7 +363,9 @@ def _run(
             "请重新运行 init。"
         )
     project_config = load_config(config_path)
-    llm_config: ModelConfig = project_config.llm
+    software_config = load_software_config(legacy_project_path=config_path)
+    llm_config: ModelConfig = software_config.llm
+    analysis_config = software_config.analysis
     editing_intent: EditingIntent = project_config.editing_intent
 
     # ---------- 项目级 Provider 探测 ----------
@@ -378,7 +380,7 @@ def _run(
                 reason=str(exc),
                 suggestion=(
                     "请检查 .env 中 TRIPCLIPPER_MODEL_API_KEY 是否设置，"
-                    "并确认 project.yaml.model_config 的 provider / base_url / "
+                    "并确认软件配置中的 model_config.provider / base_url / "
                     "vision_model 完整"
                 ),
                 blocking=True,
@@ -390,7 +392,7 @@ def _run(
     # ---------- 样本选择 ----------
     sample_size_value: Optional[int] = None
     if stage == "sample":
-        configured_size = llm_config.sample_size if llm_config.sample_size else 25
+        configured_size = analysis_config.sample_size or 25
         sample_size_value = configured_size
         selected = _stratified_sample(eligible_assets, configured_size)
         skipped = 0  # sample 模式下未抽中的不算"跳过"

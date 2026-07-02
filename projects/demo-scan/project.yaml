@@ -1,10 +1,4 @@
 project_name: "Demo Scan"
 source_folder: "/Users/bytedance/Documents/TripClipper_Trae/tests/videos"
-model_config:
-  provider: "openai_compatible"
-  base_url: "https://open.cherryin.ai/v1"
-  api_key_env: "TRIPCLIPPER_MODEL_API_KEY"
-  vision_model: "google/gemini-3.5-flash"
-  text_model: "google/gemini-3.5-flash"
-  language: "zh-CN"
-  sample_size: 25
+eagle_sync:
+  library_path: "/Users/bytedance/Documents/mydoc/pic/eagle/demo/demo.library"
