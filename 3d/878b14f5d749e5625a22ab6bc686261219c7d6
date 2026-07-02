@@ -1,0 +1,257 @@
+tests/test_scan.py
+  s_d7aec13a88ac3e::t_cfd46fa91d796e 166-189
+docs/specs/eagle-smart-folders/spec.md
+  s_48afb323ea65c5::t_acc610038d94da 384
+tests/test_session_splitter.py
+  s_d7aec13a88ac3e::t_b2958978b42812 1-118
+docs/specs/README.md
+  s_d7aec13a88ac3e::t_25f897a0d9517c 44
+src/tripclipper/project.py
+  s_4ff254c84ce2f7::t_ba9e7bf8fb5eec 159-161
+docs/specs/eagle-smart-folders/plan.md
+  s_48afb323ea65c5::t_c784cd64a21991 69
+  s_48afb323ea65c5::t_d120b5b6dd07b6 1210-1216
+tests/test_models.py
+  s_d7aec13a88ac3e::t_c87148b83a9ecb 78-130
+  s_d7aec13a88ac3e::t_19a1b8534d88fc 13,15-16
+src/tripclipper/eagle_sync.py
+  s_d7aec13a88ac3e::t_b839c5ab8f052d 1015-1017
+  s_d7aec13a88ac3e::t_b9e895a1a5ddec 987
+  s_d7aec13a88ac3e::t_fe62e908fa1e9b 817-824,853-878,895
+  s_d7aec13a88ac3e::t_1c28d79fc99e93 690,702
+  s_d7aec13a88ac3e::t_2aefbbbfc76714 724-741,745-748
+  s_d7aec13a88ac3e::t_22ac5dd3e92730 742-744
+  s_d7aec13a88ac3e::t_e02947693c33c3 260,270-271
+  s_d7aec13a88ac3e::t_4da0d9deae3ec3 303-315
+src/tripclipper/scan.py
+  s_d7aec13a88ac3e::t_01681052dc5135 37
+  s_d7aec13a88ac3e::t_f912ca2baf0d86 654-659,670
+  s_d7aec13a88ac3e::t_4062c0c899cb09 112
+tests/test_exporter.py
+  s_d7aec13a88ac3e::t_5b9d6973f9f7b3 55
+  s_d7aec13a88ac3e::t_eb13e1f3c78a7c 1345-1347,1349-1458,1465-1471,1474,1479-1502,1505-1509
+  s_d7aec13a88ac3e::t_e4ecd270b8b52b 1348
+  s_d7aec13a88ac3e::t_e075d0f839af56 1459-1464,1472-1473,1475-1478,1503-1504
+  s_d7aec13a88ac3e::t_c2bb88f6296326 31
+  s_d7aec13a88ac3e::t_b31f4157bed364 270-285
+  s_d7aec13a88ac3e::t_66a4a60c4ec62b 14
+tests/test_config.py
+  s_4ff254c84ce2f7::t_2306410760cd2a 146
+  s_4ff254c84ce2f7::t_8e88fbb6fe581a 165,172
+src/tripclipper/session_splitter.py
+  s_d7aec13a88ac3e::t_77995a4e10178e 1-107 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a46591cefdb06da77993c1b","tool_type":"agent","tool_id":"RunCommand","line_ranges":[{"Range":[1,107]}]}]}
+src/tripclipper/cli.py
+  s_d7aec13a88ac3e::t_14ebe207789085 207
+  s_4ff254c84ce2f7::t_fee9045173b7e0 630-631
+  s_d7aec13a88ac3e::t_a26e96e35023f2 799-800
+  s_d7aec13a88ac3e::t_a78759218cc90c 218-226
+  s_d7aec13a88ac3e::t_84fc57c99bf7e9 782-783
+  s_d7aec13a88ac3e::t_49ee5c4e5b1345 213-217,227-254
+  s_4ff254c84ce2f7::t_7cda7179054109 702-705,723-728,730-731,746
+  s_4ff254c84ce2f7::t_724152da72a351 674-676
+docs/specs/eagle-smart-folders/check_list.md
+  s_d7aec13a88ac3e::t_77995a4e10178e 1-162 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a46591cefdb06da77993c1b","tool_type":"agent","tool_id":"RunCommand","line_ranges":[{"Range":[1,162]}]}]}
+src/tripclipper/templates/review.html.tmpl
+  s_d7aec13a88ac3e::t_001387cdabe1f2 21,40-41,127,176-209,220,226
+  s_baa7e54fb86925::t_33ef481bd99806 5,79-95,156-164,307-308,322-341,355,357-359,400-527
+  s_d7aec13a88ac3e::t_ad44f66057c10f 96-98
+  s_d7aec13a88ac3e::t_308af94c6d5c27 20
+  s_d7aec13a88ac3e::t_e79c0f5d2d038c 28-32
+  s_d7aec13a88ac3e::t_005c0d0088dd51 123,145,153
+  s_d7aec13a88ac3e::t_26fa0eed967adc 211,213,216-219,227-256,259,262,275,277
+  s_d7aec13a88ac3e::t_e87a078fd162c3 528-529
+src/tripclipper/exporter.py
+  s_d7aec13a88ac3e::t_8e550c3d66e03c 776,783,798
+  s_d7aec13a88ac3e::t_bb5cc213a1985d 578-592
+  s_d7aec13a88ac3e::t_74c7d6e2aed3c9 707-715,718,720,785-787,790,814
+  s_d7aec13a88ac3e::t_5b24d14da5dfe8 101-102
+  s_d7aec13a88ac3e::t_abe9d87e9cd460 49
+  s_d7aec13a88ac3e::t_5622b833b633a8 716-717
+  s_d7aec13a88ac3e::t_a4379e852599fe 808
+  s_d7aec13a88ac3e::t_d74f99fc722f19 198-203
+  s_d7aec13a88ac3e::t_fe6beedb8d4541 142-148,158-159
+  s_d7aec13a88ac3e::t_bf2bfa0e0e2946 66,736,740,742-746
+docs/specs/M6-eagle-sync/spec.md
+  s_d7aec13a88ac3e::t_720edc5839e572 21-22
+src/tripclipper/models.py
+  s_d7aec13a88ac3e::t_5bc5733ee7bfa2 323
+  s_d7aec13a88ac3e::t_75273bf5aee1d1 190-207
+  s_d7aec13a88ac3e::t_a1003759044540 341
+  s_d7aec13a88ac3e::t_89e2a98ba9c6fc 13
+  s_d7aec13a88ac3e::t_c28bd0273c0503 160
+tests/test_eagle_sync_runner.py
+  s_d7aec13a88ac3e::t_b6d8c00435fe98 5,7,17,25
+  s_d7aec13a88ac3e::t_f3c2c7aaf7aa0b 74-75,84-93
+  s_d7aec13a88ac3e::t_70467182bf4f89 308-309,311-312
+  s_d7aec13a88ac3e::t_cd3c362db5bc8d 6
+  s_d7aec13a88ac3e::t_38ece70a54e1dd 48-50
+  s_d7aec13a88ac3e::t_5294b123fb34c4 276-307,310,313-351,353-354,356
+  s_d7aec13a88ac3e::t_da34dae7e3d75d 352,355
+src/tripclipper/config.py
+  s_4ff254c84ce2f7::t_a235a444dcad25 71-74
+tests/test_eagle_client.py
+  s_d7aec13a88ac3e::t_b1136962485242 150-181
+  s_d7aec13a88ac3e::t_d221e18dfe39f8 248-282
+docs/specs/session-splitting/task_list.md
+  s_d7aec13a88ac3e::t_81a05e4f0d9109 78-80
+  s_d7aec13a88ac3e::t_13b21b5b83754d 9-15,17-19,25-26,33-34,41-42,44-47,49-51,56-58,60-64
+  s_d7aec13a88ac3e::t_c73e50c3bf1542 83-84
+  s_d7aec13a88ac3e::t_5c39bb47420152 66-76
+tests/test_cli_sync_eagle.py
+  s_d7aec13a88ac3e::t_708cde60baff32 407
+  s_d7aec13a88ac3e::t_317a16ef13786d 52,67-68,71-73
+  s_d7aec13a88ac3e::t_1a1658412d2a16 6,26
+  s_4ff254c84ce2f7::t_b084548689cb30 412-516
+  s_d7aec13a88ac3e::t_750e66a05902f5 95-96
+  s_d7aec13a88ac3e::t_507a43768f2fdf 409-411,517-563,565-628
+  s_d7aec13a88ac3e::t_0ff7824d89bf2c 564
+docs/specs/eagle-smart-folders/task_list.md
+  s_d7aec13a88ac3e::t_77995a4e10178e 1-266 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a46591cefdb06da77993c1b","tool_type":"agent","tool_id":"RunCommand","line_ranges":[{"Range":[1,266]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3d878b14f5d749e5625a22ab6bc686261219c7d6",
+  "prompts": {},
+  "sessions": {
+    "s_48afb323ea65c5": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a44deecefdb06da77992eb7",
+        "model": "openrouter-3o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_4ff254c84ce2f7": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a463e75efdb06da7799365b",
+        "model": "openrouter-3o__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_baa7e54fb86925": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a44ac60efdb06da779927cf",
+        "model": "openrouter-2o__dev",
+        "display_model_name": "openrouter-2o"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    },
+    "s_d7aec13a88ac3e": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a461aa5efdb06da7799335e",
+        "model": "gpt-5.5__dev",
+        "display_model_name": "GPT-5.5"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {
+    "docs/specs/eagle-smart-folders/check_list.md": [
+      {
+        "hash": "s_d7aec13a88ac3e::t_77995a4e10178e",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              162
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a46591cefdb06da77993c1b",
+            "tool_type": "agent",
+            "tool_id": "RunCommand",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  162
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/specs/eagle-smart-folders/task_list.md": [
+      {
+        "hash": "s_d7aec13a88ac3e::t_77995a4e10178e",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              266
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a46591cefdb06da77993c1b",
+            "tool_type": "agent",
+            "tool_id": "RunCommand",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  266
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "src/tripclipper/session_splitter.py": [
+      {
+        "hash": "s_d7aec13a88ac3e::t_77995a4e10178e",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              107
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a46591cefdb06da77993c1b",
+            "tool_type": "agent",
+            "tool_id": "RunCommand",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  107
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "s_d7aec13a88ac3e": {
+      "tool": "trae",
+      "conversation_id": "6a461aa5efdb06da7799335e",
+      "session_id": "6a461aa5efdb06da7799335e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    },
+    "s_d7aec13a88ac3e::t_77995a4e10178e": {
+      "tool": "trae",
+      "conversation_id": "6a461aa5efdb06da7799335e",
+      "session_id": "6a461aa5efdb06da7799335e",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
