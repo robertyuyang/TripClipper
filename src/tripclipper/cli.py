@@ -209,6 +209,18 @@ def _print_scan_result(result: ScanResult) -> None:
         click.echo("  提示：未发现可处理媒体。")
 
 
+def _render_tag_group_warning_lines(warnings) -> list[str]:
+    if not warnings:
+        return []
+    lines = [f"⚠️ {len(warnings)} 个 tag group 维护警告："]
+    for warning in warnings:
+        lines.append(
+            f"  - {warning.tag_group}: {warning.missing_tags} 个 tags；"
+            f"{warning.error}"
+        )
+    return lines
+
+
 def _print_analyze_result(result: AnalyzeResult) -> None:
     """打印 Stage 2 分析摘要（成功 / 失败 / 跳过 / 错误简要）。"""
     click.echo(f"分析完成（Stage 2 / {result.stage}）：")
@@ -729,7 +741,8 @@ def sync_eagle(
             )
 
     if result.tag_group_warnings:
-        click.echo(f"⚠️ {len(result.tag_group_warnings)} 个 tag group 维护警告。")
+        for line in _render_tag_group_warning_lines(result.tag_group_warnings):
+            click.echo(line)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -92,6 +92,17 @@ class FailingSecondAddClient(FakeClient):
         return "item_" + str(len(self.added))
 
 
+class FailingTagGroupCreateClient(FakeClient):
+    """tagGroup/create raises after item writes, yielding a maintenance warning."""
+
+    def tag_group_create(self, name, tags):
+        raise EagleClientError(
+            stage="tagGroup/create",
+            cause=RuntimeError("tag group write failed"),
+            http_status=500,
+        )
+
+
 class UnavailableClient(FakeClient):
     def fetch_library(self):
         raise EagleUnavailableError(stage="library/info")
@@ -216,6 +227,24 @@ def test_apply_partial_failure(tmp_path: Path, monkeypatch) -> None:
         eagle_apply_result_path(slug, base_dir=tmp_path).read_text(encoding="utf-8")
     )
     assert len(payload["failures"]) == 1
+
+
+def test_apply_prints_tag_group_warning_details(
+    tmp_path: Path, monkeypatch
+) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1)])
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FailingTagGroupCreateClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["sync-eagle", slug, "--base-dir", str(tmp_path), "--apply"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "tag group 维护警告" in result.output
+    assert "tagGroup/create" in result.output
+    assert "tag group write failed" in result.output
 
 
 def test_eagle_unavailable(tmp_path: Path, monkeypatch) -> None:
