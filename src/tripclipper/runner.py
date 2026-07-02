@@ -1,4 +1,4 @@
-"""M3 一键编排：scan → sample → (pause?) → full 串行执行。
+"""M3 一键编排：scan → sample → (pause?) → full → cluster → export 串行执行。
 
 CLI 入口为 ``tripclipper run <slug> [--pause-after sample] [--concurrency N]``，
 对应 spec Q15：``run`` 命令绕过 ``analyze`` 的分步硬卡，由编排自身保证
@@ -14,6 +14,8 @@ CLI 入口为 ``tripclipper run <slug> [--pause-after sample] [--concurrency N]`
   ``KeyboardInterrupt`` 翻译成清晰的退出语义，不做"清场"动作。
 - ``pause_after_sample=True``：sample 完成后用 ``input()`` 阻塞等回车；
   收到 Ctrl-C 同样优雅退出。
+- export 是最后一步派生产物，只写盘、不改 cut_index；单点失败按 note 记录、
+  不让整条 run 变成非零退出（cut_index 已经在 cluster 阶段落好了盘）。
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from .cluster_runner import (
     ClusterRunnerError,
     cluster as cluster_runner_cluster,
 )
+from .exporter import ExportError, copy_cut_index, render_review_html
 from .scan import ScanResult, scan_project
 
 _PathLike = Union[str, Path]
@@ -43,6 +46,8 @@ class RunResult:
     sample: Optional[AnalyzeResult] = None
     full: Optional[AnalyzeResult] = None
     cluster: Optional[ClusterResult] = None
+    export_cut_index_path: Optional[Path] = None
+    export_review_html_path: Optional[Path] = None
     interrupted: bool = False
     interrupted_stage: Optional[str] = None
     notes: list[str] = field(default_factory=list)
@@ -126,6 +131,28 @@ def run(
         raise
     except (ClusterRunnerError, ArbiterError) as exc:
         result.notes.append(f"cluster 跳过：{exc}")
+
+    # ---------- Stage 5: export ----------
+    # 派生产物（cut_index 副本 + review.html）失败不影响 run 的整体退出码：
+    # cut_index.json 已经在前面几步里增量落盘，用户可以事后单独重跑
+    # `tripclipper export <slug>`。KeyboardInterrupt 仍然按中断上抛。
+    try:
+        result.export_cut_index_path = copy_cut_index(slug, base_dir=base_dir)
+    except KeyboardInterrupt:
+        result.interrupted = True
+        result.interrupted_stage = "export"
+        raise
+    except ExportError as exc:
+        result.notes.append(f"export cut_index 跳过：{exc}")
+
+    try:
+        result.export_review_html_path = render_review_html(slug, base_dir=base_dir)
+    except KeyboardInterrupt:
+        result.interrupted = True
+        result.interrupted_stage = "export"
+        raise
+    except ExportError as exc:
+        result.notes.append(f"export review.html 跳过：{exc}")
 
     return result
 

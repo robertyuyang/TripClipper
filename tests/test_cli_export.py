@@ -53,9 +53,11 @@ def _seed_project(tmp_path: Path, slug: str) -> Path:
     return tmp_path / slug
 
 
-def test_export_html_writes_review_file(tmp_path: Path) -> None:
+def test_export_html_writes_review_file(tmp_path: Path, monkeypatch) -> None:
     slug = "demo"
     pdir = _seed_project(tmp_path, slug)
+
+    monkeypatch.setattr("tripclipper.cli.webbrowser.open", lambda *a, **kw: True)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -78,7 +80,7 @@ def test_export_missing_project_exits_nonzero(tmp_path: Path) -> None:
     assert "尚未初始化" in result.output
 
 
-def test_export_open_invokes_webbrowser(tmp_path: Path, monkeypatch) -> None:
+def test_export_default_invokes_webbrowser(tmp_path: Path, monkeypatch) -> None:
     slug = "demo"
     _seed_project(tmp_path, slug)
 
@@ -93,7 +95,7 @@ def test_export_open_invokes_webbrowser(tmp_path: Path, monkeypatch) -> None:
     runner = CliRunner()
     result = runner.invoke(
         main,
-        ["export", slug, "--base-dir", str(tmp_path), "--open"],
+        ["export", slug, "--base-dir", str(tmp_path)],
     )
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
@@ -174,9 +176,13 @@ def _seed_project_with_m4(tmp_path: Path, slug: str) -> Path:
     return tmp_path / slug
 
 
-def test_export_with_m4_data_renders_group_card(tmp_path: Path) -> None:
+def test_export_with_m4_data_renders_group_card(
+    tmp_path: Path, monkeypatch
+) -> None:
     slug = "demo_m4"
     pdir = _seed_project_with_m4(tmp_path, slug)
+
+    monkeypatch.setattr("tripclipper.cli.webbrowser.open", lambda *a, **kw: True)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -203,9 +209,13 @@ def test_export_with_m4_data_renders_group_card(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_export_writes_both_files_and_prints_summary(tmp_path: Path) -> None:
+def test_export_writes_both_files_and_prints_summary(
+    tmp_path: Path, monkeypatch
+) -> None:
     slug = "demo"
     pdir = _seed_project(tmp_path, slug)
+
+    monkeypatch.setattr("tripclipper.cli.webbrowser.open", lambda *a, **kw: True)
 
     runner = CliRunner()
     result = runner.invoke(main, ["export", slug, "--base-dir", str(tmp_path)])
@@ -245,7 +255,9 @@ def test_export_cut_index_only(tmp_path: Path) -> None:
     assert "📊 项目「Demo」总览" in result.output
 
 
-def test_export_open_with_cut_index_only_warns(tmp_path: Path, monkeypatch) -> None:
+def test_export_cut_index_only_does_not_open_browser(
+    tmp_path: Path, monkeypatch
+) -> None:
     slug = "demo"
     _seed_project(tmp_path, slug)
 
@@ -266,11 +278,8 @@ def test_export_open_with_cut_index_only_warns(tmp_path: Path, monkeypatch) -> N
             "--base-dir",
             str(tmp_path),
             "--cut-index-only",
-            "--open",
         ],
     )
 
     assert result.exit_code == 0, result.output
-    # stderr 与 stdout 在新版 click 默认合并，统一断言 output
-    assert "--open 与 --cut-index-only 冲突" in result.output
     assert calls == []
