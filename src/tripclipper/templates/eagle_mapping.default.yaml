@@ -70,3 +70,45 @@ note_template:
   section_format: markdown_h2
 
 connection_failure_threshold: 5
+
+smart_folders:
+  - key: highlights
+    name: "TC · {project_slug} · 精选高光"
+    icon_color: green
+    match: AND
+    rules:
+      - { property: tag, method: equal, value: "tc:project:{project_slug}" }
+      - { property: tag, method: equal, value: "tc:edit_candidate_status:default_selected" }
+      - { property: tag, method: equal, value: "tc:shot_function:highlight" }
+
+  - key: default_selected
+    name: "TC · {project_slug} · 候选主选"
+    icon_color: blue
+    match: AND
+    rules:
+      - { property: tag, method: equal, value: "tc:project:{project_slug}" }
+      - { property: tag, method: equal, value: "tc:edit_candidate_status:default_selected" }
+
+  - key: excluded
+    name: "TC · {project_slug} · 建议删除"
+    icon_color: red
+    match: AND
+    rules:
+      - { property: tag, method: equal, value: "tc:project:{project_slug}" }
+      - { property: tag, method: equal, value: "tc:edit_candidate_status:excluded" }
+
+  - key: needs_review
+    name: "TC · {project_slug} · 待复核"
+    icon_color: yellow
+    match: AND
+    rules:
+      - { property: tag, method: equal, value: "tc:project:{project_slug}" }
+      - { property: tag, method: equal, value: "tc:edit_candidate_status:needs_review" }
+
+  - key: analysis_failed
+    name: "TC · {project_slug} · 分析失败"
+    icon_color: orange
+    match: AND
+    rules:
+      - { property: tag, method: equal, value: "tc:project:{project_slug}" }
+      - { property: tag, method: equal, value: "tc:analysis_status:analysis_failed" }

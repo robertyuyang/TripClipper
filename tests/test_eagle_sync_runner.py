@@ -10,7 +10,10 @@ import httpx
 from tripclipper.eagle_sync import (
     AssetMapper,
     EagleSyncRunner,
+    EagleApplyResult,
     EagleV2Client,
+    SmartFolderReconcileResult,
+    SmartFolderWarning,
     SyncOptions,
     SyncPreconditionError,
     load_mapping_config,
@@ -48,6 +51,10 @@ class Recorder:
         self.folder_create_count = 0
         self.folder_names: list[str] = []
         self.addfrompath_folder_ids: list[str | None] = []
+        self.smart_folder_list_payload: list[dict] = []
+        self.smart_folder_create_calls: list[dict] = []
+        self.smart_folder_update_calls: list[tuple[str, dict]] = []
+        self.fail_smart_folder_create_on: set[str] = set()
         # path suffix -> callable(request, count) -> httpx.Response
         self.fail_addfrompath_on: set[int] = set()
         self.connect_error_addfrompath = False
@@ -92,6 +99,24 @@ class Recorder:
                     "data": {"id": f"folder-{self.folder_create_count}"},
                 },
             )
+        if path.endswith("smartFolder/get"):
+            return httpx.Response(
+                200,
+                json={"status": "success", "data": self.smart_folder_list_payload},
+            )
+        if path.endswith("smartFolder/create"):
+            body = json.loads(request.content.decode("utf-8"))
+            self.smart_folder_create_calls.append(body)
+            if body.get("name") in self.fail_smart_folder_create_on:
+                return httpx.Response(500, text="smart folder boom")
+            return httpx.Response(
+                200,
+                json={"status": "success", "data": {"id": "sf-created"}},
+            )
+        if path.endswith("smartFolder/update"):
+            body = json.loads(request.content.decode("utf-8"))
+            self.smart_folder_update_calls.append((str(body.get("id") or ""), body))
+            return httpx.Response(200, json={"status": "success", "data": None})
         if path.endswith("item/update"):
             return httpx.Response(200, json={"status": "success", "data": None})
         if path.endswith("item/moveToTrash"):
@@ -354,3 +379,94 @@ def test_timed_session_folder_name_format() -> None:
         session_folder_name(SLUG, session)
         == f"{SLUG} · session_01 · {expected_time}"
     )
+
+
+def test_result_omits_smart_folders_when_none() -> None:
+    result = EagleApplyResult(
+        synced_at="2026-07-02T00:00:00Z",
+        project_slug="demo",
+        eagle_library_path=None,
+        totals={"total": 0, "synced": 0, "failed": 0, "skipped": 0, "skipped_unanalyzed": 0},
+        failures=[],
+        tag_group_warnings=[],
+        aborted=False,
+        abort_reason=None,
+        folder_warnings=[],
+        smart_folders=None,
+    )
+    payload = result.to_dict()
+    assert "smart_folders" not in payload
+
+
+def test_result_serializes_smart_folder_warnings() -> None:
+    smart_folders = SmartFolderReconcileResult(
+        created=["TC · demo · A"],
+        warnings=[
+            SmartFolderWarning(
+                key="excluded", name="TC · demo · X", error="HTTP 500"
+            )
+        ],
+    )
+    result = EagleApplyResult(
+        synced_at="t",
+        project_slug="demo",
+        eagle_library_path=None,
+        totals={"total": 0, "synced": 0, "failed": 0, "skipped": 0, "skipped_unanalyzed": 0},
+        failures=[],
+        tag_group_warnings=[],
+        aborted=False,
+        abort_reason=None,
+        folder_warnings=[],
+        smart_folders=smart_folders,
+    )
+    payload = result.to_dict()
+    assert payload["smart_folders"]["created"] == ["TC · demo · A"]
+    assert payload["smart_folders"]["warnings"][0]["key"] == "excluded"
+
+
+def test_apply_runs_smart_folder_reconcile() -> None:
+    rec = Recorder()
+    assets = [_analyzed(asset_id="a1")]
+    cut = _cut_index(assets)
+    _, result = _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
+
+    assert result.smart_folders is not None
+    assert len(rec.smart_folder_create_calls) == 5
+
+
+def test_dry_run_skips_smart_folder_reconcile() -> None:
+    rec = Recorder()
+    assets = [_analyzed(asset_id="a1")]
+    cut = _cut_index(assets)
+    _, result = _runner(_make_client(rec), SyncOptions(apply=False)).run(cut)
+
+    assert result.smart_folders is None
+    assert rec.smart_folder_create_calls == []
+
+
+def test_no_smart_folders_flag_skips_stage() -> None:
+    rec = Recorder()
+    assets = [_analyzed(asset_id="a1")]
+    cut = _cut_index(assets)
+    _, result = _runner(
+        _make_client(rec), SyncOptions(apply=True, no_smart_folders=True)
+    ).run(cut)
+
+    assert result.smart_folders is None
+    assert "smart_folders" not in result.to_dict()
+    assert rec.smart_folder_create_calls == []
+
+
+def test_aborted_sync_records_smart_folder_skip_warning() -> None:
+    rec = Recorder()
+    rec.connect_error_addfrompath = True
+    assets = [_analyzed(asset_id=f"a{i}") for i in range(6)]
+    cut = _cut_index(assets)
+    _, result = _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
+
+    assert result.aborted is True
+    assert result.smart_folders is not None
+    assert len(result.smart_folders.warnings) == 1
+    assert result.smart_folders.warnings[0].key == "_all"
+    assert "skipped due to aborted sync" in result.smart_folders.warnings[0].error
+    assert rec.smart_folder_create_calls == []

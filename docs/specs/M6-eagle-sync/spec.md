@@ -3,7 +3,7 @@
 > 状态：**待用户审**。本文件由 2026-06-30 grilling 会话讨论定稿，配套 [ADR-004](../../adr/ADR-004-eagle-sync-as-thin-mapping-layer.md)。
 > 覆盖：PRD §FR-9（dry-run 预览）/§FR-10（apply 写入）；TD §10。
 > 依赖：[M5](../M5-data-export/spec.md)（消费 `exports/cut_index.json` 作为同步基线）、[M4](../M4-similar-clustering/spec.md)（候选池字段事实源）、[M0](../M0-data-contract/spec.md)（数据契约）。
-> Eagle 版本要求：≥ 4.0 Build 21（V2 Web API）。
+> Eagle 版本要求：≥ 4.0 Build 22（V2 Web API）。
 
 ## Why
 
@@ -262,17 +262,17 @@ M6 SHALL NOT 在 mapping 之外发明 tag 命名、过滤素材、或建立 fold
 - **THEN** 该素材 SHALL 被同步，带 tag `tc:analysis_status:analysis_failed`
 - **AND** note 中 SHALL 包含「## 分析失败原因」区块
 
-### Requirement: M6 SHALL 仅支持 Eagle V2 Web API（≥ 4.0 Build 21）
+### Requirement: M6 SHALL 仅支持 Eagle V2 Web API（≥ 4.0 Build 22）
 
 启动期 SHALL 验证 Eagle 已运行且 V2 API 可用，不满足时硬阻断。
 
 #### Scenario: Eagle 未启动
 - **WHEN** 用户执行 sync-eagle 时 Eagle 应用未运行
-- **THEN** 命令 SHALL 启动期报错退出，提示「请确认 Eagle 应用已启动，且版本 ≥ 4.0 Build 21」
+- **THEN** 命令 SHALL 启动期报错退出，提示「请确认 Eagle 应用已启动，且版本 ≥ 4.0 Build 22」
 - **AND** SHALL NOT 写入任何东西
 
 #### Scenario: Eagle 版本过低
-- **WHEN** Eagle 已启动但版本 < 4.0 Build 21（V2 API 返回 404）
+- **WHEN** Eagle 已启动但版本 < 4.0 Build 22（V2 API 返回 404）
 - **THEN** 命令 SHALL 报错退出，提示需升级 Eagle
 
 ### Requirement: M6 SHALL 通过 V2 tagGroup API 自动维护字段分组
@@ -374,13 +374,14 @@ PRD §FR-9 「Eagle 同步预览」和 §FR-10 「Eagle 同步执行」SHALL 按
 ## 与未来模块的边界
 
 - **M7 启动页与状态面板** SHALL 消费 `eagle_apply_result.json` 展示最近一次同步结果（成功/失败计数、待重试列表）。
+- **Eagle Smart Folder 预设**：M6 `--apply` 结束后自动维护一批 smart folder 作为“用户友好视图层”，不改 tag 命名与字段映射。详见 [eagle-smart-folders spec](../eagle-smart-folders/spec.md)。
 - **未来"sha1 去重"优化**（见 [todolist.md](../../todolist.md)）SHALL 在 `EagleV2Client` 中增加 `find_item_by_sha1` 方法，并在 `EagleSyncRunner` 的 `addFromPath` 之前增加去重短路。该改动向后兼容，不破坏现有 cut_index 与 eagle_apply_result schema。
 - **未来"中文友好命名"增强**（如确认有需要）SHALL 通过给 mapping yaml 加 `display_name` 字段 + 渲染器实现，不改动核心字段映射逻辑。
 
 ## 验收口径（人类可执行）
 
 1. 准备一个跑过 `tripclipper export <slug>` 的项目（含 ≥10 条 analyzed 素材，至少 1 个雷同组）。
-2. 启动 Eagle ≥ 4.0 Build 21；执行 `tripclipper sync-eagle <slug> --dry-run`：
+2. 启动 Eagle ≥ 4.0 Build 22；执行 `tripclipper sync-eagle <slug> --dry-run`：
    - stdout 含连通性 OK、Eagle 版本号、待同步 N 条素材的分类摘要
    - cut_index.json 与 Eagle 库均无变化
 3. 执行 `tripclipper sync-eagle <slug> --apply`：

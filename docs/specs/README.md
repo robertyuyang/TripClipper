@@ -41,6 +41,7 @@ docs/specs/
 | trustworthy-clip-timecodes | 视频 segments 时间码可信化（ADR-003） | FR-3/FR-4；TD 6 | M0、M2、M3 | 已完成 |
 | M5 | 数据包导出与只读报告 | FR-7/FR-8；TD 9 | M3、M4 | 定稿（待用户审） |
 | M6 | Eagle 同步（预览+正式） | FR-9/FR-10；TD 10 | M5 | 已完成（自动化验收全过；Task 15 真机验收待用户）|
+| eagle-smart-folders | Eagle Smart Folder 预设 | FR-9/FR-10 视图层增强 | M6 | 定稿（待用户审）|
 | session-splitting | 按时间切段的 session 分析 + Eagle folder 归属 | 扩展 M2/M6 | M0、M2、M6 | 已完成（自动化测试全过；review.html/Eagle 真机视觉验收待用户）|
 | M7 | 本地启动页与状态面板 | PRD 5.2；TD 11 | M1~M6 | 待开始 |
 | M8 | 错误记录与可观测性（横切） | FR-11；PRD 8 | 横切 | 待开始 |

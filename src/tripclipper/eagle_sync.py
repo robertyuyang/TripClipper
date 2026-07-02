@@ -14,7 +14,7 @@ The module is organised as four layers:
    live under the ``/api/`` prefix, while ``library/info``, ``item/update``
    and the ``tagGroup/*`` family live under ``/api/v2/``. Authentication is
    done via the ``?token=`` query parameter (not an Authorization header).
-   Version < 4.0 Build 21 (no V2 endpoints reachable) surfaces as
+   Version < 4.0 Build 22 (no V2 endpoints reachable) surfaces as
    :class:`EagleVersionError`; an unreachable Eagle surfaces as
    :class:`EagleUnavailableError`.
 2. Mapping loader — :func:`load_mapping_config` reads the packaged default
@@ -51,6 +51,10 @@ from .paths import eagle_mapping_default_template_path
 # ---------------------------------------------------------------------------
 
 _VALID_TARGETS = frozenset({"tag", "eagle_rating", "note_section"})
+_VALID_SMART_FOLDER_ICON_COLORS = frozenset(
+    {"red", "orange", "yellow", "green", "aqua", "blue", "purple", "pink"}
+)
+_VALID_SMART_FOLDER_MATCH = frozenset({"AND", "OR"})
 
 
 @dataclass
@@ -81,7 +85,7 @@ class EagleVersionError(EagleClientError):
         return (
             f"Eagle V2 API unavailable at stage {self.stage!r}"
             f"{f' (HTTP {self.http_status})' if self.http_status is not None else ''}"
-            "：需要 Eagle V2 API（≥ 4.0 Build 21），请升级 Eagle。"
+            "：需要 Eagle V2 API（≥ 4.0 Build 22），请升级 Eagle。"
         )
 
 
@@ -313,6 +317,25 @@ class EagleV2Client:
         data = self._post(self._V2 + "folder/create", body)
         return self._extract_id(data)
 
+    def smart_folder_list(self) -> list[dict]:
+        """Return the raw smart-folder list from Eagle V2."""
+        data = self._get(self._V2 + "smartFolder/get")
+        return data if isinstance(data, list) else []
+
+    def smart_folder_create(self, payload: dict) -> str:
+        """Create one smart folder and return its id."""
+        data = self._post(self._V2 + "smartFolder/create", payload)
+        folder_id = self._extract_id(data)
+        if not folder_id:
+            raise EagleClientError(stage=self._V2 + "smartFolder/create")
+        return folder_id
+
+    def smart_folder_update(self, folder_id: str, payload: dict) -> None:
+        """Update one smart folder; caller supplies payload without ``id``."""
+        body = dict(payload)
+        body["id"] = folder_id
+        self._post(self._V2 + "smartFolder/update", body)
+
     def tag_group_update(
         self,
         group_id: str,
@@ -358,6 +381,22 @@ class NoteTemplate:
 
 
 @dataclass(frozen=True)
+class SmartFolderRule:
+    property: str
+    method: str
+    value: str
+
+
+@dataclass(frozen=True)
+class SmartFolderPreset:
+    key: str
+    name: str
+    icon_color: Optional[str]
+    match: str
+    rules: tuple[SmartFolderRule, ...]
+
+
+@dataclass(frozen=True)
 class MappingConfig:
     tag_prefix: str
     project_tag_field: str
@@ -366,6 +405,7 @@ class MappingConfig:
     skip_fields: frozenset[str]
     note_template: NoteTemplate
     connection_failure_threshold: int
+    smart_folder_presets: tuple[SmartFolderPreset, ...] = ()
 
 
 def _build_target_spec(field_name: str, raw: dict) -> TargetSpec:
@@ -379,6 +419,64 @@ def _build_target_spec(field_name: str, raw: dict) -> TargetSpec:
         title=raw.get("title"),
         order=raw.get("order"),
         renderer=raw.get("renderer"),
+    )
+
+
+def _build_smart_folder_preset(raw: dict) -> SmartFolderPreset:
+    key = raw.get("key")
+    name = raw.get("name")
+    icon_color = raw.get("icon_color")
+    match = raw.get("match")
+    rules_raw = raw.get("rules") or []
+
+    if not isinstance(key, str) or not key:
+        raise ConfigError(f"smart_folder preset missing valid 'key': {raw!r}")
+    if not isinstance(name, str) or not name:
+        raise ConfigError(
+            f"smart_folder preset {key!r} missing valid 'name': {raw!r}"
+        )
+    if icon_color is not None and icon_color not in _VALID_SMART_FOLDER_ICON_COLORS:
+        raise ConfigError(
+            f"smart_folder preset {key!r} has invalid icon_color={icon_color!r}"
+        )
+    if match not in _VALID_SMART_FOLDER_MATCH:
+        raise ConfigError(
+            f"smart_folder preset {key!r} has invalid match={match!r}"
+        )
+    if not rules_raw:
+        raise ConfigError(f"smart_folder preset {key!r} has empty rules")
+
+    rules: list[SmartFolderRule] = []
+    for rule in rules_raw:
+        if not isinstance(rule, dict):
+            raise ConfigError(
+                f"smart_folder preset {key!r} has invalid rule: {rule!r}"
+            )
+        value = rule.get("value")
+        if isinstance(value, list):
+            if not value or not isinstance(value[0], str):
+                raise ConfigError(
+                    f"smart_folder preset {key!r} has invalid rule value: {value!r}"
+                )
+            value = value[0]
+        if not isinstance(value, str) or not value:
+            raise ConfigError(
+                f"smart_folder preset {key!r} has invalid rule value: {value!r}"
+            )
+        rules.append(
+            SmartFolderRule(
+                property=str(rule.get("property") or ""),
+                method=str(rule.get("method") or ""),
+                value=value,
+            )
+        )
+
+    return SmartFolderPreset(
+        key=key,
+        name=name,
+        icon_color=icon_color,
+        match=match,
+        rules=tuple(rules),
     )
 
 
@@ -435,6 +533,24 @@ def load_mapping_config(project_overrides: Optional[dict] = None) -> MappingConf
         section_format=raw_note.get("section_format", "markdown_h2"),
     )
 
+    # -- smart folders (default + key-based full replacement) --------------
+    base_smart_folders = [
+        _build_smart_folder_preset(raw)
+        for raw in (base.get("smart_folders") or [])
+    ]
+    merged_by_key = {preset.key: preset for preset in base_smart_folders}
+    default_order = [preset.key for preset in base_smart_folders]
+    appended_order: list[str] = []
+    for raw in overrides.get("smart_folders") or []:
+        preset = _build_smart_folder_preset(raw)
+        if preset.key not in merged_by_key:
+            appended_order.append(preset.key)
+        merged_by_key[preset.key] = preset
+    smart_folder_presets = tuple(
+        [merged_by_key[key] for key in default_order]
+        + [merged_by_key[key] for key in appended_order]
+    )
+
     return MappingConfig(
         tag_prefix=tag_prefix,
         project_tag_field=project_tag_field,
@@ -443,7 +559,135 @@ def load_mapping_config(project_overrides: Optional[dict] = None) -> MappingConf
         skip_fields=frozenset(skip_fields),
         note_template=note_template,
         connection_failure_threshold=connection_failure_threshold,
+        smart_folder_presets=smart_folder_presets,
     )
+
+
+# ---------------------------------------------------------------------------
+# Smart folder reconcile support
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SmartFolderWarning:
+    key: str
+    name: str
+    error: str
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
+
+
+@dataclass
+class SmartFolderReconcileResult:
+    created: list[str] = dataclasses.field(default_factory=list)
+    updated: list[str] = dataclasses.field(default_factory=list)
+    unchanged: list[str] = dataclasses.field(default_factory=list)
+    warnings: list[SmartFolderWarning] = dataclasses.field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "created": list(self.created),
+            "updated": list(self.updated),
+            "unchanged": list(self.unchanged),
+            "warnings": [warning.to_dict() for warning in self.warnings],
+        }
+
+
+class SmartFolderPlanner:
+    """Render and reconcile Eagle smart-folder presets."""
+
+    _NAMESPACE_PREFIX = "TC · "
+
+    def __init__(
+        self,
+        client: Any,
+        presets: tuple[SmartFolderPreset, ...],
+        project_slug: str,
+    ) -> None:
+        self.client = client
+        self.presets = presets
+        self.project_slug = project_slug
+
+    def render_conditions(self, preset: SmartFolderPreset) -> list[dict]:
+        return [
+            {
+                "match": preset.match,
+                "rules": [
+                    {
+                        "property": rule.property,
+                        "method": rule.method,
+                        "value": [
+                            rule.value.format(project_slug=self.project_slug)
+                        ],
+                    }
+                    for rule in preset.rules
+                ],
+            }
+        ]
+
+    def render_payload(self, preset: SmartFolderPreset) -> dict:
+        payload: dict[str, Any] = {
+            "name": preset.name.format(project_slug=self.project_slug),
+            "conditions": self.render_conditions(preset),
+        }
+        if preset.icon_color is not None:
+            payload["iconColor"] = preset.icon_color
+        return payload
+
+    def _conditions_equal(
+        self, existing_conditions: list[dict], target_conditions: list[dict]
+    ) -> bool:
+        def _normalize(conditions: list[dict]) -> list[tuple[Any, tuple[Any, ...]]]:
+            normalized: list[tuple[Any, tuple[Any, ...]]] = []
+            for condition in conditions or []:
+                rules = tuple(
+                    sorted(
+                        (
+                            rule.get("property"),
+                            rule.get("method"),
+                            tuple(rule.get("value") or []),
+                        )
+                        for rule in (condition.get("rules") or [])
+                    )
+                )
+                normalized.append((condition.get("match"), rules))
+            return sorted(normalized)
+
+        return _normalize(existing_conditions) == _normalize(target_conditions)
+
+    def reconcile(self) -> SmartFolderReconcileResult:
+        result = SmartFolderReconcileResult()
+        existing = self.client.smart_folder_list()
+        existing_by_name = {
+            folder["name"]: folder
+            for folder in existing
+            if isinstance(folder, dict)
+            and str(folder.get("name", "")).startswith(self._NAMESPACE_PREFIX)
+        }
+
+        for preset in self.presets:
+            payload = self.render_payload(preset)
+            name = payload["name"]
+            existing_folder = existing_by_name.get(name)
+            try:
+                if existing_folder is None:
+                    self.client.smart_folder_create(payload)
+                    result.created.append(name)
+                elif self._conditions_equal(
+                    existing_folder.get("conditions", []),
+                    payload["conditions"],
+                ):
+                    result.unchanged.append(name)
+                else:
+                    self.client.smart_folder_update(existing_folder["id"], payload)
+                    result.updated.append(name)
+            except EagleClientError as exc:
+                result.warnings.append(
+                    SmartFolderWarning(key=preset.key, name=name, error=str(exc))
+                )
+
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -653,6 +897,7 @@ class SyncOptions:
     retry_failed: bool = False
     skip_unanalyzed: bool = False
     strict_mapping: bool = False
+    no_smart_folders: bool = False
 
 
 @dataclass
@@ -688,9 +933,10 @@ class EagleApplyResult:
     aborted: bool
     abort_reason: Optional[str]
     folder_warnings: list = dataclasses.field(default_factory=list)  # of str
+    smart_folders: Optional[SmartFolderReconcileResult] = None
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "synced_at": self.synced_at,
             "project_slug": self.project_slug,
             "eagle_library_path": self.eagle_library_path,
@@ -701,6 +947,9 @@ class EagleApplyResult:
             "abort_reason": self.abort_reason,
             "folder_warnings": list(self.folder_warnings),
         }
+        if self.smart_folders is not None:
+            payload["smart_folders"] = self.smart_folders.to_dict()
+        return payload
 
 
 class SyncPreconditionError(Exception):
@@ -970,7 +1219,39 @@ class EagleSyncRunner:
                         TagGroupWarning(group_name, len(deduped), str(exc))
                     )
 
-        # 9. build result
+        # 9. smart folder maintenance (idempotent; post tag-group stage).
+        smart_folders_result: Optional[SmartFolderReconcileResult] = None
+        if opts.apply and not opts.no_smart_folders:
+            if aborted:
+                smart_folders_result = SmartFolderReconcileResult(
+                    warnings=[
+                        SmartFolderWarning(
+                            key="_all",
+                            name="",
+                            error="skipped due to aborted sync",
+                        )
+                    ]
+                )
+            else:
+                try:
+                    planner = SmartFolderPlanner(
+                        self.client,
+                        self.config.smart_folder_presets,
+                        self.mapper.project_slug,
+                    )
+                    smart_folders_result = planner.reconcile()
+                except EagleUnavailableError as exc:
+                    smart_folders_result = SmartFolderReconcileResult(
+                        warnings=[
+                            SmartFolderWarning(
+                                key="_all",
+                                name="",
+                                error=f"Eagle unavailable during smart folder stage: {exc}",
+                            )
+                        ]
+                    )
+
+        # 10. build result
         project_slug = self.mapper.project_slug or getattr(
             getattr(cut_index, "project", None), "project_slug", None
         )
@@ -985,6 +1266,7 @@ class EagleSyncRunner:
             aborted=aborted,
             abort_reason=abort_reason,
             folder_warnings=folder_warnings,
+            smart_folders=smart_folders_result,
         )
         return cut_index, result
 
@@ -999,6 +1281,11 @@ __all__ = [
     # Layer 2
     "TargetSpec",
     "NoteTemplate",
+    "SmartFolderRule",
+    "SmartFolderPreset",
+    "SmartFolderWarning",
+    "SmartFolderReconcileResult",
+    "SmartFolderPlanner",
     "MappingConfig",
     "load_mapping_config",
     # Layer 3

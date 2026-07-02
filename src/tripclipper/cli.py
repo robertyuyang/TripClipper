@@ -624,6 +624,13 @@ def export(slug: str, base_dir: str, cut_index_only: bool) -> None:
     help="禁用 auto_map_unknown：未声明字段不产 tag。",
 )
 @click.option(
+    "--no-smart-folders",
+    "no_smart_folders",
+    is_flag=True,
+    default=False,
+    help="跳过 smart folder 维护阶段。",
+)
+@click.option(
     "--library-path",
     "library_path",
     default=None,
@@ -646,6 +653,7 @@ def sync_eagle(
     retry_failed,
     skip_unanalyzed,
     strict_mapping,
+    no_smart_folders,
     library_path,
     yes,
 ):
@@ -690,6 +698,7 @@ def sync_eagle(
         retry_failed=retry_failed,
         skip_unanalyzed=skip_unanalyzed,
         strict_mapping=strict_mapping,
+        no_smart_folders=no_smart_folders,
     )
 
     project_slug = cut.project.project_slug or slug
@@ -708,14 +717,14 @@ def sync_eagle(
                 except EagleUnavailableError as exc:
                     click.echo(
                         f"无法连接到 Eagle：{exc}\n"
-                        "请确认 Eagle 应用已启动，且版本 ≥ 4.0 Build 21。",
+                        "请确认 Eagle 应用已启动，且版本 ≥ 4.0 Build 22。",
                         err=True,
                     )
                     sys.exit(2)
                 except EagleVersionError as exc:
                     click.echo(
                         f"Eagle 版本过低：{exc}\n"
-                        "需要 Eagle V2 Web API（版本 ≥ 4.0 Build 21）。",
+                        "需要 Eagle V2 Web API（版本 ≥ 4.0 Build 22）。",
                         err=True,
                     )
                     sys.exit(2)
@@ -749,14 +758,14 @@ def sync_eagle(
     except EagleUnavailableError as exc:
         click.echo(
             f"无法连接到 Eagle：{exc}\n"
-            "请确认 Eagle 应用已启动，且版本 ≥ 4.0 Build 21。",
+            "请确认 Eagle 应用已启动，且版本 ≥ 4.0 Build 22。",
             err=True,
         )
         sys.exit(2)
     except EagleVersionError as exc:
         click.echo(
             f"Eagle 版本过低：{exc}\n"
-            "需要 Eagle V2 Web API（版本 ≥ 4.0 Build 21）。",
+            "需要 Eagle V2 Web API（版本 ≥ 4.0 Build 22）。",
             err=True,
         )
         sys.exit(2)
@@ -779,6 +788,12 @@ def sync_eagle(
             f"[dry-run] 待同步 {totals['synced']} 条素材"
             f"（总计 {totals['total']}，跳过 {totals['skipped']}）。未写入 Eagle。"
         )
+        if not no_smart_folders:
+            click.echo(
+                "Smart Folder 计划: 将建/更新 "
+                f"{len(config.smart_folder_presets)} 个"
+                "（干跑不连库对账，实际执行时按 name 幂等 reconcile）"
+            )
         for line in _render_sessions_preview(cut.sessions):
             click.echo(line)
     else:
@@ -792,6 +807,25 @@ def sync_eagle(
             click.echo(
                 f"⚠️ {totals['failed']} 条失败，详见 eagle_apply_result.json。"
             )
+        if result.smart_folders is not None:
+            ready = (
+                len(result.smart_folders.created)
+                + len(result.smart_folders.updated)
+                + len(result.smart_folders.unchanged)
+            )
+            failed = len(result.smart_folders.warnings)
+            if failed == 0:
+                click.echo(
+                    "✅ Smart Folder: "
+                    f"{ready} 个已就绪（新建 {len(result.smart_folders.created)} / "
+                    f"更新 {len(result.smart_folders.updated)} / "
+                    f"保持 {len(result.smart_folders.unchanged)}）"
+                )
+            else:
+                click.echo(
+                    f"⚠️ Smart Folder: {ready} 个已就绪，{failed} 个失败"
+                    "（详见 eagle_apply_result.json）"
+                )
 
     if result.tag_group_warnings:
         for line in _render_tag_group_warning_lines(result.tag_group_warnings):

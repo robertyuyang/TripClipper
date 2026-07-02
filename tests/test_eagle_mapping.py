@@ -38,3 +38,124 @@ def test_project_overrides_extends_skip_fields() -> None:
 def test_invalid_target_rejected() -> None:
     with pytest.raises(ConfigError):
         load_mapping_config({"mappings": {"foo": {"target": "bogus"}}})
+
+
+def test_load_default_smart_folders() -> None:
+    cfg = load_mapping_config()
+    keys = [p.key for p in cfg.smart_folder_presets]
+    assert keys == [
+        "highlights",
+        "default_selected",
+        "excluded",
+        "needs_review",
+        "analysis_failed",
+    ]
+
+
+def test_smart_folder_override_replaces_by_key() -> None:
+    overrides = {
+        "smart_folders": [
+            {
+                "key": "highlights",
+                "name": "TC · {project_slug} · Hero",
+                "icon_color": "purple",
+                "match": "AND",
+                "rules": [
+                    {
+                        "property": "tag",
+                        "method": "equal",
+                        "value": "tc:project:{project_slug}",
+                    }
+                ],
+            }
+        ]
+    }
+    cfg = load_mapping_config(project_overrides=overrides)
+    hi = next(p for p in cfg.smart_folder_presets if p.key == "highlights")
+    assert hi.icon_color == "purple"
+    assert hi.name == "TC · {project_slug} · Hero"
+    others = [p.key for p in cfg.smart_folder_presets if p.key != "highlights"]
+    assert others == [
+        "default_selected",
+        "excluded",
+        "needs_review",
+        "analysis_failed",
+    ]
+
+
+def test_smart_folder_override_appends_new_key() -> None:
+    overrides = {
+        "smart_folders": [
+            {
+                "key": "extreme_wide",
+                "name": "TC · {project_slug} · 大远景",
+                "icon_color": None,
+                "match": "AND",
+                "rules": [
+                    {
+                        "property": "tag",
+                        "method": "equal",
+                        "value": "tc:shot_scale:extreme_wide",
+                    }
+                ],
+            }
+        ]
+    }
+    cfg = load_mapping_config(project_overrides=overrides)
+    keys = [p.key for p in cfg.smart_folder_presets]
+    assert keys == [
+        "highlights",
+        "default_selected",
+        "excluded",
+        "needs_review",
+        "analysis_failed",
+        "extreme_wide",
+    ]
+
+
+def test_smart_folder_invalid_icon_color_rejected() -> None:
+    overrides = {
+        "smart_folders": [
+            {
+                "key": "highlights",
+                "name": "x",
+                "icon_color": "magenta",
+                "match": "AND",
+                "rules": [{"property": "tag", "method": "equal", "value": "x"}],
+            }
+        ]
+    }
+    with pytest.raises(ConfigError):
+        load_mapping_config(project_overrides=overrides)
+
+
+def test_smart_folder_invalid_match_rejected() -> None:
+    overrides = {
+        "smart_folders": [
+            {
+                "key": "highlights",
+                "name": "x",
+                "icon_color": None,
+                "match": "XOR",
+                "rules": [{"property": "tag", "method": "equal", "value": "x"}],
+            }
+        ]
+    }
+    with pytest.raises(ConfigError):
+        load_mapping_config(project_overrides=overrides)
+
+
+def test_smart_folder_empty_rules_rejected() -> None:
+    overrides = {
+        "smart_folders": [
+            {
+                "key": "highlights",
+                "name": "x",
+                "icon_color": None,
+                "match": "AND",
+                "rules": [],
+            }
+        ]
+    }
+    with pytest.raises(ConfigError):
+        load_mapping_config(project_overrides=overrides)

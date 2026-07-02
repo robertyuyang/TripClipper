@@ -37,6 +37,9 @@ class RecordingBackend:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, dict]] = []  # (method, path, body)
         self.tag_groups: list[str] = []  # names passed to tagGroup/create
+        self.smart_folder_list_payload: list[dict] = []
+        self.smart_folder_create_payloads: list[dict] = []
+        self.smart_folder_update_payloads: list[tuple[str, dict]] = []
         self._next_id = 0
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -78,6 +81,25 @@ class RecordingBackend:
                 200, json={"status": "success", "data": {"id": f"grp_{name}"}}
             )
         if path.endswith("tagGroup/update"):
+            return httpx.Response(200, json={"status": "success", "data": {}})
+        if path.endswith("smartFolder/get"):
+            return httpx.Response(
+                200,
+                json={"status": "success", "data": self.smart_folder_list_payload},
+            )
+        if path.endswith("smartFolder/create"):
+            self.smart_folder_create_payloads.append(body)
+            return httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "data": {"id": f"sf_{len(self.smart_folder_create_payloads)}"},
+                },
+            )
+        if path.endswith("smartFolder/update"):
+            self.smart_folder_update_payloads.append(
+                (str(body.get("id") or ""), body)
+            )
             return httpx.Response(200, json={"status": "success", "data": {}})
         return httpx.Response(404, json={"status": "error"})
 
@@ -213,3 +235,118 @@ def test_analysis_failed_fixture_synced_with_failure_note():
     assert len(failed_bodies) == 1
     failed_body = failed_bodies[0]
     assert "LLM timeout" in failed_body["annotation"]
+
+
+def test_apply_creates_five_default_smart_folders():
+    backend, _updated, result = _make(apply=True)
+
+    assert len(backend.smart_folder_create_payloads) == 5
+    assert {payload["name"] for payload in backend.smart_folder_create_payloads} == {
+        "TC · demo-scan · 精选高光",
+        "TC · demo-scan · 候选主选",
+        "TC · demo-scan · 建议删除",
+        "TC · demo-scan · 待复核",
+        "TC · demo-scan · 分析失败",
+    }
+    assert len(result.smart_folders.created) == 5
+
+
+def test_reapply_smart_folder_reconcile_all_unchanged():
+    backend1, _updated1, _result1 = _make(apply=True)
+
+    backend2 = RecordingBackend()
+    backend2.smart_folder_list_payload = [
+        {
+            "id": f"sf_{index}",
+            "name": payload["name"],
+            "conditions": payload["conditions"],
+            "iconColor": payload.get("iconColor"),
+        }
+        for index, payload in enumerate(backend1.smart_folder_create_payloads, start=1)
+    ]
+    client2 = EagleV2Client(transport=httpx.MockTransport(backend2.handler))
+    cut2 = read_cut_index(DEMO_CUT_INDEX)
+    for asset in cut2.assets:
+        asset.eagle_item_id = None
+        asset.eagle_sync_status = None
+    config = load_mapping_config()
+    mapper = AssetMapper(config, "demo-scan", "2026-06-30T00:00:00+00:00")
+    _updated2, result2 = EagleSyncRunner(
+        client2, mapper, config, SyncOptions(apply=True)
+    ).run(cut2)
+
+    assert backend2.smart_folder_create_payloads == []
+    assert backend2.smart_folder_update_payloads == []
+    assert len(result2.smart_folders.unchanged) == 5
+
+
+def test_project_override_triggers_update():
+    backend = RecordingBackend()
+    backend.smart_folder_list_payload = [
+        {
+            "id": "sf_1",
+            "name": "TC · demo-scan · 精选高光",
+            "conditions": [
+                {
+                    "match": "AND",
+                    "rules": [
+                        {
+                            "property": "tag",
+                            "method": "equal",
+                            "value": ["tc:project:demo-scan"],
+                        },
+                        {
+                            "property": "tag",
+                            "method": "equal",
+                            "value": [
+                                "tc:edit_candidate_status:default_selected"
+                            ],
+                        },
+                        {
+                            "property": "tag",
+                            "method": "equal",
+                            "value": ["tc:shot_function:highlight"],
+                        },
+                    ],
+                }
+            ],
+            "iconColor": "green",
+        }
+    ]
+    client = EagleV2Client(transport=httpx.MockTransport(backend.handler))
+    cut = read_cut_index(DEMO_CUT_INDEX)
+    for asset in cut.assets:
+        asset.eagle_item_id = None
+        asset.eagle_sync_status = None
+    config = load_mapping_config(
+        {
+            "smart_folders": [
+                {
+                    "key": "highlights",
+                    "name": "TC · {project_slug} · 精选高光",
+                    "icon_color": "purple",
+                    "match": "AND",
+                    "rules": [
+                        {
+                            "property": "tag",
+                            "method": "equal",
+                            "value": "tc:project:{project_slug}",
+                        },
+                        {
+                            "property": "tag",
+                            "method": "equal",
+                            "value": "tc:shot_function:highlight",
+                        },
+                    ],
+                }
+            ]
+        }
+    )
+    mapper = AssetMapper(config, "demo-scan", "2026-06-30T00:00:00+00:00")
+    _updated, result = EagleSyncRunner(
+        client, mapper, config, SyncOptions(apply=True)
+    ).run(cut)
+
+    assert len(backend.smart_folder_update_payloads) == 1
+    assert backend.smart_folder_update_payloads[0][1]["iconColor"] == "purple"
+    assert result.smart_folders.updated == ["TC · demo-scan · 精选高光"]

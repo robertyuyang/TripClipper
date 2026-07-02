@@ -37,9 +37,21 @@ PRD 示例 JSON 还展示了"为雷同组创建子文件夹"的用法。grilling
 - `analysis_status == analysis_failed` 软放行（带 `tc:analysis_status:analysis_failed` tag + note 区块写失败原因）
 
 ### 二、Eagle 版本与布局
-- 仅支持 Eagle V2 Web API（≥ 4.0 Build 21），低版本启动期硬阻断
+- 仅支持 Eagle V2 Web API（≥ 4.0 Build 22），低版本启动期硬阻断
 - 不建 folder（flat 布局），项目维度依靠 tag `tc:project:{slug}` 区分
 - 通过 V2 `tagGroup` API 自动维护字段分组：每个 cut_index 字段对应一个 tag group，例如 group `tc:edit_candidate_status` 包含 `tc:edit_candidate_status:default_selected` / `:alternate` / `:excluded` / `:needs_review` 四个 tag
+
+### 二·补 Smart Folder as user-facing view layer
+
+[`eagle-smart-folders` spec](../specs/eagle-smart-folders/spec.md) 在
+`sync-eagle --apply` 结束后自动维护一批 name 前缀 `TC · ` 的 Eagle
+Smart Folder，作为“用户友好视图层”。Smart Folder 是 Eagle 侧保存的查询规则，
+rule 全部由 `tc:*` tag 组合构成，本身不新造字段、不发明命名，也不是物理
+folder，因此不与 §一 flat 布局决策冲突。
+
+这兑现了本 ADR 退出条件中的第二条：当用户反馈“打开 Eagle 后总要花时间筛 /
+配 smart folder 才能进入工作状态”时，用视图层增强补足体验，而不是把业务
+语义下沉到 M6 的数据映射层。
 
 ### 三、tag 命名与字段映射
 - 全局格式：`tc:{field}:{value}`，无翻译、无中文别名

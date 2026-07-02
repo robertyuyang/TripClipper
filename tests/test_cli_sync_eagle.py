@@ -50,6 +50,9 @@ class FakeClient:
         self.tag_groups_updated: list[tuple[str, list[str]]] = []
         self.tag_groups_removed: list[str] = []
         self.folders_created: list[str] = []
+        self.smart_folders_list_payload: list[dict] = []
+        self.smart_folders_created: list[dict] = []
+        self.smart_folders_updated: list[tuple[str, dict]] = []
         FakeClient.instances.append(self)
 
     def __enter__(self):
@@ -88,6 +91,16 @@ class FakeClient:
     def tag_group_remove(self, group_ids):
         self.tag_groups_removed.extend(group_ids)
 
+    def smart_folder_list(self):
+        return list(self.smart_folders_list_payload)
+
+    def smart_folder_create(self, payload):
+        self.smart_folders_created.append(payload)
+        return "sf_" + str(len(self.smart_folders_created))
+
+    def smart_folder_update(self, folder_id, payload):
+        self.smart_folders_updated.append((folder_id, payload))
+
 
 class FailingSecondAddClient(FakeClient):
     """add_from_path raises EagleClientError on the 2nd call."""
@@ -108,6 +121,18 @@ class FailingTagGroupCreateClient(FakeClient):
             cause=RuntimeError("tag group write failed"),
             http_status=500,
         )
+
+
+class FailingOneSmartFolderClient(FakeClient):
+    def smart_folder_create(self, payload):
+        self.smart_folders_created.append(payload)
+        if payload["name"] == "TC · demo · 精选高光":
+            raise EagleClientError(
+                stage="smart_folder_create",
+                cause=RuntimeError("smart folder write failed"),
+                http_status=500,
+            )
+        return "sf_" + str(len(self.smart_folders_created))
 
 
 class UnavailableClient(FakeClient):
@@ -279,7 +304,76 @@ def test_eagle_version_too_low(tmp_path: Path, monkeypatch) -> None:
     )
 
     assert result.exit_code == 2, result.output
-    assert "4.0 Build 21" in result.output
+    assert "4.0 Build 22" in result.output
+
+
+def test_apply_prints_smart_folder_summary(tmp_path: Path, monkeypatch) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1), _analyzed_asset(2)])
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["sync-eagle", slug, "--base-dir", str(tmp_path), "--apply"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Smart Folder: 5 个已就绪" in result.output
+
+
+def test_apply_with_warnings_prints_warning_line(
+    tmp_path: Path, monkeypatch
+) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1)])
+    monkeypatch.setattr(
+        "tripclipper.cli.EagleV2Client", FailingOneSmartFolderClient
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["sync-eagle", slug, "--base-dir", str(tmp_path), "--apply"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "⚠️ Smart Folder:" in result.output
+    assert "1 个失败" in result.output
+
+
+def test_no_smart_folders_flag_omits_summary(tmp_path: Path, monkeypatch) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1)])
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "sync-eagle",
+            slug,
+            "--base-dir",
+            str(tmp_path),
+            "--apply",
+            "--no-smart-folders",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Smart Folder" not in result.output
+
+
+def test_dry_run_prints_smart_folder_plan_line(
+    tmp_path: Path, monkeypatch
+) -> None:
+    slug = "demo"
+    _seed(tmp_path, slug, [_analyzed_asset(1)])
+    monkeypatch.setattr("tripclipper.cli.EagleV2Client", FakeClient)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["sync-eagle", slug, "--base-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "Smart Folder 计划: 将建/更新 5 个" in result.output
 
 
 def test_scanned_present_without_flag(tmp_path: Path, monkeypatch) -> None:

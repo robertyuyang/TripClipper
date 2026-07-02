@@ -5,7 +5,7 @@
 
 ## Task 列表
 
-- [ ] Task 1：`EagleV2Client` 新增 3 个 smart folder 方法（spec §What Changes 第 4 条；ADDED §"sync-eagle --apply SHALL 在同步末尾..."的底层能力）
+- [x] Task 1：`EagleV2Client` 新增 3 个 smart folder 方法（spec §What Changes 第 4 条；ADDED §"sync-eagle --apply SHALL 在同步末尾..."的底层能力）
   - [ ] SubTask 1.1：在 [src/tripclipper/eagle_sync.py](file:///Users/bytedance/Documents/TripClipper_Trae/src/tripclipper/eagle_sync.py) `EagleV2Client` 类中新增：
         - `smart_folder_list() -> list[dict]`：GET `/api/v2/smartFolder/get`；返回 `data` 字段（若 API 分页则拼接全部）
         - `smart_folder_create(payload: dict) -> str`：POST `/api/v2/smartFolder/create`；返回响应中 `data.id`
@@ -19,7 +19,7 @@
         - `test_smart_folder_update_sends_id_in_body` → 传 folder_id="XX", payload={"name":"..."}；断言 request body 含 `"id": "XX"`
         - `test_smart_folder_update_no_return` → mock 返回 200 无 data，断言方法无异常返回
 
-- [ ] Task 2：`MappingConfig` 扩展 `smart_folder_presets`（spec §What Changes 第 2、3 条；ADDED §"Smart Folder 预设 SHALL 支持项目级 override"）
+- [x] Task 2：`MappingConfig` 扩展 `smart_folder_presets`（spec §What Changes 第 2、3 条；ADDED §"Smart Folder 预设 SHALL 支持项目级 override"）
   - [ ] SubTask 2.1：在 [eagle_sync.py](file:///Users/bytedance/Documents/TripClipper_Trae/src/tripclipper/eagle_sync.py) 定义：
         ```python
         @dataclass(frozen=True)
@@ -65,11 +65,11 @@
         - `test_smart_folder_invalid_match_rejected` → match=XOR → 抛 `ConfigError`
         - `test_smart_folder_empty_rules_rejected` → rules=[] → 抛 `ConfigError`
 
-- [ ] Task 3：更新 default yaml（spec §What Changes 第 1 条）
+- [x] Task 3：更新 default yaml（spec §What Changes 第 1 条）
   - [ ] SubTask 3.1：在 [src/tripclipper/templates/eagle_mapping.default.yaml](file:///Users/bytedance/Documents/TripClipper_Trae/src/tripclipper/templates/eagle_mapping.default.yaml) 末尾追加 `smart_folders:` 节，5 条完整 preset（内容见 spec §What Changes 第 1 条）
   - [ ] SubTask 3.2：yaml 加载后 `python -c "import yaml; ..."` 冒烟检查——确保 yaml 语法正确、5 条 preset 都能加载
 
-- [ ] Task 4：`SmartFolderPlanner` 组件（spec §What Changes 第 5 条；ADDED §"sync-eagle --apply SHALL..."/§"Smart folder 阶段失败..."/§"用户手建的 smart folder 不动"）
+- [x] Task 4：`SmartFolderPlanner` 组件（spec §What Changes 第 5 条；ADDED §"sync-eagle --apply SHALL..."/§"Smart folder 阶段失败..."/§"用户手建的 smart folder 不动"）
   - [ ] SubTask 4.1：在 [eagle_sync.py](file:///Users/bytedance/Documents/TripClipper_Trae/src/tripclipper/eagle_sync.py) 定义：
         ```python
         @dataclass
@@ -115,7 +115,7 @@
         - `test_reconcile_single_failure_becomes_warning` → mock create 对第 2 条抛错 → 断言其他 4 条继续；warnings 含 1 条
         - `test_conditions_equal_semantic_ignores_order` → 两组 rules 顺序不同 → 断言判定相等（避免 unchanged → update 的抖动）
 
-- [ ] Task 5：`EagleApplyResult` schema 增量与 `SyncOptions.no_smart_folders`（spec §What Changes 第 6、7 条）
+- [x] Task 5：`EagleApplyResult` schema 增量与 `SyncOptions.no_smart_folders`（spec §What Changes 第 6、7 条）
   - [ ] SubTask 5.1：修改 `SyncOptions`（在 [eagle_sync.py](file:///Users/bytedance/Documents/TripClipper_Trae/src/tripclipper/eagle_sync.py)）：
         ```python
         @dataclass
@@ -135,7 +135,7 @@
         - 否则 → 输出 `{"created": [...], "updated": [...], "unchanged": [...], "warnings": [{...}, ...]}`
   - [ ] SubTask 5.4：单测：`test_result_omits_smart_folders_when_none` / `test_result_serializes_smart_folder_warnings`
 
-- [ ] Task 6：`EagleSyncRunner` 集成 smart folder 阶段（spec §What Changes 第 6 条；ADDED §"主同步 aborted 时跳过 smart folder 阶段"）
+- [x] Task 6：`EagleSyncRunner` 集成 smart folder 阶段（spec §What Changes 第 6 条；ADDED §"主同步 aborted 时跳过 smart folder 阶段"）
   - [ ] SubTask 6.1：`EagleSyncRunner.__init__` 参数扩展：接受 `mapper` 时同时能拿到 `MappingConfig.smart_folder_presets`（若既有构造已传 config，无需改 signature）
   - [ ] SubTask 6.2：`run()` 方法在 tag group 维护之后、构造 `EagleApplyResult` 之前追加：
         ```python
@@ -163,7 +163,7 @@
         - `test_no_smart_folders_flag_skips_stage` → SyncOptions.no_smart_folders=True → 断言 planner 未被调用；result.smart_folders is None（序列化后无 smart_folders 字段）
         - `test_aborted_sync_records_smart_folder_skip_warning` → 5 连败 aborted=True → 断言 result.smart_folders.warnings 含 `key="_all", error="skipped due to aborted sync"`；planner 未被调 create/update
 
-- [ ] Task 7：CLI `sync-eagle` 加 `--no-smart-folders` flag + stdout 摘要（spec §What Changes 第 8、9 条；ADDED §"--no-smart-folders SHALL 完全跳过..."/§"dry-run SHALL 打印计划..."）
+- [x] Task 7：CLI `sync-eagle` 加 `--no-smart-folders` flag + stdout 摘要（spec §What Changes 第 8、9 条；ADDED §"--no-smart-folders SHALL 完全跳过..."/§"dry-run SHALL 打印计划..."）
   - [ ] SubTask 7.1：在 [src/tripclipper/cli.py](file:///Users/bytedance/Documents/TripClipper_Trae/src/tripclipper/cli.py) `sync-eagle` 命令加 `@click.option("--no-smart-folders", is_flag=True, default=False, help="跳过 smart folder 维护阶段")`
   - [ ] SubTask 7.2：把 flag 传入 `SyncOptions.no_smart_folders`
   - [ ] SubTask 7.3：`--dry-run` 分支在既有摘要行之后打印：
@@ -187,19 +187,19 @@
         - `test_no_smart_folders_flag_omits_summary` → --no-smart-folders → stdout 不含 "Smart Folder"
         - `test_dry_run_prints_plan_line` → --dry-run → stdout 含 "Smart Folder 计划: 将建/更新 5 个"
 
-- [ ] Task 8：Eagle 版本要求提升到 Build 22（spec §What Changes 第 10 条；MODIFIED §"M6 SHALL 仅支持 Eagle V2 Web API"）
+- [x] Task 8：Eagle 版本要求提升到 Build 22（spec §What Changes 第 10 条；MODIFIED §"M6 SHALL 仅支持 Eagle V2 Web API"）
   - [ ] SubTask 8.1：修改 [eagle_sync.py](file:///Users/bytedance/Documents/TripClipper_Trae/src/tripclipper/eagle_sync.py) 中 `EagleV2Client.health_check()` 版本判定文案：所有 "≥ 4.0 Build 21" → "≥ 4.0 Build 22"（若 health_check 未实际检 build number 只检 V2 endpoint 存在，仅改文案；若检了 build number，把阈值从 21 改到 22）
   - [ ] SubTask 8.2：修改 [docs/specs/M6-eagle-sync/spec.md](file:///Users/bytedance/Documents/TripClipper_Trae/docs/specs/M6-eagle-sync/spec.md) 中 4 处版本文案：header L6、Requirement §"M6 SHALL 仅支持 Eagle V2 Web API"（Build 21 → Build 22）
   - [ ] SubTask 8.3：修改 [docs/specs/M6-eagle-sync/check_list.md](file:///Users/bytedance/Documents/TripClipper_Trae/docs/specs/M6-eagle-sync/check_list.md) K 段：3 处 "≥ 4.0 Build 21" → "≥ 4.0 Build 22"（不改 L126 的"≥ 4.0 Build 23"用户机声明）
   - [ ] SubTask 8.4：更新既有单测 `test_health_check_v1_only` 及类似 → 断言错误文案含 "Build 22"
 
-- [ ] Task 9：demo-scan E2E 测试（spec §验收口径 步骤 2、3）
+- [x] Task 9：demo-scan E2E 测试（spec §验收口径 步骤 2、3）
   - [ ] SubTask 9.1：补测 [tests/test_eagle_sync_demo_scan.py](file:///Users/bytedance/Documents/TripClipper_Trae/tests/test_eagle_sync_demo_scan.py)：
         - `test_apply_creates_five_default_smart_folders` → apply on demo-scan → 断言 mock client 收到 5 次 smart_folder_create 调用；调用参数含 `TC · demo-scan · *` 5 个 name
         - `test_reapply_smart_folder_reconcile_all_unchanged` → 先 apply 一次，把 create 请求录成 fixture，第二次 apply 时 mock smart_folder_list 返回该 fixture → 断言无 create/update 调用；result.smart_folders.unchanged 长度==5
         - `test_project_override_triggers_update` → 加载 override（highlights 的 icon_color=purple）→ 第二次 apply → 断言 smart_folder_update 被调 1 次
 
-- [ ] Task 10：文档 & ADR 更新（spec §What Changes 影响的代码 · 文档段）
+- [x] Task 10：文档 & ADR 更新（spec §What Changes 影响的代码 · 文档段）
   - [ ] SubTask 10.1：更新 [docs/specs/README.md](file:///Users/bytedance/Documents/TripClipper_Trae/docs/specs/README.md) 模块索引：在 M6 行下方追加 本 change 行：
         ```
         | eagle-smart-folders | Eagle Smart Folder 预设 | FR-9/FR-10 视图层增强 | M6 | 定稿（待用户审）|
@@ -216,7 +216,7 @@
         ```
   - [ ] SubTask 10.4：确认 [CONTEXT.md](file:///Users/bytedance/Documents/TripClipper_Trae/CONTEXT.md) 是否需要新增术语（"Smart Folder Preset"）；本 change 尽量不动，若需要仅加一行
 
-- [ ] Task 11：回归验证
+- [x] Task 11：回归验证
   - [ ] SubTask 11.1：`.venv/bin/python -m pytest tests/ --ignore=tests/test_integration_m3.py --ignore=tests/test_integration_m4.py -x` 全通过
   - [ ] SubTask 11.2：M0~M6 既有单测无回归（重点关注：`test_health_check_v1_only` 文案改动 / `MappingConfig` 构造是否被上游用例破坏）
   - [ ] SubTask 11.3：`.venv/bin/python -c "from tripclipper.eagle_sync import SmartFolderPlanner, SmartFolderPreset, SmartFolderReconcileResult"` 无 import 错

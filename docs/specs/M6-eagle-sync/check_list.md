@@ -110,7 +110,7 @@
 - [x] `--reset` 无 `--yes` 时 `click.confirm(abort=True)` 二次确认
 - [x] `--reset --yes` 跳过确认
 - [x] Eagle 不可达 → exit 2 + stderr 面向用户文案
-- [x] Eagle 版本过低 → exit 2 + stderr 提示"版本 ≥ 4.0 Build 21"
+- [x] Eagle 版本过低 → exit 2 + stderr 提示"版本 ≥ 4.0 Build 22"
 - [x] scanned 存在 + 无 flag → exit 2 + stderr 提示 `--skip-unanalyzed` 或先跑 analyze
 - [x] apply 成功 → exit 0 + stdout `✅ 已同步 N/N`
 - [x] apply 部分失败 → exit 0 + stdout `⚠️ M 条失败`
@@ -121,7 +121,7 @@
 ## K. Eagle V2 版本要求
 
 - [x] `health_check()` 检查 `/api/v2/library/info`，V1-only 用户返回 404 → 抛 `EagleVersionError`
-- [x] `EagleVersionError` 文案含 "≥ 4.0 Build 21"
+- [x] `EagleVersionError` 文案含 "≥ 4.0 Build 22"
 - [x] spec + ADR-004 均声明不做 V1 降级
 - [ ] 用户本机 Eagle 版本已确认 ≥ 4.0 Build 23（Task 15 前置，用户环境，待用户确认）
 
@@ -177,7 +177,7 @@
 
 ## R. 人工视觉验收（用户主导 / Task 15，待用户）
 
-- [ ] Eagle 版本 ≥ 4.0 Build 21 已确认
+- [ ] Eagle 版本 ≥ 4.0 Build 22 已确认
 - [ ] `sync-eagle demo-scan --dry-run` 打印摘要，Eagle 无变化
 - [ ] `sync-eagle demo-scan --apply` 后：
   - [ ] Eagle 标签面板出现 `tc:project:demo-scan` / `tc:edit_candidate_status` / `tc:shot_function` 等 tag group（可折叠）
