@@ -64,3 +64,68 @@
   - 参数 schema 校验方式（pydantic 还是 JSON Schema）
   - CLI flag 和参数文件冲突时的优先级规则
   - 是否支持参数继承/覆盖（base + override）
+
+### Session 切分的时间字段升级（EXIF / creation_time）
+
+- 背景：`sync-eagle --split-by-session`（按行程/活动把素材归入 Eagle 子 folder 的功能）当前只用 `Asset.modified_time`（来自文件系统 `st_mtime`）判定素材的时间归属并切分 session。选择 mtime 是为了实现最简、零改动 scan 逻辑。
+- 已知风险：mtime 只在"从相机/SD 卡直接导入的原始文件"上等于拍摄时刻。以下场景会让切分明显失真：
+  - 从 iCloud / Google Photos / 微信 / AirDrop 下载的素材，mtime = 下载时刻
+  - 经 `cp` / `rsync` 复制且未保留 mtime 的素材
+  - 用户手工整理时被 touch 过的素材
+- 已在 demo-scan 上验证：当前 9 个视频（DJI 无人机 + 行车记录仪 + iPhone 直连导入）mtime 与视频内嵌 `format.tags.creation_time` 相差 ≤ 60 秒，两种时间源在 gap=2h 阈值下切出的 session 完全一致。→ 现有实现在"直连导入"场景下够用。
+- 想法：扫描期由 ffprobe 顺手读视频 `format.tags.creation_time`、由 Pillow / piexif 读图片 EXIF `DateTimeOriginal`，写入 `Asset.metadata['captured_at']`；session 切分优先用它，缺失回落 `modified_time`。
+- 期望产出：
+  - `Asset.metadata['captured_at']`（ISO 8601，UTC 归一化）新字段
+  - session 切分 helper 优先读该字段，缺失才回落 `modified_time`
+  - 已下载 / 转发的混合素材也能切出正确 session
+- 待确认：
+  - 图片 EXIF 读取要不要新增依赖（Pillow vs piexif vs 纯 ffprobe）
+  - 是否需要一次性 backfill 已有项目的 cut_index（还是等下一次 scan 顺手补）
+  - `captured_at` 的时区归一化策略（EXIF `DateTimeOriginal` 没有内嵌时区信息）
+
+### Session 切分升级：用大模型辅助识别行程
+
+- 背景：`sync-eagle --split-by-session` 首版只用"相邻素材时间间隔 ≥ 阈值"这一条规则来切段——纯启发式，不理解内容。
+- 已知局限：
+  - 同一活动中间因等光/换机位停拍超过阈值 → 被错误切开
+  - 两个连续但内容完全不同的活动（比如吃完午饭立刻去下一个景点）→ 被错误合并
+  - session folder 只能起 `session_01_2026-06-15_09-30` 这种时间戳名字，没有"海边 / 游戏 / 晚餐"的语义命名
+- 想法：在时间切分的初稿上叠一层大模型判断——把每个候选 session 的关键帧（或缩略图）+ 已分析出的 `subject_type` / `scene` / `summary` 喂给 vision/text 模型，让它：
+  - 判断"是否应该把相邻两个 session 合并"或"是否应该把一个 session 里的内容再切开"
+  - 为每个 session 生成人类可读的短名（"海边散步" / "室内桌游"）
+  - 输出置信度，低置信度回落到纯时间切分结果
+- 期望产出：
+  - `session_{NN}_{起始时间}_{语义名}` 的 folder 命名
+  - session 合并/拆分建议写进 cut_index（新字段 `sessions[]` 或复用 `similar_groups` 结构）
+  - dry-run 里展示"启发式切出 N 段 → 模型建议合并/拆分为 M 段"的对比
+- 待确认：
+  - 走 vision 模型（吃缩略图）还是 text 模型（吃已有的 subject/summary 描述）
+  - 单次 prompt 的 session 上限（一次输入所有 session 还是滑窗）
+  - 是否引入独立的 `analysis_stage = session`，与 `sample` / `full` / `cluster` 并列
+  - 用户否决模型建议的入口（人工强制切分 / 合并 API）
+
+### Session 切分升级：project.yaml 预声明行程作为强 hint
+
+- 背景：用户往往拍摄前就知道"这次出行有哪几段行程"（酒店 → 海边 → 午饭 → 游戏场 → 晚宴），完全靠事后启发式或模型推断反而绕远。让用户在 `project.yaml` 里预声明行程边界，产品体验最直接。
+- 想法：在 `project.yaml` 新增一节 `trips:`，用户预先写清每段行程的名称与时间窗（或起止时间戳），切分时把它当强 hint：
+  ```yaml
+  trips:
+    - name: 海边散步
+      start: 2026-06-15T09:00
+      end:   2026-06-15T12:00
+    - name: 桌游店
+      start: 2026-06-15T14:00
+      end:   2026-06-15T18:30
+    - name: 晚宴
+      start: 2026-06-15T19:30
+  ```
+- 期望产出：
+  - 素材按 `modified_time`（或未来的 `captured_at`）落入声明的时间窗
+  - session folder 直接使用 `trips[].name` 命名，而非 `session_01_...` 时间戳
+  - 时间窗之外的素材归入 `session_unassigned` 或按启发式补切
+  - 未声明 `trips:` 时回落到当前启发式切分行为
+- 待确认：
+  - 时间窗允许开区间/闭区间的写法（只写 start 不写 end 的最后一段如何处理）
+  - 用户声明行程与启发式切分冲突时的优先级（默认应"用户声明 > 启发式"）
+  - 是否允许行程时间窗重叠（同一素材可能属于两段）
+  - 与前一条"大模型辅助切分"的叠加顺序：`用户声明 > 大模型 > 启发式` ？
