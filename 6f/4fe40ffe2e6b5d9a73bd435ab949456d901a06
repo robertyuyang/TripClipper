@@ -1,0 +1,26 @@
+docs/todolist.md
+  s_a53821c9232a6b::t_530d0251932045 110-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6f4fe40ffe2e6b5d9a73bd435ab949456d901a06",
+  "prompts": {},
+  "humans": {
+    "h_0ce714411091ba": {
+      "author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "sessions": {
+    "s_a53821c9232a6b": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a4769d8efdb06da77994f8a",
+        "model": "gpt-5.4__dev"
+      },
+      "human_author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
