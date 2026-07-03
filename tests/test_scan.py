@@ -601,6 +601,8 @@ def test_cli_scan_success(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0, result.output
+    assert "[scan] 开始：" in result.output
+    assert "[scan] 1/1" in result.output
     assert "扫描完成" in result.output
     assert "发现媒体总数" in result.output
 

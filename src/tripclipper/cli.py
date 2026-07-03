@@ -58,6 +58,7 @@ from .exporter import (
 )
 from .models import AnalysisStatus
 from .paths import cut_index_path, eagle_apply_result_path
+from .progress import PeriodicProgressReporter
 from .project import (
     ProjectError,
     ProjectSummary,
@@ -297,6 +298,10 @@ def _print_cluster_result(result: ClusterResult) -> None:
     click.echo(f"  日志           : {result.log_path}")
 
 
+def _make_progress_reporter(stage: str) -> PeriodicProgressReporter:
+    return PeriodicProgressReporter(stage, emit=click.echo)
+
+
 def _eligible_assets_or_exit(slug: str, base_dir: str) -> None:
     """SubTask 5.2：sample 阶段硬卡——不存在或无可处理素材即退出。"""
     index_path = cut_index_path(slug, base_dir)
@@ -401,6 +406,7 @@ def analyze(
                 effective_slug,
                 base_dir=base_dir,
                 extract_media=not no_extract_media,
+                progress=_make_progress_reporter("scan"),
             )
         except (ScanError, ConfigError) as exc:
             click.echo(f"扫描失败：{exc}", err=True)
@@ -426,6 +432,7 @@ def analyze(
                     slug,
                     base_dir=base_dir,
                     concurrency=concurrency,
+                    progress=_make_progress_reporter("sample"),
                 )
             except AnalyzerError as exc:
                 click.echo(f"分析失败：{exc}", err=True)
@@ -444,6 +451,7 @@ def analyze(
                 base_dir=base_dir,
                 force=force,
                 concurrency=concurrency,
+                progress=_make_progress_reporter("full"),
             )
         except AnalyzerError as exc:
             click.echo(f"分析失败：{exc}", err=True)
@@ -506,6 +514,7 @@ def run(slug: str, base_dir: str, pause_after: str, concurrency: int) -> None:
             base_dir=base_dir,
             pause_after_sample=(pause_after == "sample"),
             concurrency=concurrency,
+            progress_factory=_make_progress_reporter,
         )
     except KeyboardInterrupt:
         click.echo("\n已收到 Ctrl-C，已落盘的进度保留；下次重跑会从中断处续接。", err=True)

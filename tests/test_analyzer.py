@@ -24,6 +24,7 @@ from tripclipper.analyzer import (
 )
 from tripclipper.logs import AnalyzeLogger
 from tripclipper.models import AnalysisStatus, Asset, AssetType
+from tripclipper.progress import PeriodicProgressReporter
 
 
 # ---------------------------------------------------------------------------
@@ -357,3 +358,19 @@ def test_logger_stage_events_roundtrip(tmp_path: Path):
     assert len(lines) == 4
     events = [json.loads(line)["event"] for line in lines]
     assert events == ["stage_start", "call_start", "call_end", "stage_end"]
+
+
+def test_progress_reporter_tracks_skipped_success_and_failure():
+    lines: list[str] = []
+    reporter = PeriodicProgressReporter("full", emit=lines.append)
+
+    reporter.start(total=3, skipped=5, extra="并发=2")
+    reporter.advance_success()
+    reporter.advance_failure()
+    reporter.advance_success()
+
+    assert lines == [
+        "[full] 开始：总计 3，跳过 5，并发=2",
+        "[full] 1/3（成功 1 / 失败 0 / 跳过 5）",
+        "[full] 3/3（成功 2 / 失败 1 / 跳过 5）",
+    ]

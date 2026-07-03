@@ -130,6 +130,8 @@ def test_cli_analyze_sample_real_model(tmp_path: Path):
         ],
     )
     assert result.exit_code == 0, result.output
+    assert "[sample] 开始：" in result.output
+    assert "[sample] 1/1" in result.output
     assert "分析完成" in result.output
     assert "成功 N" in result.output
     assert "失败 M" in result.output
@@ -262,6 +264,7 @@ def test_cli_analyze_full_skip_and_force(tmp_path: Path):
         ],
     )
     assert full_no_force.exit_code == 0, full_no_force.output
+    assert "[full] 开始：" in full_no_force.output
     assert "跳过" in full_no_force.output
     assert "已完成素材" in full_no_force.output
 
@@ -281,6 +284,8 @@ def test_cli_analyze_full_skip_and_force(tmp_path: Path):
         ],
     )
     assert full_force.exit_code == 0, full_force.output
+    assert "[full] 开始：" in full_force.output
+    assert "[full] 1/1" in full_force.output
     # --force 下不再走"跳过 N 个已完成素材"这条 stdout 分支
     assert "跳过 1 个已完成素材" not in full_force.output
 
@@ -316,6 +321,9 @@ def test_cli_run_pause_after_sample(tmp_path: Path):
     )
     assert result.exit_code == 0, result.output
     assert "run 完成" in result.output
+    assert "[scan] 开始：" in result.output
+    assert "[sample] 开始：" in result.output
+    assert "[full] 开始：" in result.output
     assert "[scan]" in result.output
     assert "[sample]" in result.output
     assert "[full]" in result.output

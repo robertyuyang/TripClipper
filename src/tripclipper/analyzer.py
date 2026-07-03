@@ -53,6 +53,7 @@ from .models import (
     Failure,
 )
 from .paths import cut_index_path
+from .progress import PeriodicProgressReporter
 from .provider import Provider, ProviderError, apply_analysis
 
 _PathLike = Union[str, Path]
@@ -282,6 +283,7 @@ def sample_analyze(
     *,
     base_dir: Optional[_PathLike] = None,
     concurrency: int = 5,
+    progress: Optional[PeriodicProgressReporter] = None,
 ) -> AnalyzeResult:
     """FR-3 样本分析：分层随机抽样 ``min(sample_size, len(eligible))`` 个素材。
 
@@ -294,6 +296,7 @@ def sample_analyze(
         base_dir=base_dir,
         force=False,
         concurrency=concurrency,
+        progress=progress,
     )
 
 
@@ -303,6 +306,7 @@ def full_analyze(
     base_dir: Optional[_PathLike] = None,
     force: bool = False,
     concurrency: int = 5,
+    progress: Optional[PeriodicProgressReporter] = None,
 ) -> AnalyzeResult:
     """FR-4 全量分析：默认跳过 ``analyzed`` 素材；``force=True`` 全量重分析。"""
     return _run(
@@ -311,6 +315,7 @@ def full_analyze(
         base_dir=base_dir,
         force=force,
         concurrency=concurrency,
+        progress=progress,
     )
 
 
@@ -326,6 +331,7 @@ def _run(
     base_dir: Optional[_PathLike] = None,
     force: bool = False,
     concurrency: int = 5,
+    progress: Optional[PeriodicProgressReporter] = None,
     _persist_callback: Optional[Callable[[int], None]] = None,
 ) -> AnalyzeResult:
     """sample / full 共用的编排主流程。
@@ -401,6 +407,12 @@ def _run(
         skipped = len(eligible_assets) - len(selected)
 
     total_selected = len(selected)
+    if progress is not None:
+        progress.start(
+            total=total_selected,
+            skipped=skipped,
+            extra=f"并发={concurrency}",
+        )
 
     # ---------- 阶段头落盘 ----------
     started_at = datetime.now(timezone.utc).isoformat()
@@ -531,21 +543,14 @@ def _run(
                 with write_lock:
                     counter["done"] += 1
                     done = counter["done"]
-                    asset_status = (
-                        "analyzed"
-                        if status_tag == "ok"
-                        else "analysis_failed"
-                    )
-                    print(
-                        f"[{done}/{total_selected}] "
-                        f"{asset.asset_id or '<unknown>'} "
-                        f"{asset.type.value if asset.type else 'unknown'} "
-                        f"{asset_status}"
-                    )
                     if status_tag == "ok":
                         succeeded += 1
+                        if progress is not None:
+                            progress.advance_success()
                     else:
                         failed += 1
+                        if progress is not None:
+                            progress.advance_failure()
                         if err is not None:
                             errors.append(err)
                     # Q12：每完成 _PERSIST_EVERY 个素材增量落盘一次。

@@ -32,6 +32,7 @@ from .cluster_runner import (
     cluster as cluster_runner_cluster,
 )
 from .exporter import ExportError, copy_cut_index, render_review_html
+from .progress import PeriodicProgressReporter
 from .scan import ScanResult, scan_project
 
 _PathLike = Union[str, Path]
@@ -59,6 +60,9 @@ def run(
     base_dir: Optional[_PathLike] = None,
     pause_after_sample: bool = False,
     concurrency: int = 5,
+    progress_factory: Optional[
+        Callable[[str], Optional[PeriodicProgressReporter]]
+    ] = None,
     _input: Callable[[str], str] = input,
 ) -> RunResult:
     """按 scan → sample → full 顺序串起 M2/M3。
@@ -76,10 +80,15 @@ def run(
       盘的进度由 :func:`analyzer._run` 的 5+5+... 增量落盘自然保留）。
     """
     result = RunResult(slug=slug)
+    progress_factory = progress_factory or (lambda _stage: None)
 
     # ---------- Stage 1: scan ----------
     try:
-        result.scan = scan_project(slug, base_dir=base_dir)
+        result.scan = scan_project(
+            slug,
+            base_dir=base_dir,
+            progress=progress_factory("scan"),
+        )
     except KeyboardInterrupt:
         result.interrupted = True
         result.interrupted_stage = "scan"
@@ -91,6 +100,7 @@ def run(
             slug,
             base_dir=base_dir,
             concurrency=concurrency,
+            progress=progress_factory("sample"),
         )
     except KeyboardInterrupt:
         result.interrupted = True
@@ -116,6 +126,7 @@ def run(
             base_dir=base_dir,
             force=False,
             concurrency=concurrency,
+            progress=progress_factory("full"),
         )
     except KeyboardInterrupt:
         result.interrupted = True

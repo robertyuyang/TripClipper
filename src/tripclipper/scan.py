@@ -33,6 +33,7 @@ from .models import (
     WarningItem,
 )
 from .paths import cut_index_path, frames_dir, thumbnails_dir
+from .progress import PeriodicProgressReporter
 from .security import assert_read_only_source
 from .session_splitter import SESSION_GAP_HOURS, apply_sessions, split_sessions
 
@@ -532,6 +533,7 @@ def scan_project(
     *,
     base_dir: Optional[_PathLike] = None,
     extract_media: bool = True,
+    progress: Optional[PeriodicProgressReporter] = None,
 ) -> ScanResult:
     """端到端扫描项目 ``slug`` 的 ``source_folder``，更新 ``cut_index.json``。
 
@@ -570,19 +572,25 @@ def scan_project(
     }
     seen_ids: set[str] = set()
 
+    collected_files = _collect_candidate_files(source_folder)
+    media_files = [path for path in collected_files if classify_file(path) is not None]
+    skipped = len(collected_files) - len(media_files)
+    if progress is not None:
+        extra = f"非媒体 {skipped}" if skipped else None
+        progress.start(total=len(media_files), extra=extra)
+
     new_assets: list[Asset] = []
     by_type: dict[str, int] = {t.value: 0 for t in AssetType}
-    skipped = 0
     failure_count = 0
 
-    for file_path in _collect_candidate_files(source_folder):
+    for file_path in collected_files:
         asset_type = classify_file(file_path)
         if asset_type is None:
-            skipped += 1
             continue
 
         fresh = build_asset(file_path, source_folder)
         by_type[asset_type.value] += 1
+        asset_failed = False
 
         # 媒体信息探测（失败隔离到该 asset）。
         if extract_media and capabilities.ffprobe and asset_type == AssetType.video:
@@ -590,6 +598,7 @@ def scan_project(
                 fresh.metadata = probe_media(file_path, capabilities)
             except _ToolError as exc:
                 failure_count += 1
+                asset_failed = True
                 fresh.failures.append(
                     Failure(
                         stage=_SCAN_STAGE,
@@ -608,6 +617,7 @@ def scan_project(
                 )
             except _ToolError as exc:
                 failure_count += 1
+                asset_failed = True
                 fresh.failures.append(
                     Failure(
                         stage=_SCAN_STAGE,
@@ -625,6 +635,12 @@ def scan_project(
             new_assets.append(merged)
         else:
             new_assets.append(fresh)
+
+        if progress is not None:
+            if asset_failed:
+                progress.advance_failure()
+            else:
+                progress.advance_success()
 
     # 源中已消失的旧 asset：保留但记录非阻塞警告（不删除）。
     for old in cut.assets:
