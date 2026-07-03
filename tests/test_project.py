@@ -352,6 +352,8 @@ def test_scaffold_creates_loadable_template(tmp_path: Path) -> None:
     assert "api_key_env" not in text
     assert "analysis_config:" not in text
     assert "model_config:" not in text
+    assert "config/config.yaml" in text
+    assert "config/config.template.yaml" in text
 
     config = load_config(out)
     assert config.project_name == "My Project"

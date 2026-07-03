@@ -12,6 +12,7 @@ from tripclipper.config import (
     load_software_config,
     generate_project_slug,
     load_config,
+    repo_root,
     software_config_path,
 )
 
@@ -141,6 +142,21 @@ def test_software_config_path_uses_env_override(tmp_path: Path, monkeypatch: pyt
     cfg = tmp_path / "override.yaml"
     monkeypatch.setenv("TRIPCLIPPER_SOFTWARE_CONFIG", str(cfg))
     assert software_config_path() == cfg.resolve()
+
+
+def test_software_config_path_defaults_to_repo_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TRIPCLIPPER_SOFTWARE_CONFIG", raising=False)
+    assert software_config_path() == (repo_root() / "config" / "config.yaml").resolve()
+
+
+def test_repo_ships_software_config_template() -> None:
+    template = repo_root() / "config" / "config.template.yaml"
+    assert template.is_file()
+    text = template.read_text(encoding="utf-8")
+    assert "model_config:" in text
+    assert "analysis_config:" in text
+    assert "api_key_env:" in text
+    assert "sample_size:" in text
 
 
 def test_generate_project_slug_deterministic() -> None:

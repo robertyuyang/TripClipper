@@ -54,7 +54,7 @@ class AnalysisConfig(BaseModel):
 
 
 class SoftwareConfig(BaseModel):
-    """Software-level config loaded from ``~/.tripclipper/config.yaml``."""
+    """Software-level config loaded from repo-local ``config/config.yaml``."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -126,7 +126,12 @@ _EDITING_INTENT_KEYS = (
 )
 
 _DEFAULT_SOFTWARE_CONFIG_ENV = "TRIPCLIPPER_SOFTWARE_CONFIG"
-_DEFAULT_SOFTWARE_CONFIG_RELATIVE = Path(".tripclipper") / "config.yaml"
+_DEFAULT_SOFTWARE_CONFIG_RELATIVE = Path("config") / "config.yaml"
+
+
+def repo_root() -> Path:
+    """Return the repository root for this source checkout."""
+    return Path(__file__).resolve().parents[2]
 
 
 def generate_project_slug(project_name: str) -> str:
@@ -176,7 +181,7 @@ def software_config_path(path: Optional[Union[str, Path]] = None) -> Path:
     if env_path:
         return Path(env_path).expanduser().resolve()
 
-    return (Path.home() / _DEFAULT_SOFTWARE_CONFIG_RELATIVE).resolve()
+    return (repo_root() / _DEFAULT_SOFTWARE_CONFIG_RELATIVE).resolve()
 
 
 def _parse_software_sections(
@@ -284,6 +289,7 @@ __all__ = [
     "EditingIntent",
     "ProjectConfig",
     "generate_project_slug",
+    "repo_root",
     "software_config_path",
     "load_software_config",
     "load_config",

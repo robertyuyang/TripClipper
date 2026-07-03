@@ -5,6 +5,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+config/config.yaml
 
 # Project runtime artifacts (analysis output, ffmpeg cache, vim swaps)
 projects/*/cut_index.json

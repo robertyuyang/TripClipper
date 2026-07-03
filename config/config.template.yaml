@@ -1,0 +1,14 @@
+# TripClipper 软件级配置模板
+# 实际使用时在同目录创建未入库的 config.yaml，并按需填写/调整下列字段。
+
+model_config:
+  provider: "openai_compatible"
+  base_url: "https://api.example.com/v1"
+  api_key_env: "TRIPCLIPPER_MODEL_API_KEY"
+  vision_model: "google/gemini-2.5-flash-image-preview"
+  text_model: "google/gemini-3.5-flash"
+  transcription_model: "gpt-4o-mini-transcribe"
+
+analysis_config:
+  sample_size: 25
+  language: "zh-CN"

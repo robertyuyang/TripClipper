@@ -132,7 +132,8 @@ def scaffold_config_file(
     """在 ``path`` 写出一份带建议字段的 ``project.yaml`` 模板。
 
     模板只包含项目级字段；模型与分析参数改为软件级配置，默认位置是
-    ``~/.tripclipper/config.yaml``。``force=False`` 且目标已存在时抛
+    仓库内 ``config/config.yaml``，字段模板见同目录
+    ``config/config.template.yaml``。``force=False`` 且目标已存在时抛
     :class:`ProjectError`。
     """
     target = Path(path).expanduser()
@@ -144,6 +145,8 @@ def scaffold_config_file(
     template = f"""# TripClipper project.yaml（由 scaffold 生成的模板）
 # 软件级配置（model_config / analysis_config）已迁移到：
 #   {_yaml_scalar(str(software_config_path()))}
+# 首次配置时可参考同目录模板：
+#   {_yaml_scalar(str(software_config_path().with_name("config.template.yaml")))}
 project_name: {_yaml_scalar(project_name)}
 source_folder: {_yaml_scalar(source_folder)}
 
