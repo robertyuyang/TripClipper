@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-design": {
+      "source": "am-will/codex-skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "0792809c51bd57c9621ce64d7d4b7a99cb6ebc2f154bb303140d22b8eca34685"
+    }
+  }
+}
