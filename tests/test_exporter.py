@@ -676,7 +676,10 @@ def test_render_similar_groups_section_renders_one_card_with_basis_and_confidenc
     ci.similar_groups = [group]
 
     html = _render_similar_groups_section(ci)
+    assert 'class="similar-groups-panel"' in html
+    assert 'class="similar-groups-summary"' in html
     assert 'class="group-card"' in html
+    assert 'class="group-card-summary"' in html
     assert "group_1" in html
     assert "85%" in html
     assert "同一景点" in html
@@ -702,6 +705,7 @@ def test_render_similar_groups_section_needs_review_shows_warn_chip() -> None:
     html = _render_similar_groups_section(ci)
     assert 'class="chip-warn"' in html
     assert "待人工确认" in html
+    assert "待确认 1 组" in html
 
 
 def test_render_similar_groups_section_confidence_none_omits_percent() -> None:
@@ -777,10 +781,14 @@ def test_render_review_html_with_groups_includes_panel_and_real_cells(
     text = out.read_text(encoding="utf-8")
 
     # panel rendered
+    assert 'class="similar-groups-panel"' in text
+    assert 'class="similar-groups-summary"' in text
     assert 'class="group-card"' in text
+    assert 'class="group-card-summary"' in text
     assert "group_1" in text
     assert "85%" in text
     assert "同一景点" in text
+    assert "相似组 1 个" in text
     # table cells: at least one sel-primary chip and 2+ cand-default chips
     assert 'class="sel-primary"' in text
     assert text.count('class="cand-default"') >= 2
@@ -819,6 +827,7 @@ def test_render_review_html_no_groups_omits_panel(tmp_path: Path) -> None:
     text = out.read_text(encoding="utf-8")
 
     assert 'class="group-card"' not in text
+    assert 'class="similar-groups-panel"' not in text
     assert "__SIMILAR_GROUPS_HTML__" not in text
     # cells still rendered with real M4 values
     assert 'class="cand-default"' in text
@@ -839,6 +848,7 @@ def test_render_demo_scan_real_data_renders_group_card(tmp_path: Path, monkeypat
     out = render_review_html(slug, base_dir=tmp_path)
     text = out.read_text(encoding="utf-8")
 
+    assert 'class="similar-groups-panel"' in text
     assert 'class="group-card"' in text
     assert "group_1" in text
     # demo-scan 的 confidence 由真实模型仲裁决定（M4 真打），具体百分比可能波动；
@@ -1456,17 +1466,16 @@ def test_render_review_html_with_sessions_end_to_end(tmp_path: Path) -> None:
     out = render_review_html(slug, base_dir=tmp_path)
     text = out.read_text(encoding="utf-8")
 
-    # single flat view only: no tabs and no duplicated session card view
-    assert "扁平视图" not in text
-    assert "Session 视图" not in text
-    assert 'class="view-tab' not in text
-    assert 'id="sessions-view"' not in text
-    assert 'class="session-card"' not in text
-    # flat table session column: blue badge + grey unknown badge + data attr
-    assert 'class="session-badge"' in text
-    assert 'class="session-badge session-unknown"' in text
+    assert 'id="sessions-view"' in text
+    assert 'class="session-card"' in text
+    assert 'class="session-card-summary"' in text
+    assert "session_01" in text
+    assert "session_02" in text
+    assert "session_00_unknown" in text
+    assert "时间信息缺失" in text
     assert 'data-session-id="session_01"' in text
     assert 'data-session-id="session_00_unknown"' in text
+    assert 'class="session-badge"' not in text
     # overview summary line
     assert "共 3 个 session（含 unknown 1 张）" in text
     # session filter select present; option labels are expanded client-side
@@ -1475,7 +1484,7 @@ def test_render_review_html_with_sessions_end_to_end(tmp_path: Path) -> None:
     assert "formatSessionOptionLabel" in text
     assert "sessionLabelsById" in text
     assert "2026-07-02T09:00:00" in text
-    assert "时间信息缺失" in text
+    assert "toggleAttribute('open'" not in text
 
 
 def test_render_review_html_no_sessions_collapses_view(tmp_path: Path) -> None:
@@ -1500,10 +1509,10 @@ def test_render_review_html_no_sessions_collapses_view(tmp_path: Path) -> None:
     out = render_review_html(slug, base_dir=tmp_path)
     text = out.read_text(encoding="utf-8")
 
-    # no session card view is rendered
-    assert 'id="sessions-view"' not in text
-    assert 'class="session-card"' not in text
+    assert 'id="sessions-view"' in text
+    assert 'class="session-card session-card-ungrouped"' in text
+    assert "未分组素材" in text
     # overview has no session summary line
     assert "个 session" not in text
-    # flat table session column is empty for this asset (no badge)
+    # grouped session view no longer repeats a session badge column
     assert 'class="session-badge"' not in text

@@ -605,19 +605,31 @@ def _render_similar_groups_section(cut: CutIndex) -> str:
         if asset.asset_id:
             assets_by_id[asset.asset_id] = asset
 
+    review_count = sum(1 for group in groups if group.needs_review)
+    member_count = sum(len(group.asset_ids or []) for group in groups)
     cards: list[str] = []
     for group in groups:
         cards.append(_render_group_card(group, assets_by_id))
 
     inner = "\n".join(cards)
-    return f'<section class="similar-groups">\n{inner}\n</section>'
+    summary_bits = [f"相似组 {len(groups)} 个", f"共 {member_count} 条"]
+    if review_count > 0:
+        summary_bits.append(f"待确认 {review_count} 组")
+    summary = " · ".join(summary_bits)
+    return (
+        '<section class="similar-groups-panel">'
+        '<details class="similar-groups">'
+        f'<summary class="similar-groups-summary">{html.escape(summary)}</summary>'
+        f'<div class="similar-groups-body">\n{inner}\n</div>'
+        "</details>"
+        "</section>"
+    )
 
 
 def _render_group_card(group: SimilarGroup, assets_by_id: dict[str, Asset]) -> str:
     gid = group.similar_group_id or ""
     header_bits: list[str] = []
-
-    head_text = html.escape(gid) if gid else ""
+    head_text = gid
     if group.confidence is not None:
         try:
             pct = int(round(float(group.confidence) * 100))
@@ -643,6 +655,14 @@ def _render_group_card(group: SimilarGroup, assets_by_id: dict[str, Asset]) -> s
             a.similar_rank if a.similar_rank is not None else 0,
         )
     )
+    primary_count = sum(1 for asset in members if asset.similar_selection == SimilarSelection.primary)
+    alternate_count = sum(
+        1 for asset in members if asset.similar_selection == SimilarSelection.alternate
+    )
+    if primary_count > 0 or alternate_count > 0:
+        header_bits.append(
+            f'<span class="muted">主选 {primary_count} · 备选 {alternate_count}</span>'
+        )
 
     rows: list[str] = []
     for asset in members:
@@ -650,10 +670,10 @@ def _render_group_card(group: SimilarGroup, assets_by_id: dict[str, Asset]) -> s
     members_html = "".join(rows)
 
     return (
-        f'<div class="group-card" data-group-id="{html.escape(gid)}">'
-        f"<h3>{header_html}</h3>"
+        f'<details class="group-card" data-group-id="{html.escape(gid)}">'
+        f'<summary class="group-card-summary"><h3>{header_html}</h3></summary>'
         f'<ul class="members">{members_html}</ul>'
-        "</div>"
+        "</details>"
     )
 
 
@@ -816,6 +836,164 @@ def _asset_to_row(
         f'</tr>'
     )
 
+
+def _render_asset_table_header(*, include_session: bool = False) -> str:
+    session_head = '<th data-key="session">session</th>' if include_session else ""
+    return (
+        "<thead>"
+        "<tr>"
+        '<th data-key="thumb">缩略图</th>'
+        '<th data-key="filename">文件名</th>'
+        '<th data-key="type">媒体信息</th>'
+        '<th data-key="rating">星级</th>'
+        '<th data-key="subject_type">subject_type</th>'
+        '<th data-key="people_presence">people_presence</th>'
+        '<th data-key="shot_scale">shot_scale</th>'
+        '<th data-key="shot_function">shot_function</th>'
+        '<th data-key="tags">tags</th>'
+        '<th data-key="summary">summary</th>'
+        '<th data-key="clip_suggestions">clip_suggestions</th>'
+        '<th data-key="audio_strategy">audio_strategy</th>'
+        '<th data-key="similar_group">相似组</th>'
+        '<th data-key="edit_candidate_status">候选池状态</th>'
+        f"{session_head}"
+        '<th data-key="status">analysis_status</th>'
+        "</tr>"
+        "</thead>"
+    )
+
+
+def _format_session_summary_line(
+    *,
+    session_id: str,
+    started_at,
+    ended_at,
+    asset_count: int,
+    is_unknown: bool,
+    is_ungrouped: bool,
+) -> str:
+    title = "未分组素材" if is_ungrouped else session_id
+    bits = [title]
+    start_text = _format_modified_time(started_at.isoformat() if started_at else None)
+    end_text = _format_modified_time(ended_at.isoformat() if ended_at else None)
+    if start_text and end_text:
+        bits.append(f"{start_text} → {end_text[-5:]}")
+    elif start_text or end_text:
+        bits.append(start_text or end_text)
+    elif is_unknown:
+        bits.append("时间信息缺失")
+    bits.append(f"{asset_count} 张")
+    return " · ".join(bit for bit in bits if bit)
+
+
+def _render_session_card(
+    *,
+    session_id: str,
+    assets: list[Asset],
+    project_dir_path: Path,
+    started_at=None,
+    ended_at=None,
+    is_unknown: bool = False,
+    is_ungrouped: bool = False,
+) -> str:
+    rows_html = "\n".join(
+        _asset_to_row(asset, project_dir_path, include_session=False) for asset in assets
+    )
+    summary = _format_session_summary_line(
+        session_id=session_id,
+        started_at=started_at,
+        ended_at=ended_at,
+        asset_count=len(assets),
+        is_unknown=is_unknown,
+        is_ungrouped=is_ungrouped,
+    )
+    card_classes = ["session-card"]
+    if is_unknown:
+        card_classes.append("session-card-unknown")
+    if is_ungrouped:
+        card_classes.append("session-card-ungrouped")
+    open_attr = " open" if is_ungrouped else ""
+    table_html = (
+        '<div class="table-scroll">'
+        '<table class="assets-table">'
+        f"{_render_asset_table_header(include_session=False)}"
+        "<tbody>"
+        f"{rows_html}"
+        "</tbody>"
+        "</table>"
+        "</div>"
+    )
+    safe_session_id = html.escape(session_id)
+    return (
+        f'<details class="{" ".join(card_classes)}" data-session-id="{safe_session_id}"{open_attr}>'
+        f'<summary class="session-card-summary">{html.escape(summary)}</summary>'
+        f'<div class="session-card-body">{table_html}</div>'
+        "</details>"
+    )
+
+
+def _render_sessions_view(cut: CutIndex, project_dir_path: Path) -> str:
+    sessions_by_id = {session.session_id: session for session in (cut.sessions or [])}
+    assets_by_session: dict[str, list[Asset]] = {}
+    ungrouped_assets: list[Asset] = []
+    for asset in cut.assets:
+        session_id = asset.session_id or ""
+        if session_id:
+            assets_by_session.setdefault(session_id, []).append(asset)
+        else:
+            ungrouped_assets.append(asset)
+
+    ordered_ids: list[str] = []
+    for session in cut.sessions or []:
+        if session.session_id == UNKNOWN_SESSION_ID:
+            continue
+        if assets_by_session.get(session.session_id):
+            ordered_ids.append(session.session_id)
+    for session_id in sorted(assets_by_session.keys()):
+        if session_id in ordered_ids or session_id == UNKNOWN_SESSION_ID:
+            continue
+        ordered_ids.append(session_id)
+
+    cards: list[str] = []
+    for session_id in ordered_ids:
+        session = sessions_by_id.get(session_id)
+        cards.append(
+            _render_session_card(
+                session_id=session_id,
+                assets=assets_by_session.get(session_id, []),
+                project_dir_path=project_dir_path,
+                started_at=getattr(session, "started_at", None),
+                ended_at=getattr(session, "ended_at", None),
+            )
+        )
+
+    unknown_assets = assets_by_session.get(UNKNOWN_SESSION_ID, [])
+    if unknown_assets:
+        unknown_session = sessions_by_id.get(UNKNOWN_SESSION_ID)
+        cards.append(
+            _render_session_card(
+                session_id=UNKNOWN_SESSION_ID,
+                assets=unknown_assets,
+                project_dir_path=project_dir_path,
+                started_at=getattr(unknown_session, "started_at", None),
+                ended_at=getattr(unknown_session, "ended_at", None),
+                is_unknown=True,
+            )
+        )
+
+    if ungrouped_assets or not cards:
+        cards.append(
+            _render_session_card(
+                session_id="ungrouped",
+                assets=ungrouped_assets if ungrouped_assets else cut.assets,
+                project_dir_path=project_dir_path,
+                is_ungrouped=True,
+            )
+        )
+
+    inner = "\n".join(cards)
+    return f'<section id="sessions-view" class="sessions-view">\n{inner}\n</section>'
+
 def _render_project_header(cut_index: CutIndex) -> str:
     project = cut_index.project
     model = project.model_config_summary or {}
@@ -962,16 +1140,16 @@ def render_review_html(
         raise ExportError(f"读取 cut_index.json 失败：{exc}") from exc
 
     pdir = project_dir(slug, base_dir=base_dir)
-    rows_html = "\n".join(_asset_to_row(a, pdir) for a in cut_index.assets)
     header_html = _render_project_header(cut_index)
     groups_html = _render_similar_groups_section(cut_index)
+    sessions_html = _render_sessions_view(cut_index, pdir)
     json_data = _dump_cut_index_json(cut_index)
 
     template = _TEMPLATE_PATH.read_text(encoding="utf-8")
     rendered = (
         template.replace("__PROJECT_HEADER_HTML__", header_html)
         .replace("__SIMILAR_GROUPS_HTML__", groups_html)
-        .replace("__TABLE_ROWS_HTML__", rows_html)
+        .replace("__SESSIONS_HTML__", sessions_html)
         .replace("__JSON_DATA__", json_data)
     )
 
