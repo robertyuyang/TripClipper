@@ -1,0 +1,26 @@
+# TripClipper project.yaml example
+# 复制这份文件后，至少改这两项：
+# 1. project_name
+# 2. source_folder
+#
+# 软件级配置（model_config / analysis_config）不在这里，改仓库根目录：
+#   config/config.yaml
+# 首次配置可参考：
+#   config/config.template.yaml
+
+project_name: 'Example Project'
+source_folder: '/absolute/path/to/your/media/folder'
+
+# 剪辑意图（会聚合为 editing_intent）
+output_style: 'travel vlog'
+target_length: '60s'
+audience: 'friends'
+people_focus: 'balanced'
+audio_priority: 'keep ambient sound'
+
+eagle_sync:
+  enabled: true
+  mode: dry-run
+  base_url: 'http://127.0.0.1:41595/api'
+  # 期望打开的 Eagle 库路径；不需要 Eagle 时可以留空
+  library_path: '/absolute/path/to/your/library.library'
