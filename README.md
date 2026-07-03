@@ -19,6 +19,32 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
+## Running the CLI
+
+The `tripclipper` command is typically installed into the repository virtual
+environment rather than your global shell environment.
+
+Use either of these two patterns:
+
+```bash
+# option 1: activate the venv, then call tripclipper directly
+source .venv/bin/activate
+tripclipper --help
+```
+
+```bash
+# option 2: call the venv-installed executable directly
+.venv/bin/tripclipper --help
+```
+
+If `.venv` does not exist yet, a typical setup flow is:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
 ## Runtime requirements
 
 TripClipper is now strict about local media tooling:

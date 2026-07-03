@@ -25,6 +25,31 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
+## 如何运行 CLI
+
+`tripclipper` 这个命令通常会安装到仓库自己的虚拟环境里，而不是你的系统全局环境里。
+
+推荐两种用法：
+
+```bash
+# 方式 1：先激活虚拟环境，再直接调用 tripclipper
+source .venv/bin/activate
+tripclipper --help
+```
+
+```bash
+# 方式 2：不激活虚拟环境，直接调用 .venv 里的可执行文件
+.venv/bin/tripclipper --help
+```
+
+如果 `.venv` 还没创建，一个常见的初始化流程是：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
 ## 运行前要求
 
 TripClipper 现在对本地媒体工具是严格要求：
