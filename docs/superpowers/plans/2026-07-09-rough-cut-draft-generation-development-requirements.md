@@ -1,49 +1,49 @@
-# Rough Cut Draft Generation Implementation Plan
+# 粗剪与剪映草稿生成实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给智能体执行者：** 必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans` 按任务逐项实现。本计划使用复选框（`- [ ]`）跟踪步骤。
 
-**Goal:** Break rough-cut and Jianying draft generation into independently executable development requirements that can each be completed in a separate Codex conversation.
+**目标：** 把粗剪与剪映草稿生成拆成多个可独立执行的开发需求，每个需求都可以在一个新的 Codex 对话中单独完成。
 
-**Architecture:** The center contract is `rough_cut_plan.json`. Development proceeds from reusable fixtures and schema, to Jianying installation, to draft export, to planning, then CLI orchestration. Each requirement produces a testable artifact and should be committed before starting the next requirement.
+**架构：** 中心契约是 `rough_cut_plan.json`。开发顺序从可复用 fixture 和 schema 开始，然后做剪映安装器，再做草稿导出器，再做粗剪规划器，最后做 CLI 编排。每个需求都必须产出可测试的软件，并在进入下一个需求前提交。
 
-**Tech Stack:** Python 3.10+, Pydantic v2, Click, pytest, standard-library `json`/`pathlib`/`shutil`, optional `pyJianYingDraft` adapter, no required `VectCutAPI` dependency in the first pass.
+**技术栈：** Python 3.10+、Pydantic v2、Click、pytest、标准库 `json`/`pathlib`/`shutil`、可选 `pyJianYingDraft` adapter；第一轮不要求 `VectCutAPI` 依赖。
 
-## Global Constraints
+## 全局约束
 
-- Source specs: `docs/superpowers/specs/2026-07-09-rough-cut-draft-generation-design.md` and `docs/superpowers/specs/2026-07-09-rough-cut-draft-generation-technical.md`.
-- Do not modify, move, or overwrite original media files.
-- Do not write into a user’s existing Jianying draft directory except by creating a new uniquely named draft directory.
-- Install/create run installation checks by default and stop before creating a draft when checks fail.
-- `rough_cut_plan.json` expresses edit intent and timeline plan; it must not contain Jianying-specific file structure.
-- `JianyingDraftExporter` must not read `cut_index.json` to do second-pass material selection.
-- `Jianying10Installer` must not understand media content or change edit order.
-- `pyJianYingDraft` is optional or runtime-detected; it must not become a required core dependency in the first pass.
-- `VectCutAPIAdapter` is optional follow-up work and must not block the first working chain.
-- Keep changes scoped. Ignore unrelated untracked files such as `docs/review-html-*.md`.
+- 来源 spec：`docs/superpowers/specs/2026-07-09-rough-cut-draft-generation-design.md` 和 `docs/superpowers/specs/2026-07-09-rough-cut-draft-generation-technical.md`。
+- 不修改、移动、覆盖原始素材文件。
+- 除了创建一个唯一命名的新草稿目录，不写入用户已有剪映草稿目录。
+- `install/create` 默认执行安装前检查；检查失败时停止，不创建草稿目录。
+- `rough_cut_plan.json` 只表达剪辑意图和时间线计划，不表达剪映文件结构。
+- `JianyingDraftExporter` 不允许读取 `cut_index.json` 做二次素材筛选。
+- `Jianying10Installer` 不理解素材内容，不改变剪辑顺序。
+- `pyJianYingDraft` 是可选依赖或运行时探测依赖；第一轮不能成为核心必需依赖。
+- `VectCutAPIAdapter` 是后续可选工作，不能阻塞第一条可用主链路。
+- 保持改动聚焦。忽略无关未跟踪文件，例如 `docs/review-html-*.md`。
 
 ---
 
-## How To Use This Plan
+## 使用方式
 
-Open one fresh conversation per requirement. Start with the matching “Conversation starter” block. Do not ask that conversation to implement later requirements unless the requirement explicitly says it depends on them.
+每个需求开一个新的对话。新对话直接复制该需求下方的“对话启动语”。除非某个需求明确依赖前面需求，否则不要在同一对话里顺手实现后续需求。
 
-Recommended order:
+推荐顺序：
 
 ```text
-R0 fixture pack
+R0 fixture 包
 R1 RoughCutPlan schema
 R2 Jianying10Installer
 R3 JianyingDraftExporter + PyJianYingDraftAdapter
-R4 Heuristic RoughCutPlanner
-R5 CLI orchestration
-R6 Optional adapters and LLM planner
+R4 启发式 RoughCutPlanner
+R5 CLI 编排
+R6 可选 adapter 和 LLM planner
 ```
 
-The running product order is `planner -> exporter -> installer`, but the development order is intentionally different. It validates stable contracts and Jianying write behavior before adding automatic planning.
+产品运行顺序是 `planner -> exporter -> installer`，但开发顺序故意不同。先验证稳定契约和剪映落盘行为，再增加自动规划能力。
 
-## Shared File Map
+## 共享文件地图
 
-Create these directories as the relevant requirement needs them:
+按需求逐步创建这些目录和文件：
 
 ```text
 src/tripclipper/roughcut/
@@ -69,7 +69,7 @@ tests/fixtures/roughcut/
 tests/fixtures/jianying/
 ```
 
-Existing files likely modified later:
+后续可能修改的既有文件：
 
 ```text
 src/tripclipper/cli.py
@@ -79,148 +79,148 @@ pyproject.toml
 
 ---
 
-### Requirement R0: Fixture Pack And Validation Samples
+### 需求 R0：Fixture 包与校验样本
 
-**Goal:** Create the minimal local fixture set that later requirements can use without depending on real user projects.
+**目标：** 创建最小本地 fixture 集，让后续需求不依赖真实用户项目也能测试。
 
-**Depends On:** Current specs only.
+**依赖：** 仅依赖当前 spec。
 
-**Files:**
-- Create: `tests/fixtures/roughcut/minimal_rough_cut_plan.json`
-- Create: `tests/fixtures/roughcut/minimal_cut_index.json`
-- Create: `tests/fixtures/jianying/minimal_draft_content.json`
-- Create: `tests/fixtures/jianying/template_draft/`
-- Create: `tests/fixtures/media/`
-- Test: `tests/test_roughcut_fixture_contract.py`
+**文件：**
+- 创建：`tests/fixtures/roughcut/minimal_rough_cut_plan.json`
+- 创建：`tests/fixtures/roughcut/minimal_cut_index.json`
+- 创建：`tests/fixtures/jianying/minimal_draft_content.json`
+- 创建：`tests/fixtures/jianying/template_draft/`
+- 创建：`tests/fixtures/media/`
+- 测试：`tests/test_roughcut_fixture_contract.py`
 
-**Produces:**
-- Small media fixture files or documented generated dummy files.
-- A minimal `cut_index.json` with at least two video assets and one image asset.
-- A minimal `rough_cut_plan.json` that references fixture assets.
-- A minimal `draft_content.json` that installer tests can consume.
-- A minimal Jianying template draft directory with the files installer expects.
+**产出：**
+- 小型媒体 fixture 文件，或在测试中用标准库生成的 dummy 文件。
+- 一个最小 `cut_index.json`，至少包含两个视频素材和一张图片素材。
+- 一个引用 fixture 素材的最小 `rough_cut_plan.json`。
+- 一个 installer 测试可消费的最小 `draft_content.json`。
+- 一个最小剪映模板草稿目录，包含 installer 需要的模板文件。
 
-**Acceptance Criteria:**
-- `pytest tests/test_roughcut_fixture_contract.py -v` passes.
-- Fixture paths are relative to the repository or pytest tmp path where possible.
-- No fixture references `/Users/bytedance/...` absolute paths.
-- Fixture plan contains seconds-based time ranges.
-- Fixture draft content contains media references that installer can rewrite later.
+**验收标准：**
+- `pytest tests/test_roughcut_fixture_contract.py -v` 通过。
+- fixture 路径尽量相对仓库或 pytest 临时目录。
+- fixture 不引用 `/Users/bytedance/...` 绝对路径。
+- fixture plan 使用秒表示时间范围。
+- fixture draft content 包含后续 installer 可重写的媒体引用。
 
-**Out Of Scope:**
-- Do not implement schema models.
-- Do not implement exporter.
-- Do not implement installer.
+**不做：**
+- 不实现 schema 模型。
+- 不实现 exporter。
+- 不实现 installer。
 
-**Suggested Steps:**
+**建议步骤：**
 
-- [ ] Create fixture directories under `tests/fixtures/`.
-- [ ] Add tiny media stand-ins that are safe to commit, or generate them in tests using standard-library file writes.
-- [ ] Add `minimal_cut_index.json` with `schema_version`, `project`, `assets`, `default_candidates`, and empty arrays for unrelated top-level fields.
-- [ ] Add `minimal_rough_cut_plan.json` using the planned schema fields from the technical spec.
-- [ ] Add `minimal_draft_content.json` with enough `materials.videos`, `materials.audios`, or `materials.images` entries to test path rewriting.
-- [ ] Add a minimal `template_draft/` skeleton with `project.json`, `timeline_layout.json`, `draft_meta_info.json`, and `Timelines/`.
-- [ ] Add tests that load each JSON fixture and assert the expected top-level keys exist.
-- [ ] Run `pytest tests/test_roughcut_fixture_contract.py -v`.
-- [ ] Commit with `test: add rough cut draft fixtures`.
+- [ ] 在 `tests/fixtures/` 下创建 fixture 目录。
+- [ ] 添加可安全提交的小型媒体占位文件，或在测试里用标准库写入生成。
+- [ ] 添加 `minimal_cut_index.json`，包含 `schema_version`、`project`、`assets`、`default_candidates`，以及无关顶层字段的空数组。
+- [ ] 按技术 spec 字段添加 `minimal_rough_cut_plan.json`。
+- [ ] 添加 `minimal_draft_content.json`，至少包含能测试路径重写的 `materials.videos`、`materials.audios` 或 `materials.images`。
+- [ ] 添加最小 `template_draft/` 骨架，包含 `project.json`、`timeline_layout.json`、`draft_meta_info.json` 和 `Timelines/`。
+- [ ] 添加测试，加载每个 JSON fixture，并断言必要顶层键存在。
+- [ ] 运行 `pytest tests/test_roughcut_fixture_contract.py -v`。
+- [ ] 提交：`test: add rough cut draft fixtures`。
 
-**Conversation Starter:**
+**对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的 Requirement R0 实现 fixture pack。只做 R0，不实现 schema/exporter/installer/planner。完成后运行 R0 验收测试并提交。
+按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R0 实现 fixture 包。只做 R0，不实现 schema/exporter/installer/planner。完成后运行 R0 验收测试并提交。
 ```
 
 ---
 
-### Requirement R1: RoughCutPlan Schema, IO, And Validator
+### 需求 R1：RoughCutPlan Schema、IO 与 Validator
 
-**Goal:** Define the durable `rough_cut_plan.json` contract and local validation helpers.
+**目标：** 定义稳定的 `rough_cut_plan.json` 契约和本地校验工具。
 
-**Depends On:** R0 fixture pack.
+**依赖：** R0 fixture 包。
 
-**Files:**
-- Create: `src/tripclipper/roughcut/__init__.py`
-- Create: `src/tripclipper/roughcut/models.py`
-- Create: `src/tripclipper/roughcut/io.py`
-- Create: `src/tripclipper/roughcut/validator.py`
-- Test: `tests/test_roughcut_models.py`
-- Test: `tests/test_roughcut_validator.py`
+**文件：**
+- 创建：`src/tripclipper/roughcut/__init__.py`
+- 创建：`src/tripclipper/roughcut/models.py`
+- 创建：`src/tripclipper/roughcut/io.py`
+- 创建：`src/tripclipper/roughcut/validator.py`
+- 测试：`tests/test_roughcut_models.py`
+- 测试：`tests/test_roughcut_validator.py`
 
-**Interfaces:**
-- Produces: `ROUGH_CUT_PLAN_SCHEMA_VERSION = "0.1"`.
-- Produces: `TimeRange`, `RoughCutProjectRef`, `RoughCutIntent`, `RoughCutSourceSnapshot`, `RoughCutSegment`, `TextOverlay`, `BgmPlan`, `TransitionPlan`, `UnusedAsset`, `PlanWarning`, `RoughCutPlan`.
-- Produces: `read_rough_cut_plan(path) -> RoughCutPlan`.
-- Produces: `write_rough_cut_plan(path, plan) -> None`.
-- Produces: `validate_rough_cut_plan(plan, cut_index) -> None`.
-- Produces: `RoughCutValidationError`.
+**接口：**
+- 产出：`ROUGH_CUT_PLAN_SCHEMA_VERSION = "0.1"`。
+- 产出：`TimeRange`、`RoughCutProjectRef`、`RoughCutIntent`、`RoughCutSourceSnapshot`、`RoughCutSegment`、`TextOverlay`、`BgmPlan`、`TransitionPlan`、`UnusedAsset`、`PlanWarning`、`RoughCutPlan`。
+- 产出：`read_rough_cut_plan(path) -> RoughCutPlan`。
+- 产出：`write_rough_cut_plan(path, plan) -> None`。
+- 产出：`validate_rough_cut_plan(plan, cut_index) -> None`。
+- 产出：`RoughCutValidationError`。
 
-**Acceptance Criteria:**
-- `pytest tests/test_roughcut_models.py tests/test_roughcut_validator.py -v` passes.
-- Valid fixture plan round-trips without data loss.
-- Invalid time ranges fail.
-- Missing asset ids fail when validating against `cut_index.json`.
-- Main-video timeline overlap fails.
-- `source_candidate_status="excluded"` fails unless `selection_override_reason` is present.
+**验收标准：**
+- `pytest tests/test_roughcut_models.py tests/test_roughcut_validator.py -v` 通过。
+- 合法 fixture plan 往返读写无数据丢失。
+- 非法时间范围失败。
+- 根据 `cut_index.json` 校验时，缺失 asset id 失败。
+- 主视频轨 timeline 重叠失败。
+- `source_candidate_status="excluded"` 且缺少 `selection_override_reason` 时失败。
 
-**Out Of Scope:**
-- Do not generate plans from `cut_index.json`.
-- Do not export Jianying draft content.
-- Do not install Jianying drafts.
+**不做：**
+- 不从 `cut_index.json` 生成 plan。
+- 不导出剪映 `draft_content.json`。
+- 不安装剪映草稿。
 
-**Suggested Steps:**
+**建议步骤：**
 
-- [ ] Add failing model round-trip tests using `tests/fixtures/roughcut/minimal_rough_cut_plan.json`.
-- [ ] Add failing validator tests for invalid time range, missing asset id, overlapping main-video segments, and excluded-without-reason.
-- [ ] Implement Pydantic models in `src/tripclipper/roughcut/models.py`.
-- [ ] Implement JSON read/write helpers in `src/tripclipper/roughcut/io.py`.
-- [ ] Implement validation in `src/tripclipper/roughcut/validator.py`.
-- [ ] Export public names from `src/tripclipper/roughcut/__init__.py`.
-- [ ] Run `pytest tests/test_roughcut_models.py tests/test_roughcut_validator.py -v`.
-- [ ] Run existing `pytest tests/test_models.py tests/test_cut_index.py -v` to confirm no regression in core models.
-- [ ] Commit with `feat: add rough cut plan schema`.
+- [ ] 添加基于 `tests/fixtures/roughcut/minimal_rough_cut_plan.json` 的失败版模型往返测试。
+- [ ] 添加非法时间范围、缺失 asset id、主视频重叠、excluded 无原因的失败版 validator 测试。
+- [ ] 在 `src/tripclipper/roughcut/models.py` 实现 Pydantic 模型。
+- [ ] 在 `src/tripclipper/roughcut/io.py` 实现 JSON 读写 helper。
+- [ ] 在 `src/tripclipper/roughcut/validator.py` 实现校验。
+- [ ] 在 `src/tripclipper/roughcut/__init__.py` 导出公共名称。
+- [ ] 运行 `pytest tests/test_roughcut_models.py tests/test_roughcut_validator.py -v`。
+- [ ] 运行 `pytest tests/test_models.py tests/test_cut_index.py -v`，确认核心模型无回归。
+- [ ] 提交：`feat: add rough cut plan schema`。
 
-**Conversation Starter:**
+**对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的 Requirement R1 实现 RoughCutPlan schema/io/validator。只做 R1。依赖 R0 fixture。完成后运行 R1 验收测试并提交。
+按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R1 实现 RoughCutPlan schema/io/validator。只做 R1。依赖 R0 fixture。完成后运行 R1 验收测试并提交。
 ```
 
 ---
 
-### Requirement R2: Jianying10Installer
+### 需求 R2：Jianying10Installer
 
-**Goal:** Install an existing `draft_content.json` into a new Jianying 10 draft directory safely and repeatably.
+**目标：** 把已有 `draft_content.json` 安全、可重复地安装成一个新的剪映 10 草稿目录。
 
-**Depends On:** R0 fixture pack.
+**依赖：** R0 fixture 包。
 
-**Files:**
-- Create: `src/tripclipper/jianying/__init__.py`
-- Create: `src/tripclipper/jianying/models.py`
-- Create: `src/tripclipper/jianying/paths.py`
-- Create: `src/tripclipper/jianying/installer.py`
-- Test: `tests/test_jianying_installer.py`
+**文件：**
+- 创建：`src/tripclipper/jianying/__init__.py`
+- 创建：`src/tripclipper/jianying/models.py`
+- 创建：`src/tripclipper/jianying/paths.py`
+- 创建：`src/tripclipper/jianying/installer.py`
+- 测试：`tests/test_jianying_installer.py`
 
-**Interfaces:**
-- Produces: `DraftInstallRequest`.
-- Produces: `InstallValidationItem`.
-- Produces: `DraftInstallResult`.
-- Produces: `DraftInstallError`.
-- Produces: `Jianying10Installer.install(request: DraftInstallRequest) -> DraftInstallResult`.
+**接口：**
+- 产出：`DraftInstallRequest`。
+- 产出：`InstallValidationItem`。
+- 产出：`DraftInstallResult`。
+- 产出：`DraftInstallError`。
+- 产出：`Jianying10Installer.install(request: DraftInstallRequest) -> DraftInstallResult`。
 
-**Acceptance Criteria:**
-- `pytest tests/test_jianying_installer.py -v` passes.
-- Installer refuses missing `draft_content_path`, missing template dir, missing library dir, unreadable media, and unavailable hardlink mode.
-- Installer creates a unique draft directory.
-- Installer generates a new `timeline_id`.
-- Installer copies or hardlinks media into draft-local `assets/`.
-- Installer rewrites at least:
+**验收标准：**
+- `pytest tests/test_jianying_installer.py -v` 通过。
+- installer 拒绝缺失 `draft_content_path`、缺失模板目录、缺失草稿库目录、不可读媒体、不可用 hardlink 模式。
+- installer 创建唯一草稿目录。
+- installer 生成新的 `timeline_id`。
+- installer 把媒体复制或硬链接到草稿本地 `assets/`。
+- installer 至少重写：
   - `materials.videos[].path`
   - `materials.videos[].remote_url`
   - `materials.audios[].path`
   - `materials.audios[].remote_url`
   - `materials.images[].path`
   - `materials.images[].remote_url`
-- Installer writes these seven key files with consistent content:
+- installer 写入并保持内容一致的 7 个关键文件：
   - `draft_content.json`
   - `draft_content.json.bak`
   - `template-2.tmp`
@@ -228,282 +228,282 @@ pyproject.toml
   - `Timelines/<timeline_id>/draft_content.json.bak`
   - `Timelines/<timeline_id>/template.tmp`
   - `Timelines/<timeline_id>/template-2.tmp`
-- Installer updates `project.json`, `timeline_layout.json`, and `draft_meta_info.json`.
-- Installer failure after directory creation cleans up the incomplete draft directory and leaves an install report.
+- installer 更新 `project.json`、`timeline_layout.json` 和 `draft_meta_info.json`。
+- 目录创建后发生失败时，installer 清理本次不完整草稿目录，并留下安装报告。
 
-**Out Of Scope:**
-- Do not generate `draft_content.json`.
-- Do not parse `rough_cut_plan.json`.
-- Do not call `pyJianYingDraft`.
-- Do not open or automate Jianying UI.
+**不做：**
+- 不生成 `draft_content.json`。
+- 不解析 `rough_cut_plan.json`。
+- 不调用 `pyJianYingDraft`。
+- 不打开或自动操作剪映 UI。
 
-**Manual Verification:**
-- Use a real Jianying 10 template directory and a known-good `draft_content.json`.
-- Install into a temporary Jianying library copy first.
-- Then install into the real Jianying draft library only after fixture tests pass.
-- Open Jianying 10 and confirm the new draft appears, opens, keeps media linked, and reopens after save.
+**人工验收：**
+- 使用真实剪映 10 模板目录和已知可用的 `draft_content.json`。
+- 先安装到临时剪映草稿库副本。
+- fixture 测试通过后，再安装到真实剪映草稿库。
+- 打开剪映 10，确认新草稿出现、可打开、媒体不丢失、保存后可再次打开。
 
-**Suggested Steps:**
+**建议步骤：**
 
-- [ ] Add failing tests for installation pre-check failures.
-- [ ] Add failing test for successful install into a pytest tmp library dir.
-- [ ] Add failing test for media path rewriting.
-- [ ] Add failing test for seven key file writes.
-- [ ] Add failing test that a partial install is cleaned up on write failure.
-- [ ] Implement request/result models in `src/tripclipper/jianying/models.py`.
-- [ ] Implement path helpers in `src/tripclipper/jianying/paths.py`.
-- [ ] Implement installer in `src/tripclipper/jianying/installer.py`.
-- [ ] Export public names from `src/tripclipper/jianying/__init__.py`.
-- [ ] Run `pytest tests/test_jianying_installer.py -v`.
-- [ ] Commit with `feat: add jianying draft installer`.
+- [ ] 添加安装前检查失败的测试。
+- [ ] 添加安装到 pytest 临时草稿库目录的成功测试。
+- [ ] 添加媒体路径重写测试。
+- [ ] 添加 7 个关键文件写入测试。
+- [ ] 添加写入失败时清理不完整草稿目录的测试。
+- [ ] 在 `src/tripclipper/jianying/models.py` 实现请求/结果模型。
+- [ ] 在 `src/tripclipper/jianying/paths.py` 实现路径 helper。
+- [ ] 在 `src/tripclipper/jianying/installer.py` 实现 installer。
+- [ ] 在 `src/tripclipper/jianying/__init__.py` 导出公共名称。
+- [ ] 运行 `pytest tests/test_jianying_installer.py -v`。
+- [ ] 提交：`feat: add jianying draft installer`。
 
-**Conversation Starter:**
+**对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的 Requirement R2 实现 Jianying10Installer。只做 R2。输入是已有 draft_content.json fixture，不实现 exporter/planner/CLI。完成后运行 R2 验收测试并提交。
+按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R2 实现 Jianying10Installer。只做 R2。输入是已有 draft_content.json fixture，不实现 exporter/planner/CLI。完成后运行 R2 验收测试并提交。
 ```
 
 ---
 
-### Requirement R3: JianyingDraftExporter And PyJianYingDraftAdapter
+### 需求 R3：JianyingDraftExporter 与 PyJianYingDraftAdapter
 
-**Goal:** Convert a hand-written `rough_cut_plan.json` into a new `draft_content.json`, then verify that installer can install it.
+**目标：** 把手写 `rough_cut_plan.json` 转成新的 `draft_content.json`，并验证 installer 能安装它。
 
-**Depends On:** R1 RoughCutPlan schema and R2 Jianying10Installer.
+**依赖：** R1 RoughCutPlan schema 和 R2 Jianying10Installer。
 
-**Files:**
-- Create: `src/tripclipper/jianying/draft_exporter.py`
-- Create: `src/tripclipper/jianying/adapters/__init__.py`
-- Create: `src/tripclipper/jianying/adapters/base.py`
-- Create: `src/tripclipper/jianying/adapters/pyjianyingdraft.py`
-- Modify: `src/tripclipper/jianying/models.py`
-- Test: `tests/test_jianying_exporter.py`
-- Test: `tests/test_jianying_pyjianyingdraft_adapter.py`
+**文件：**
+- 创建：`src/tripclipper/jianying/draft_exporter.py`
+- 创建：`src/tripclipper/jianying/adapters/__init__.py`
+- 创建：`src/tripclipper/jianying/adapters/base.py`
+- 创建：`src/tripclipper/jianying/adapters/pyjianyingdraft.py`
+- 修改：`src/tripclipper/jianying/models.py`
+- 测试：`tests/test_jianying_exporter.py`
+- 测试：`tests/test_jianying_pyjianyingdraft_adapter.py`
 
-**Interfaces:**
-- Consumes: `RoughCutPlan`.
-- Produces: `DraftExportResult`.
-- Produces: `JianyingDraftExporter.export(plan, output_dir, engine="pyjianyingdraft") -> DraftExportResult`.
-- Produces: `JianyingDraftAdapter.export(plan, output_dir) -> DraftExportResult`.
-- Produces: `AdapterCapabilities`.
-- Produces: `DraftExportError`.
+**接口：**
+- 消费：`RoughCutPlan`。
+- 产出：`DraftExportResult`。
+- 产出：`JianyingDraftExporter.export(plan, output_dir, engine="pyjianyingdraft") -> DraftExportResult`。
+- 产出：`JianyingDraftAdapter.export(plan, output_dir) -> DraftExportResult`。
+- 产出：`AdapterCapabilities`。
+- 产出：`DraftExportError`。
 
-**Acceptance Criteria:**
-- `pytest tests/test_jianying_exporter.py tests/test_jianying_pyjianyingdraft_adapter.py -v` passes.
-- Exporter writes only inside `output_dir`.
-- Exporter never modifies source media or the input plan.
-- Adapter receives one `RoughCutPlan` and does not read `cut_index.json`.
-- Export result includes `engine`, `draft_content_path`, optional `draft_meta_info_path`, `media_paths`, and `warnings`.
-- Unsupported-but-safe features are recorded in `warnings`.
-- A generated `draft_content.json` from the fixture plan can be handed to R2 installer tests.
+**验收标准：**
+- `pytest tests/test_jianying_exporter.py tests/test_jianying_pyjianyingdraft_adapter.py -v` 通过。
+- exporter 只写 `output_dir` 内部。
+- exporter 不修改源素材，也不修改输入 plan。
+- adapter 接收一个 `RoughCutPlan`，不读取 `cut_index.json`。
+- export result 包含 `engine`、`draft_content_path`、可选 `draft_meta_info_path`、`media_paths`、`warnings`。
+- 对可安全降级的不支持能力写入 `warnings`。
+- fixture plan 生成的 `draft_content.json` 可以交给 R2 installer 测试消费。
 
-**Out Of Scope:**
-- Do not implement heuristic planning.
-- Do not implement LLM planning.
-- Do not implement `VectCutAPIAdapter`.
-- Do not add final CLI orchestration.
+**不做：**
+- 不实现启发式 planning。
+- 不实现 LLM planning。
+- 不实现 `VectCutAPIAdapter`。
+- 不添加最终 CLI 编排。
 
-**Manual Verification:**
+**人工验收：**
 
 ```text
 minimal_rough_cut_plan.json
   -> JianyingDraftExporter
   -> generated draft_content.json
   -> Jianying10Installer
-  -> Jianying 10 opens new draft
+  -> 剪映 10 打开新草稿
 ```
 
-The generated draft does not need to byte-match any existing `draft_content.json`. Validate semantic equivalence instead: media count, order, approximate source ranges, timeline order, text overlays, BGM handling, and installability.
+生成的 draft 不需要和任何已有 `draft_content.json` 字节级一致。只验证语义一致：媒体数量、顺序、近似 source range、timeline 顺序、文本覆盖、BGM 处理、可安装性。
 
-**Suggested Steps:**
+**建议步骤：**
 
-- [ ] Add failing exporter test using `minimal_rough_cut_plan.json`.
-- [ ] Add failing test that exporter does not read `cut_index.json`; use a fake adapter that would fail if asked for a cut index.
-- [ ] Add failing adapter capability warning test.
-- [ ] Add failing integration-style test: export fixture plan into tmp output dir, then pass generated `draft_content.json` to installer fixture.
-- [ ] Implement adapter protocol and capability model.
-- [ ] Implement `DraftExportResult` and `DraftExportError`.
-- [ ] Implement exporter engine dispatch.
-- [ ] Implement minimal `PyJianYingDraftAdapter` with runtime dependency detection and a clear error if unavailable.
-- [ ] Run `pytest tests/test_jianying_exporter.py tests/test_jianying_pyjianyingdraft_adapter.py tests/test_jianying_installer.py -v`.
-- [ ] Commit with `feat: add jianying draft exporter`.
+- [ ] 添加使用 `minimal_rough_cut_plan.json` 的失败版 exporter 测试。
+- [ ] 添加 exporter 不读取 `cut_index.json` 的失败版测试；使用一个如果被要求 cut index 就失败的 fake adapter。
+- [ ] 添加 adapter capability warning 测试。
+- [ ] 添加集成风格测试：把 fixture plan 导出到临时输出目录，再把生成的 `draft_content.json` 交给 installer fixture。
+- [ ] 实现 adapter protocol 和 capability model。
+- [ ] 实现 `DraftExportResult` 和 `DraftExportError`。
+- [ ] 实现 exporter engine dispatch。
+- [ ] 实现最小 `PyJianYingDraftAdapter`，运行时探测依赖；依赖缺失时给出清楚错误。
+- [ ] 运行 `pytest tests/test_jianying_exporter.py tests/test_jianying_pyjianyingdraft_adapter.py tests/test_jianying_installer.py -v`。
+- [ ] 提交：`feat: add jianying draft exporter`。
 
-**Conversation Starter:**
+**对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的 Requirement R3 实现 JianyingDraftExporter + PyJianYingDraftAdapter。只做 R3。依赖 R1/R2。完成后验证“手写 rough_cut_plan.json -> exporter -> installer”链路并提交。
+按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R3 实现 JianyingDraftExporter + PyJianYingDraftAdapter。只做 R3。依赖 R1/R2。完成后验证“手写 rough_cut_plan.json -> exporter -> installer”链路并提交。
 ```
 
 ---
 
-### Requirement R4: Heuristic RoughCutPlanner
+### 需求 R4：启发式 RoughCutPlanner
 
-**Goal:** Generate a first-pass `rough_cut_plan.json` from real `cut_index.json` and project intent without using LLM.
+**目标：** 不使用 LLM，从真实 `cut_index.json` 和项目意图生成第一版 `rough_cut_plan.json`。
 
-**Depends On:** R1 RoughCutPlan schema.
+**依赖：** R1 RoughCutPlan schema。
 
-**Files:**
-- Create: `src/tripclipper/roughcut/planner.py`
-- Modify: `src/tripclipper/roughcut/__init__.py`
-- Test: `tests/test_roughcut_planner.py`
+**文件：**
+- 创建：`src/tripclipper/roughcut/planner.py`
+- 修改：`src/tripclipper/roughcut/__init__.py`
+- 测试：`tests/test_roughcut_planner.py`
 
-**Interfaces:**
-- Consumes: `read_cut_index(path) -> CutIndex`.
-- Consumes: `RoughCutPlan`, `RoughCutIntent`, `RoughCutSegment`.
-- Produces: `RoughCutPlanRequest`.
-- Produces: `HeuristicRoughCutPlanner.plan(request: RoughCutPlanRequest) -> RoughCutPlan`.
+**接口：**
+- 消费：`read_cut_index(path) -> CutIndex`。
+- 消费：`RoughCutPlan`、`RoughCutIntent`、`RoughCutSegment`。
+- 产出：`RoughCutPlanRequest`。
+- 产出：`HeuristicRoughCutPlanner.plan(request: RoughCutPlanRequest) -> RoughCutPlan`。
 
-**Acceptance Criteria:**
-- `pytest tests/test_roughcut_planner.py tests/test_roughcut_validator.py -v` passes.
-- Planner defaults to `edit_candidate_status=default_selected`.
-- Planner excludes `needs_review` and `excluded` by default.
-- Planner can include `alternate` only when configured or when default candidates are insufficient.
-- Planner uses `clip_suggestions` when present.
-- Planner produces segments with `reason`.
-- Planner output validates with `validate_rough_cut_plan`.
-- Total timeline duration is close to `target_duration_sec` without exceeding it by more than one selected segment duration.
+**验收标准：**
+- `pytest tests/test_roughcut_planner.py tests/test_roughcut_validator.py -v` 通过。
+- planner 默认选择 `edit_candidate_status=default_selected`。
+- planner 默认排除 `needs_review` 和 `excluded`。
+- planner 只在配置允许或默认候选不足时补充 `alternate`。
+- planner 优先使用 `clip_suggestions`。
+- planner 生成的每个 segment 都有 `reason`。
+- planner 输出能通过 `validate_rough_cut_plan`。
+- timeline 总时长接近 `target_duration_sec`，且不超过目标时长多于一个已选片段时长。
 
-**Out Of Scope:**
-- Do not call LLM.
-- Do not export `draft_content.json`.
-- Do not install Jianying drafts.
-- Do not implement final CLI orchestration.
+**不做：**
+- 不调用 LLM。
+- 不导出 `draft_content.json`。
+- 不安装剪映草稿。
+- 不实现最终 CLI 编排。
 
-**Suggested Steps:**
+**建议步骤：**
 
-- [ ] Add failing tests for default candidate selection.
-- [ ] Add failing tests that `needs_review` and `excluded` are skipped by default.
-- [ ] Add failing tests for `include_alternates=True`.
-- [ ] Add failing tests that `clip_suggestions` become `source_range`.
-- [ ] Add failing test that every segment has a non-empty `reason`.
-- [ ] Implement `RoughCutPlanRequest`.
-- [ ] Implement `HeuristicRoughCutPlanner`.
-- [ ] Run `pytest tests/test_roughcut_planner.py tests/test_roughcut_validator.py -v`.
-- [ ] Commit with `feat: add heuristic rough cut planner`.
+- [ ] 添加默认候选选择测试。
+- [ ] 添加默认跳过 `needs_review` 和 `excluded` 的测试。
+- [ ] 添加 `include_alternates=True` 测试。
+- [ ] 添加 `clip_suggestions` 转成 `source_range` 的测试。
+- [ ] 添加每个 segment 都有非空 `reason` 的测试。
+- [ ] 实现 `RoughCutPlanRequest`。
+- [ ] 实现 `HeuristicRoughCutPlanner`。
+- [ ] 运行 `pytest tests/test_roughcut_planner.py tests/test_roughcut_validator.py -v`。
+- [ ] 提交：`feat: add heuristic rough cut planner`。
 
-**Conversation Starter:**
+**对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的 Requirement R4 实现启发式 RoughCutPlanner。只做 R4，不做 LLM/exporter/installer/CLI 串联。完成后运行 R4 验收测试并提交。
+按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R4 实现启发式 RoughCutPlanner。只做 R4，不做 LLM/exporter/installer/CLI 串联。完成后运行 R4 验收测试并提交。
 ```
 
 ---
 
-### Requirement R5: CLI Commands And End-To-End Orchestration
+### 需求 R5：CLI 命令与端到端编排
 
-**Goal:** Expose the rough-cut and Jianying pipeline through clear Click commands, including one-shot `jianying create`.
+**目标：** 通过清晰的 Click 命令暴露粗剪与剪映链路，并提供一键 `jianying create`。
 
-**Depends On:** R1, R2, R3, and R4.
+**依赖：** R1、R2、R3、R4。
 
-**Files:**
-- Modify: `src/tripclipper/cli.py`
-- Modify: `src/tripclipper/paths.py`
-- Test: `tests/test_cli_roughcut.py`
-- Test: `tests/test_cli_jianying.py`
+**文件：**
+- 修改：`src/tripclipper/cli.py`
+- 修改：`src/tripclipper/paths.py`
+- 测试：`tests/test_cli_roughcut.py`
+- 测试：`tests/test_cli_jianying.py`
 
-**Interfaces:**
-- Consumes: `HeuristicRoughCutPlanner.plan`.
-- Consumes: `write_rough_cut_plan`.
-- Consumes: `JianyingDraftExporter.export`.
-- Consumes: `Jianying10Installer.install`.
-- Produces: `tripclipper roughcut plan <slug> --target-duration 90`.
-- Produces: `tripclipper jianying export <slug> --engine pyjianyingdraft`.
-- Produces: `tripclipper jianying install --draft-content <path> --name <draft_name>`.
-- Produces: `tripclipper jianying create <slug> --target-duration 90 --engine pyjianyingdraft`.
+**接口：**
+- 消费：`HeuristicRoughCutPlanner.plan`。
+- 消费：`write_rough_cut_plan`。
+- 消费：`JianyingDraftExporter.export`。
+- 消费：`Jianying10Installer.install`。
+- 产出：`tripclipper roughcut plan <slug> --target-duration 90`。
+- 产出：`tripclipper jianying export <slug> --engine pyjianyingdraft`。
+- 产出：`tripclipper jianying install --draft-content <path> --name <draft_name>`。
+- 产出：`tripclipper jianying create <slug> --target-duration 90 --engine pyjianyingdraft`。
 
-**Acceptance Criteria:**
-- `pytest tests/test_cli_roughcut.py tests/test_cli_jianying.py -v` passes.
-- `roughcut plan` writes `projects/<slug>/rough_cut_plan.json`.
-- `jianying export` writes `projects/<slug>/exports/jianying/<draft_id>/draft_content.json`.
-- `jianying install` installs an existing `draft_content.json` and reports the new draft directory.
-- `jianying create` runs `plan -> export -> install`.
-- Any failed stage stops the chain and leaves earlier successful artifacts.
-- CLI errors follow existing style: no raw stack traces, exit code 2 for user input errors, exit code 1 for business failures.
+**验收标准：**
+- `pytest tests/test_cli_roughcut.py tests/test_cli_jianying.py -v` 通过。
+- `roughcut plan` 写入 `projects/<slug>/rough_cut_plan.json`。
+- `jianying export` 写入 `projects/<slug>/exports/jianying/<draft_id>/draft_content.json`。
+- `jianying install` 安装已有 `draft_content.json` 并报告新草稿目录。
+- `jianying create` 执行 `plan -> export -> install`。
+- 任一阶段失败时停止，并保留前面阶段已成功产物。
+- CLI 错误遵循现有风格：不打印裸堆栈；用户输入错误退出码 2；业务失败退出码 1。
 
-**Out Of Scope:**
-- Do not add LLM planner.
-- Do not add `VectCutAPIAdapter`.
-- Do not add UI.
+**不做：**
+- 不添加 LLM planner。
+- 不添加 `VectCutAPIAdapter`。
+- 不添加 UI。
 
-**Suggested Steps:**
+**建议步骤：**
 
-- [ ] Add failing CLI tests for `roughcut plan`.
-- [ ] Add failing CLI tests for `jianying export`.
-- [ ] Add failing CLI tests for `jianying install`.
-- [ ] Add failing CLI tests for `jianying create` stopping after export failure.
-- [ ] Add roughcut and jianying Click command groups to `src/tripclipper/cli.py`.
-- [ ] Add path helpers for roughcut and jianying export artifacts in `src/tripclipper/paths.py`.
-- [ ] Wire command error handling to existing CLI conventions.
-- [ ] Run `pytest tests/test_cli_roughcut.py tests/test_cli_jianying.py -v`.
-- [ ] Run `pytest tests/test_cli_export.py tests/test_project.py tests/test_paths.py -v` for adjacent CLI/path regression.
-- [ ] Commit with `feat: add rough cut jianying cli`.
+- [ ] 添加 `roughcut plan` 的失败版 CLI 测试。
+- [ ] 添加 `jianying export` 的失败版 CLI 测试。
+- [ ] 添加 `jianying install` 的失败版 CLI 测试。
+- [ ] 添加 `jianying create` 在 export 失败后停止的测试。
+- [ ] 在 `src/tripclipper/cli.py` 添加 roughcut 和 jianying Click command group。
+- [ ] 在 `src/tripclipper/paths.py` 添加 roughcut 与 jianying export 产物路径 helper。
+- [ ] 按现有 CLI 约定接好错误处理。
+- [ ] 运行 `pytest tests/test_cli_roughcut.py tests/test_cli_jianying.py -v`。
+- [ ] 运行 `pytest tests/test_cli_export.py tests/test_project.py tests/test_paths.py -v` 做相邻 CLI/path 回归检查。
+- [ ] 提交：`feat: add rough cut jianying cli`。
 
-**Conversation Starter:**
+**对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的 Requirement R5 实现 CLI 命令和 create 串联。只做 R5。依赖 R1-R4 已完成。完成后运行 R5 验收测试并提交。
+按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R5 实现 CLI 命令和 create 串联。只做 R5。依赖 R1-R4 已完成。完成后运行 R5 验收测试并提交。
 ```
 
 ---
 
-### Requirement R6: Optional LLM Planner And VectCutAPIAdapter
+### 需求 R6：可选 LLM Planner 与 VectCutAPIAdapter
 
-**Goal:** Add optional enhanced planning and alternate draft export paths after the main chain works.
+**目标：** 主链路稳定后，再添加可选的增强规划和备用草稿导出路径。
 
-**Depends On:** R1-R5.
+**依赖：** R1-R5。
 
-**Files:**
-- Modify: `src/tripclipper/roughcut/planner.py`
-- Create: `src/tripclipper/roughcut/llm_planner.py`
-- Modify: `src/tripclipper/jianying/adapters/vectcutapi.py`
-- Test: `tests/test_roughcut_llm_planner.py`
-- Test: `tests/test_jianying_vectcutapi_adapter.py`
+**文件：**
+- 修改：`src/tripclipper/roughcut/planner.py`
+- 创建：`src/tripclipper/roughcut/llm_planner.py`
+- 修改：`src/tripclipper/jianying/adapters/vectcutapi.py`
+- 测试：`tests/test_roughcut_llm_planner.py`
+- 测试：`tests/test_jianying_vectcutapi_adapter.py`
 
-**Interfaces:**
-- Consumes: `RoughCutPlan` schema and validator.
-- Produces: optional planner engine selection such as `--planner heuristic|llm`.
-- Produces: optional export engine selection `--engine vectcutapi`.
+**接口：**
+- 消费：`RoughCutPlan` schema 和 validator。
+- 产出：可选 planner engine，例如 `--planner heuristic|llm`。
+- 产出：可选 export engine：`--engine vectcutapi`。
 
-**Acceptance Criteria:**
-- LLM planner output must pass `validate_rough_cut_plan`.
-- LLM planner failure must not write an invalid plan file.
-- VectCutAPI adapter must consume the same `RoughCutPlan` as PyJianYingDraftAdapter.
-- VectCutAPI adapter must not duplicate rough-cut business logic.
-- Missing optional dependencies must produce clear CLI errors.
+**验收标准：**
+- LLM planner 输出必须通过 `validate_rough_cut_plan`。
+- LLM planner 失败时不能写入非法 plan 文件。
+- VectCutAPI adapter 必须消费和 PyJianYingDraftAdapter 相同的 `RoughCutPlan`。
+- VectCutAPI adapter 不允许复制粗剪业务逻辑。
+- 可选依赖缺失时给出清楚 CLI 错误。
 
-**Out Of Scope:**
-- Do not make LLM planner the default until heuristic planner and end-to-end create are stable.
-- Do not make VectCutAPI a required dependency.
+**不做：**
+- 启发式 planner 和端到端 create 稳定前，不把 LLM planner 设为默认。
+- 不让 VectCutAPI 成为必需依赖。
 
-**Suggested Steps:**
+**建议步骤：**
 
-- [ ] Add LLM planner tests with a fake provider response that returns valid JSON.
-- [ ] Add LLM planner tests with invalid JSON and verify no plan file is written.
-- [ ] Implement `LLMRoughCutPlanner` behind an explicit planner option.
-- [ ] Add VectCutAPI adapter tests using a fake client.
-- [ ] Implement `VectCutAPIAdapter` as a thin adapter over `RoughCutPlan`.
-- [ ] Run `pytest tests/test_roughcut_llm_planner.py tests/test_jianying_vectcutapi_adapter.py -v`.
-- [ ] Commit with `feat: add optional rough cut engines`.
+- [ ] 添加 fake provider 返回合法 JSON 的 LLM planner 测试。
+- [ ] 添加 LLM 返回非法 JSON 时不写 plan 文件的测试。
+- [ ] 在显式 planner 选项后实现 `LLMRoughCutPlanner`。
+- [ ] 用 fake client 添加 VectCutAPI adapter 测试。
+- [ ] 实现作为 `RoughCutPlan` 薄翻译层的 `VectCutAPIAdapter`。
+- [ ] 运行 `pytest tests/test_roughcut_llm_planner.py tests/test_jianying_vectcutapi_adapter.py -v`。
+- [ ] 提交：`feat: add optional rough cut engines`。
 
-**Conversation Starter:**
+**对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的 Requirement R6 实现可选 LLM planner 和 VectCutAPIAdapter。只做 R6。依赖 R1-R5 已完成。不要改变默认主链路。
+按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R6 实现可选 LLM planner 和 VectCutAPIAdapter。只做 R6。依赖 R1-R5 已完成。不要改变默认主链路。
 ```
 
 ---
 
-## Final Integration Check
+## 最终集成检查
 
-Run this only after R1-R5 are complete:
+只在 R1-R5 都完成后运行：
 
 - [ ] `pytest -q`
-- [ ] Generate a plan from a fixture project with `tripclipper roughcut plan <slug> --target-duration 90`.
-- [ ] Export the plan with `tripclipper jianying export <slug> --engine pyjianyingdraft`.
-- [ ] Install the generated `draft_content.json` into a temporary Jianying library copy.
-- [ ] Manually open Jianying 10 and confirm the new draft appears, opens, keeps media linked, and reopens after save.
+- [ ] 用 fixture 项目生成 plan：`tripclipper roughcut plan <slug> --target-duration 90`。
+- [ ] 导出 plan：`tripclipper jianying export <slug> --engine pyjianyingdraft`。
+- [ ] 把生成的 `draft_content.json` 安装到临时剪映草稿库副本。
+- [ ] 人工打开剪映 10，确认新草稿出现、可打开、媒体不丢失、保存后可再次打开。
 
-Expected final chain:
+最终预期链路：
 
 ```text
 cut_index.json + project.yaml
@@ -512,12 +512,12 @@ cut_index.json + project.yaml
   -> tripclipper jianying export
   -> draft_content.json
   -> tripclipper jianying install
-  -> Jianying 10 opens new draft
+  -> 剪映 10 打开新草稿
 ```
 
-## Self-Review Notes
+## 自审记录
 
-- Spec coverage: R1 covers `RoughCutPlan`; R2 covers `Jianying10Installer`; R3 covers `JianyingDraftExporter`; R4 covers `RoughCutPlanner`; R5 covers CLI; R6 covers optional LLM/VectCutAPI.
-- Scope split: each requirement has its own test file, file boundary, dependencies, and conversation starter.
-- Installation-check policy: install/create use built-in checks, with no separate user-facing preview mode.
-- Dependency policy: optional adapters remain optional.
+- Spec 覆盖：R1 覆盖 `RoughCutPlan`；R2 覆盖 `Jianying10Installer`；R3 覆盖 `JianyingDraftExporter`；R4 覆盖 `RoughCutPlanner`；R5 覆盖 CLI；R6 覆盖可选 LLM/VectCutAPI。
+- 范围拆分：每个需求都有独立测试文件、文件边界、依赖和对话启动语。
+- 安装检查策略：`install/create` 使用内置检查，不增加单独的用户预览模式。
+- 依赖策略：可选 adapter 保持可选。
