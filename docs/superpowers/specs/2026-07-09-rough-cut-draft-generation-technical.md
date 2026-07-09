@@ -205,7 +205,6 @@ draft_name
 jianying_library_dir
 template_dir
 asset_mode: copy | hardlink
-dry_run: bool
 ```
 
 结果字段：
@@ -219,9 +218,9 @@ validations
 warnings
 ```
 
-### 6.1 Preflight
+### 6.1 安装前检查
 
-preflight 是安装前检查，默认每次 install 都执行。检查：
+安装前检查默认每次 install 都执行。检查：
 
 - `draft_content_path` 存在。
 - `jianying_library_dir` 存在。
@@ -230,19 +229,9 @@ preflight 是安装前检查，默认每次 install 都执行。检查：
 - 素材文件可读。
 - `hardlink` 模式在当前文件系统可用。
 
-### 6.2 Dry-run
+检查失败时不创建草稿目录，并把失败原因写入安装报告。
 
-`dry_run=True` 时只执行 preflight 和生成报告，不创建草稿目录。
-
-用途：
-
-- 用户想确认会写哪里、会用哪些素材。
-- 开发时排查模板或路径问题。
-- 避免在剪映草稿库里留下半成品。
-
-第一版只给 `jianying install` 暴露 `--dry-run`。`plan` 和 `export` 不需要 dry-run。
-
-### 6.3 草稿写入规则
+### 6.2 草稿写入规则
 
 每次安装：
 
@@ -263,7 +252,7 @@ materials.images[].path
 materials.images[].remote_url
 ```
 
-### 6.4 剪映 10 关键文件
+### 6.3 剪映 10 关键文件
 
 安装器必须写入并保持内容一致：
 
@@ -290,7 +279,7 @@ draft_meta_info.json
 ```bash
 tripclipper roughcut plan <slug> --target-duration 90
 tripclipper jianying export <slug> --engine pyjianyingdraft
-tripclipper jianying install --draft-content <path> --name <draft_name> --dry-run
+tripclipper jianying install --draft-content <path> --name <draft_name>
 tripclipper jianying create <slug> --target-duration 90 --engine pyjianyingdraft
 ```
 
@@ -309,7 +298,6 @@ roughcut plan -> jianying export -> jianying install
 ```text
 RoughCutValidationError
 DraftExportError
-DraftPreflightError
 DraftInstallError
 ```
 
@@ -348,7 +336,7 @@ exporter：
 
 installer：
 
-- dry-run 不写草稿目录。
+- 安装前检查失败时不写草稿目录。
 - 写入 7 个关键文件。
 - 替换新 `timeline_id`。
 - 素材路径全部存在。
