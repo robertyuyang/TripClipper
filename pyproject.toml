@@ -26,7 +26,11 @@ tripclipper = "tripclipper.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-tripclipper = ["templates/*.tmpl", "templates/*.yaml"]
+tripclipper = [
+    "templates/*.tmpl",
+    "templates/*.yaml",
+    "jianying/templates/jianying10_template/**/*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

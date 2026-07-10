@@ -1,0 +1,12 @@
+{
+  "id": "template_project_id",
+  "name": "TripClipper Minimal Template",
+  "duration": 0,
+  "materials": {
+    "videos": [],
+    "audios": [],
+    "images": [],
+    "texts": []
+  },
+  "tracks": []
+}
