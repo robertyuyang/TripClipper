@@ -496,18 +496,19 @@ class Jianying10Installer:
         asset_kind: str,
         copied: dict[Path, Path],
     ) -> None:
-        if len(source_items) < len(slots):
+        if slots and not source_items:
             raise DraftInstallError(
                 f"Template requires {len(slots)} {asset_kind} media items, "
-                f"but draft_content provides {len(source_items)}"
+                "but draft_content provides none"
             )
 
-        for index, (slot, source_item) in enumerate(zip(slots, source_items)):
+        for index, slot in enumerate(slots):
+            source_item = source_items[index % len(source_items)]
             source_path = self._resolve_source_item_path(source_item, draft_content_path)
             target = self._template_asset_target(slot, draft_dir, asset_kind, index, source_path)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source_path, target)
-            copied[source_path] = target
+            copied.setdefault(source_path, target)
 
             copied_path = str(target)
             slot["path"] = copied_path

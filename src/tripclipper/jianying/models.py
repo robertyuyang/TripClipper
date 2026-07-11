@@ -1,4 +1,4 @@
-"""Public models for Jianying draft installation."""
+"""Public models for Jianying draft export and installation."""
 
 from __future__ import annotations
 
@@ -7,6 +7,43 @@ from pathlib import Path
 from typing import Literal
 
 ValidationStatus = Literal["ok", "error"]
+
+
+@dataclass(frozen=True)
+class AdapterCapabilities:
+    """Capabilities supported by a Jianying draft export adapter."""
+
+    supports_video: bool = True
+    supports_audio: bool = True
+    supports_image: bool = True
+    supports_text: bool = True
+    supports_transitions: bool = False
+    supports_text_style: bool = False
+
+
+@dataclass(frozen=True)
+class DraftExportResult:
+    """Result of exporting a rough-cut plan to draft content."""
+
+    engine: str
+    draft_content_path: Path | str
+    media_paths: dict[str, Path] = field(default_factory=dict)
+    draft_meta_info_path: Path | str | None = None
+    warnings: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "draft_content_path", Path(self.draft_content_path))
+        if self.draft_meta_info_path is not None:
+            object.__setattr__(self, "draft_meta_info_path", Path(self.draft_meta_info_path))
+        object.__setattr__(
+            self,
+            "media_paths",
+            {segment_id: Path(path) for segment_id, path in self.media_paths.items()},
+        )
+
+
+class DraftExportError(RuntimeError):
+    """Raised when a rough-cut plan cannot be exported to draft content."""
 
 
 @dataclass(frozen=True)
@@ -85,6 +122,9 @@ class DraftInstallError(RuntimeError):
 
 
 __all__ = [
+    "AdapterCapabilities",
+    "DraftExportResult",
+    "DraftExportError",
     "DraftInstallRequest",
     "InstallValidationItem",
     "DraftInstallResult",
