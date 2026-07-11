@@ -76,6 +76,19 @@ tripclipper init \
   --source-folder /absolute/path/to/raw-media
 ```
 
+`project.yaml` can include top-level editing intent fields. Use
+`target_length` to set the target finished-video length; prefer seconds or a
+timecode-like value:
+
+```yaml
+output_style: "travel vlog"
+target_length: "120s"
+```
+
+`target_length` is aggregated into `editing_intent`. Rough-cut planning parses
+it into `target_duration_sec`; when omitted, the rough-cut default is 90
+seconds.
+
 ### 3. Run the full pipeline in one command
 
 ```bash

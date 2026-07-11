@@ -81,6 +81,17 @@ tripclipper init \
   --source-folder /absolute/path/to/raw-media
 ```
 
+`project.yaml` 可以在顶层填写剪辑意图字段；其中 `target_length`
+用于设置目标成片时长，建议写成秒数或时间码，例如：
+
+```yaml
+output_style: "travel vlog"
+target_length: "120s"
+```
+
+`target_length` 会被聚合到 `editing_intent`。后续粗剪计划会把它解析成
+`target_duration_sec`；未填写时粗剪默认目标时长为 90 秒。
+
 ### 3. 一条命令跑完整流程
 
 ```bash

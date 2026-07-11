@@ -38,6 +38,7 @@ M0 已经能解析与校验 `project.yaml` 并定义 `cut_index.json` 数据模�
 
 - **复用而非重定义**：`init_project` 直接调用 M0 的 `load_config`、`generate_project_slug`、`ensure_project_dirs`、`init_cut_index`、`read_cut_index`/`write_cut_index`、`summarize_model_config`，不重复实现校验或字段口径。
 - **project.yaml 规范位置**：项目的事实配置落在 `projects/<slug>/project.yaml`（TD 7）。当用户传入的配置文件不在项目目录内时，以**逐字复制**（不重新序列化）方式落入项目目录，避免丢失注释/字段顺序，也避免把环境变量解析后的密钥写入文件。`cut_index.json.project.config_path` 指向项目目录内的规范副本。
+- **剪辑意图字段来源**：`output_style`、`target_length`、`audience`、`people_focus`、`audio_priority` 均来自用户 `project.yaml` 顶层字段，并由 `load_config` 聚合到 `editing_intent`。`target_length` 表示目标成片时长，推荐写成秒数或时间码值（如 `120s`、`02:00`、`00:02:00`）；缺失时保持 `None`，后续粗剪模块可按自己的默认目标时长处理。
 - **摘要不含密钥**：`ProjectSummary` 与其打印输出只暴露 provider / base_url / 各 model 名 / `api_key_env` 名称 / language / sample_size（复用 `summarize_model_config`），绝不含密钥明文。
 - **幂等与可重入**：再次 `init` 时读回已存在的 `cut_index.json`，只更新 `project` 块（含 `updated_at`、`editing_intent`、`model_config_summary`、`eagle_sync`、`source_folder`、`config_path`），保留 `assets`/`analysis`/`similar_groups`/`default_candidates`/`failures` 既有内容，满足 FR-1"修改配置后重新执行后续流程"。
 - **目录基准可注入**：`init_project` 接受可选 `base_dir`（默认 `<cwd>/projects`），便于测试与多工作区，沿用 M0 `paths` 模块的 `base_dir` 约定。
@@ -54,6 +55,10 @@ M0 已经能解析与校验 `project.yaml` 并定义 `cut_index.json` 数据模�
 #### Scenario: 初始化后落盘的 cut_index 含完整 project 块
 - **WHEN** 初始化完成后读取 `projects/<slug>/cut_index.json`
 - **THEN** `project` 块含 `project_name`、`project_slug`、`source_folder`、`config_path`（指向项目目录内副本）、`editing_intent`、`model_config_summary`、`eagle_sync`、`created_at`、`updated_at`；`assets` 等为空数组
+
+#### Scenario: target_length 从项目配置进入剪辑意图
+- **WHEN** `project.yaml` 顶层包含 `target_length: "120s"`
+- **THEN** 配置摘要与 `cut_index.json.project.editing_intent.target_length` 均保留 `"120s"`，供后续粗剪计划解析为目标时长
 
 ### Requirement: 配置摘要可见且不含密钥
 系统 SHALL 生成并展示项目配置摘要，包含模型配置是否可用、素材目录是否存在；摘要与其打印输出绝不包含密钥明文。
