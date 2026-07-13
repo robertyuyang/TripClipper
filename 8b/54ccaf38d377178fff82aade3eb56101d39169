@@ -1,0 +1,14 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8b54ccaf38d377178fff82aade3eb56101d39169",
+  "prompts": {},
+  "humans": {
+    "h_0ce714411091ba": {
+      "author": "yuyang.robert <yuyang.robert@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
