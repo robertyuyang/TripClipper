@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1",
+  "project": {
+    "project_slug": "roughcut-short-linear-fixture",
+    "cut_index_path": "tests/fixtures/roughcut/minimal_cut_index.json",
+    "project_config_path": "tests/fixtures/roughcut/project.yaml"
+  },
+  "intent": {
+    "target_duration_sec": 11.0,
+    "output_style": "linear_test",
+    "audience": "fixture",
+    "people_focus": null,
+    "audio_priority": "original_sound"
+  },
+  "source_snapshot": {
+    "asset_count": 5,
+    "candidate_count": 4,
+    "similar_group_count": 0
+  },
+  "timeline": [
+    {
+      "segment_id": "short_video_01",
+      "asset_id": "asset_fixture_video_opening",
+      "asset_path": "tests/fixtures/media/DJI_20260612134026_0001_D.MP4",
+      "asset_relative_path": "DJI_20260612134026_0001_D.MP4",
+      "asset_type": "video",
+      "source_range": {
+        "start_sec": 0.0,
+        "end_sec": 3.0
+      },
+      "timeline_range": {
+        "start_sec": 0.0,
+        "end_sec": 3.0
+      },
+      "track_type": "video",
+      "track_index": 0,
+      "audio_mode": "keep",
+      "volume": 1.0,
+      "reason": "Short fixture opening",
+      "candidate_status_snapshot": "default_selected",
+      "tags": ["opening"]
+    },
+    {
+      "segment_id": "short_video_02",
+      "asset_id": "asset_fixture_video_scene",
+      "asset_path": "tests/fixtures/media/DJI_20260613111046_0072_D.MP4",
+      "asset_relative_path": "DJI_20260613111046_0072_D.MP4",
+      "asset_type": "video",
+      "source_range": {
+        "start_sec": 2.0,
+        "end_sec": 6.5
+      },
+      "timeline_range": {
+        "start_sec": 3.0,
+        "end_sec": 7.5
+      },
+      "track_type": "video",
+      "track_index": 0,
+      "audio_mode": "keep",
+      "volume": 0.8,
+      "reason": "Longer middle segment",
+      "candidate_status_snapshot": "default_selected",
+      "tags": ["middle"]
+    },
+    {
+      "segment_id": "short_video_03",
+      "asset_id": "asset_fixture_video_opening",
+      "asset_path": "tests/fixtures/media/DJI_20260612134026_0001_D.MP4",
+      "asset_relative_path": "DJI_20260612134026_0001_D.MP4",
+      "asset_type": "video",
+      "source_range": {
+        "start_sec": 0.3,
+        "end_sec": 3.8
+      },
+      "timeline_range": {
+        "start_sec": 7.5,
+        "end_sec": 11.0
+      },
+      "track_type": "video",
+      "track_index": 0,
+      "audio_mode": "mute",
+      "volume": 0.0,
+      "reason": "Reuse the opening asset as a separate ending segment",
+      "candidate_status_snapshot": "default_selected",
+      "tags": ["ending", "reused_asset"]
+    }
+  ],
+  "unused_assets": [],
+  "warnings": [],
+  "created_at": "2026-07-13T00:00:00+08:00"
+}

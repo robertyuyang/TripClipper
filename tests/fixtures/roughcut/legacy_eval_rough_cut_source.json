@@ -1,0 +1,99 @@
+{
+  "workspace": "tests/fixtures",
+  "project_dir": "tests/fixtures/roughcut",
+  "test_assets": {
+    "still": "tests/fixtures/media/overlay_still.jpg",
+    "bgm": "tests/fixtures/media/ambient_bgm.mp3",
+    "srt": "tests/fixtures/media/test_subtitles.srt"
+  },
+  "clips": [
+    {
+      "index": 1,
+      "path": "tests/fixtures/media/DJI_20260612134026_0001_D.MP4",
+      "file": "DJI_20260612134026_0001_D.MP4",
+      "duration": 4.330667,
+      "source_start": 0.0,
+      "source_duration": 3.8,
+      "target_start": 0.0,
+      "target_duration": 3.8,
+      "label": "opening hook"
+    },
+    {
+      "index": 2,
+      "path": "tests/fixtures/media/DJI_20260613111046_0072_D.MP4",
+      "file": "DJI_20260613111046_0072_D.MP4",
+      "duration": 58.541817,
+      "source_start": 2.75,
+      "source_duration": 4.0,
+      "target_start": 3.8,
+      "target_duration": 4.0,
+      "label": "wide scene"
+    },
+    {
+      "index": 3,
+      "path": "tests/fixtures/media/DJI_20260613111939_0084_D.MP4",
+      "file": "DJI_20260613111939_0084_D.MP4",
+      "duration": 26.304,
+      "source_start": 3.5,
+      "source_duration": 4.0,
+      "target_start": 7.8,
+      "target_duration": 4.0,
+      "label": "movement"
+    },
+    {
+      "index": 4,
+      "path": "tests/fixtures/media/DJI_20260613145058_0115_D.MP4",
+      "file": "DJI_20260613145058_0115_D.MP4",
+      "duration": 16.341333,
+      "source_start": 4.25,
+      "source_duration": 4.0,
+      "target_start": 11.8,
+      "target_duration": 4.0,
+      "label": "texture"
+    },
+    {
+      "index": 5,
+      "path": "tests/fixtures/media/NO20250612-114146-064576F.mp4",
+      "file": "NO20250612-114146-064576F.mp4",
+      "duration": 60.010667,
+      "source_start": 5.0,
+      "source_duration": 4.0,
+      "target_start": 15.8,
+      "target_duration": 4.0,
+      "label": "alternate angle"
+    },
+    {
+      "index": 6,
+      "path": "tests/fixtures/media/NO20250612-114246-064577F.mp4",
+      "file": "NO20250612-114246-064577F.mp4",
+      "duration": 60.0,
+      "source_start": 5.75,
+      "source_duration": 4.0,
+      "target_start": 19.8,
+      "target_duration": 4.0,
+      "label": "detail"
+    },
+    {
+      "index": 7,
+      "path": "tests/fixtures/media/NO20250612-114346-064578F.mp4",
+      "file": "NO20250612-114346-064578F.mp4",
+      "duration": 60.010667,
+      "source_start": 6.5,
+      "source_duration": 4.0,
+      "target_start": 23.8,
+      "target_duration": 4.0,
+      "label": "ambient beat"
+    },
+    {
+      "index": 8,
+      "path": "tests/fixtures/media/NO20250612-184330-064596F.mp4",
+      "file": "NO20250612-184330-064596F.mp4",
+      "duration": 60.0,
+      "source_start": 7.25,
+      "source_duration": 4.0,
+      "target_start": 27.8,
+      "target_duration": 4.0,
+      "label": "ending beat"
+    }
+  ]
+}

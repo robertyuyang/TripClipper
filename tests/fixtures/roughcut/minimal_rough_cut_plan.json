@@ -1,0 +1,140 @@
+{
+  "schema_version": "0.1",
+  "project": {
+    "project_slug": "roughcut-fixture",
+    "cut_index_path": "tests/fixtures/roughcut/minimal_cut_index.json",
+    "project_config_path": "tests/fixtures/roughcut/project.yaml"
+  },
+  "intent": {
+    "target_duration_sec": 12.0,
+    "output_style": "travel_recap",
+    "audience": "friends",
+    "people_focus": "balanced",
+    "audio_priority": "bgm_with_original_sound"
+  },
+  "source_snapshot": {
+    "asset_count": 5,
+    "candidate_count": 4,
+    "similar_group_count": 0
+  },
+  "timeline": [
+    {
+      "segment_id": "seg_video_opening",
+      "asset_id": "asset_fixture_video_opening",
+      "asset_path": "tests/fixtures/media/DJI_20260612134026_0001_D.MP4",
+      "asset_relative_path": "DJI_20260612134026_0001_D.MP4",
+      "asset_type": "video",
+      "source_range": {
+        "start_sec": 0.0,
+        "end_sec": 3.8
+      },
+      "timeline_range": {
+        "start_sec": 0.0,
+        "end_sec": 3.8
+      },
+      "track_type": "video",
+      "track_index": 0,
+      "audio_mode": "keep",
+      "volume": 0.55,
+      "reason": "Opening hook from fixture clip",
+      "candidate_status_snapshot": "default_selected",
+      "tags": [
+        "opening"
+      ]
+    },
+    {
+      "segment_id": "seg_video_scene",
+      "asset_id": "asset_fixture_video_scene",
+      "asset_path": "tests/fixtures/media/DJI_20260613111046_0072_D.MP4",
+      "asset_relative_path": "DJI_20260613111046_0072_D.MP4",
+      "asset_type": "video",
+      "source_range": {
+        "start_sec": 2.75,
+        "end_sec": 6.75
+      },
+      "timeline_range": {
+        "start_sec": 3.8,
+        "end_sec": 7.8
+      },
+      "track_type": "video",
+      "track_index": 0,
+      "audio_mode": "duck",
+      "volume": 0.55,
+      "transition_in": {
+        "kind": "cut",
+        "duration_sec": 0.0
+      },
+      "reason": "Second scene from fixture clip",
+      "candidate_status_snapshot": "default_selected",
+      "tags": [
+        "scene"
+      ]
+    },
+    {
+      "segment_id": "seg_image_overlay",
+      "asset_id": "asset_fixture_image_overlay",
+      "asset_path": "tests/fixtures/media/overlay_still.jpg",
+      "asset_relative_path": "overlay_still.jpg",
+      "asset_type": "image",
+      "timeline_range": {
+        "start_sec": 4.0,
+        "end_sec": 8.0
+      },
+      "track_type": "image",
+      "track_index": 1,
+      "audio_mode": "none",
+      "volume": 1.0,
+      "reason": "Overlay still for exporter image-track mapping",
+      "candidate_status_snapshot": "default_selected",
+      "tags": [
+        "overlay"
+      ]
+    },
+    {
+      "segment_id": "seg_bgm",
+      "asset_id": "asset_fixture_bgm",
+      "asset_path": "tests/fixtures/media/ambient_bgm.mp3",
+      "asset_relative_path": "ambient_bgm.mp3",
+      "asset_type": "audio",
+      "source_range": {
+        "start_sec": 0.0,
+        "end_sec": 12.0
+      },
+      "timeline_range": {
+        "start_sec": 0.0,
+        "end_sec": 12.0
+      },
+      "track_type": "audio",
+      "track_index": 0,
+      "audio_mode": "bgm",
+      "volume": 0.28,
+      "reason": "Fixture background music under main timeline",
+      "candidate_status_snapshot": "default_selected",
+      "tags": [
+        "bgm"
+      ]
+    },
+    {
+      "segment_id": "seg_title_text",
+      "timeline_range": {
+        "start_sec": 0.0,
+        "end_sec": 3.2
+      },
+      "track_type": "text",
+      "track_index": 0,
+      "audio_mode": "none",
+      "volume": 1.0,
+      "text_overlay": {
+        "text": "TripClipper fixture rough cut",
+        "style": "title"
+      },
+      "reason": "Title text overlay fixture",
+      "tags": [
+        "title"
+      ]
+    }
+  ],
+  "unused_assets": [],
+  "warnings": [],
+  "created_at": "2026-07-09T00:00:00+00:00"
+}

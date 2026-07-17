@@ -861,7 +861,7 @@ def test_render_demo_scan_real_data_renders_group_card(tmp_path: Path, monkeypat
     # basis is optional and the checked-in real output currently leaves it empty.
     assert "（待 M4）" not in text
     if any(group.get("needs_review") for group in source_payload["similar_groups"]):
-        assert 'class="sel-needs-review"' in text
+        assert '<span class="chip-warn">待人工确认</span>' in text
     else:
         assert any(
             marker in text

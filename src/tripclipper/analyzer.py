@@ -45,7 +45,9 @@ from typing import Callable, Literal, Optional, Union
 from .audio_analysis import (
     AudioAnalysisParser,
     AudioExtractor,
+    ParsedAudioChunk,
     aggregate_audio_chunks,
+    is_near_digital_silence,
 )
 from .audio_provider import AudioAnalysisProvider, AudioProviderError
 from .config import EditingIntent, ModelConfig, load_config, load_software_config
@@ -260,6 +262,7 @@ def _analyze_asset_audio(
     provider,
     store,
     force: bool = False,
+    silence_detector=is_near_digital_silence,
 ) -> Optional[str]:
     """Run the independent audio substep and return a safe error summary."""
     if asset.type is None or asset.type.value != "video":
@@ -290,7 +293,10 @@ def _analyze_asset_audio(
     chunk_errors: list[str] = []
     for index, chunk in enumerate(chunks):
         try:
-            parsed = parser.parse(provider.analyze(chunk), chunk)
+            if silence_detector(chunk.path):
+                parsed = ParsedAudioChunk(SpeechQuality.none)
+            else:
+                parsed = parser.parse(provider.analyze(chunk), chunk)
             parsed_chunks.append(parsed)
             for warning in parsed.warnings:
                 asset.warnings.append(

@@ -8,15 +8,16 @@ from tripclipper.models import AnalysisStatus, Asset, AssetType, SpeechQuality
 
 
 class _Extractor:
-    def __init__(self, *, fail: bool = False) -> None:
+    def __init__(self, *, fail: bool = False, chunk_path: Path = Path("chunk.wav")) -> None:
         self.calls = 0
         self.fail = fail
+        self.chunk_path = chunk_path
 
     def extract(self, _source: Path, _asset_id: str, *, force: bool = False):
         self.calls += 1
         if self.fail:
             raise AudioExtractionError("boom")
-        return [AudioChunk(Path("chunk.wav"), 0, 10)]
+        return [AudioChunk(self.chunk_path, 0, 10)]
 
 
 class _Provider:
@@ -56,6 +57,7 @@ def test_no_audio_video_sets_none_without_calling_dependencies() -> None:
         extractor=extractor,
         provider=provider,
         store=store,
+        silence_detector=lambda _path: False,
     )
     assert error is None
     assert asset.speech_quality is SpeechQuality.none
@@ -72,6 +74,7 @@ def test_standalone_audio_asset_is_ignored() -> None:
         extractor=extractor,
         provider=provider,
         store=store,
+        silence_detector=lambda _path: False,
     ) is None
     assert (extractor.calls, provider.calls, store.calls) == (0, 0, 0)
 
@@ -85,6 +88,7 @@ def test_video_audio_is_analyzed_and_persisted() -> None:
         extractor=extractor,
         provider=provider,
         store=store,
+        silence_detector=lambda _path: False,
     ) is None
     assert asset.speech_quality is SpeechQuality.clear
     assert asset.transcript_path == "cache/transcripts/v1.json"
@@ -105,12 +109,40 @@ def test_audio_failure_preserves_successful_visual_status() -> None:
         extractor=_Extractor(fail=True),
         provider=_Provider(),
         store=_Store(),
+        silence_detector=lambda _path: False,
     )
     assert "boom" in (error or "")
     assert asset.analysis_status is AnalysisStatus.analyzed
     assert asset.summary == "画面结果"
     assert asset.speech_quality is None
     assert asset.failures[-1]["blocking"] is False
+
+
+def test_near_silent_chunk_skips_provider_and_persists_none(tmp_path: Path) -> None:
+    wav_path = tmp_path / "silent.wav"
+    import wave
+
+    with wave.open(str(wav_path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16_000)
+        wav.writeframes(b"\x01\x00" * 16_000)
+    asset = Asset(asset_id="v1", type=AssetType.video, metadata={"has_audio": True})
+    extractor = _Extractor(chunk_path=wav_path)
+    provider, store = _Provider(), _Store()
+
+    error = _analyze_asset_audio(
+        asset,
+        source_path=Path("video.mp4"),
+        extractor=extractor,
+        provider=provider,
+        store=store,
+    )
+
+    assert error is None
+    assert asset.speech_quality is SpeechQuality.none
+    assert provider.calls == 0
+    assert store.calls == 1
 
 
 def test_analyzed_video_with_missing_audio_result_remains_eligible() -> None:

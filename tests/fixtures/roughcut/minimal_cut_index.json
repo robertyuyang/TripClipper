@@ -1,0 +1,176 @@
+{
+  "schema_version": "0.3",
+  "project": {
+    "project_name": "Rough Cut Fixture",
+    "project_slug": "roughcut-fixture",
+    "source_folder": "tests/fixtures/media",
+    "config_path": "tests/fixtures/roughcut/project.yaml",
+    "editing_intent": {
+      "output_style": "travel_recap",
+      "target_length": 12,
+      "audience": "friends",
+      "people_focus": "balanced",
+      "audio_priority": "bgm_with_original_sound"
+    },
+    "model_config_summary": {},
+    "eagle_sync": {},
+    "created_at": "2026-07-09T00:00:00+00:00",
+    "updated_at": "2026-07-09T00:00:00+00:00"
+  },
+  "capabilities": {
+    "ffmpeg": false,
+    "ffprobe": false,
+    "notes": "fixture"
+  },
+  "analysis": {
+    "provider": "fixture",
+    "stage": "fixture",
+    "status": "completed"
+  },
+  "clustering": null,
+  "assets": [
+    {
+      "asset_id": "asset_fixture_video_opening",
+      "filename": "DJI_20260612134026_0001_D.MP4",
+      "path": "tests/fixtures/media/DJI_20260612134026_0001_D.MP4",
+      "relative_path": "DJI_20260612134026_0001_D.MP4",
+      "type": "video",
+      "extension": ".mp4",
+      "metadata": {
+        "duration": 4.330667,
+        "has_audio": true
+      },
+      "analysis_status": "analyzed",
+      "rating": 4,
+      "clip_suggestions": [
+        {
+          "in": "00:00",
+          "out": "00:03.8",
+          "role": "opening hook",
+          "rating": 4,
+          "reason": "Fixture opening clip",
+          "audio_strategy": "keep original under bgm",
+          "tags": [
+            "opening"
+          ]
+        }
+      ],
+      "similar_selection": "none",
+      "edit_candidate_status": "default_selected",
+      "edit_candidate_priority": 1,
+      "edit_candidate_reason": "Fixture primary opening clip",
+      "warnings": [],
+      "failures": []
+    },
+    {
+      "asset_id": "asset_fixture_video_scene",
+      "filename": "DJI_20260613111046_0072_D.MP4",
+      "path": "tests/fixtures/media/DJI_20260613111046_0072_D.MP4",
+      "relative_path": "DJI_20260613111046_0072_D.MP4",
+      "type": "video",
+      "extension": ".mp4",
+      "metadata": {
+        "duration": 58.541817,
+        "has_audio": true
+      },
+      "analysis_status": "analyzed",
+      "rating": 5,
+      "clip_suggestions": [
+        {
+          "in": "00:02.75",
+          "out": "00:06.75",
+          "role": "wide scene",
+          "rating": 5,
+          "reason": "Fixture scene clip",
+          "audio_strategy": "duck under bgm",
+          "tags": [
+            "scene"
+          ]
+        }
+      ],
+      "similar_selection": "none",
+      "edit_candidate_status": "default_selected",
+      "edit_candidate_priority": 2,
+      "edit_candidate_reason": "Fixture second clip",
+      "warnings": [],
+      "failures": []
+    },
+    {
+      "asset_id": "asset_fixture_image_overlay",
+      "filename": "overlay_still.jpg",
+      "path": "tests/fixtures/media/overlay_still.jpg",
+      "relative_path": "overlay_still.jpg",
+      "type": "image",
+      "extension": ".jpg",
+      "metadata": {
+        "width": 1280,
+        "height": 720
+      },
+      "analysis_status": "analyzed",
+      "rating": 3,
+      "similar_selection": "none",
+      "edit_candidate_status": "default_selected",
+      "edit_candidate_priority": 3,
+      "edit_candidate_reason": "Fixture image overlay",
+      "warnings": [],
+      "failures": []
+    },
+    {
+      "asset_id": "asset_fixture_bgm",
+      "filename": "ambient_bgm.mp3",
+      "path": "tests/fixtures/media/ambient_bgm.mp3",
+      "relative_path": "ambient_bgm.mp3",
+      "type": "audio",
+      "extension": ".mp3",
+      "metadata": {
+        "duration": 24.024
+      },
+      "analysis_status": "analyzed",
+      "rating": 3,
+      "similar_selection": "none",
+      "edit_candidate_status": "default_selected",
+      "edit_candidate_priority": 4,
+      "edit_candidate_reason": "Fixture BGM",
+      "warnings": [],
+      "failures": []
+    },
+    {
+      "asset_id": "asset_fixture_excluded",
+      "filename": "NO20250612-114346-064578F.mp4",
+      "path": "tests/fixtures/media/NO20250612-114346-064578F.mp4",
+      "relative_path": "NO20250612-114346-064578F.mp4",
+      "type": "video",
+      "extension": ".mp4",
+      "metadata": {
+        "duration": 60.010667,
+        "has_audio": true
+      },
+      "analysis_status": "analyzed",
+      "rating": 1,
+      "similar_selection": "rejected",
+      "edit_candidate_status": "excluded",
+      "edit_candidate_priority": null,
+      "edit_candidate_reason": "Fixture excluded asset",
+      "warnings": [],
+      "failures": []
+    }
+  ],
+  "similar_groups": [],
+  "sessions": [],
+  "default_candidates": [
+    {
+      "asset_id": "asset_fixture_video_opening",
+      "priority": 1,
+      "role": "opening",
+      "reason": "Fixture opening"
+    },
+    {
+      "asset_id": "asset_fixture_video_scene",
+      "priority": 2,
+      "role": "scene",
+      "reason": "Fixture scene"
+    }
+  ],
+  "failures": [],
+  "warnings": []
+}

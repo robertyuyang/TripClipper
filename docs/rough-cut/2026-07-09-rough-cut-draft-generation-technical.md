@@ -7,7 +7,7 @@
 配套设计文档：
 
 ```text
-docs/superpowers/specs/2026-07-09-rough-cut-draft-generation-design.md
+docs/rough-cut/2026-07-09-rough-cut-draft-generation-design.md
 ```
 
 ## 1. 代码结构

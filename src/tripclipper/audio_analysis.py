@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 import shutil
 import subprocess
+import sys
+import wave
+from array import array
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -12,6 +17,8 @@ from typing import Any, Optional
 from .models import SpeechQuality, SpeechSegment
 
 MAX_AUDIO_CHUNK_SECONDS = 300.0
+SILENCE_PEAK_DBFS = -75.0
+SILENCE_RMS_DBFS = -80.0
 
 
 class AudioExtractionError(Exception):
@@ -20,6 +27,48 @@ class AudioExtractionError(Exception):
 
 class AudioAnalysisError(Exception):
     """Raised when a model response cannot establish a trustworthy result."""
+
+
+def _is_meaningful_speech_text(text: str) -> bool:
+    compact = "".join(character for character in text.strip() if not character.isspace())
+    if not compact or not any(character.isalnum() for character in compact):
+        return False
+    return re.fullmatch(r"\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?", compact) is None
+
+
+def _to_dbfs(amplitude: float) -> float:
+    if amplitude <= 0:
+        return float("-inf")
+    return 20.0 * math.log10(amplitude / 32768.0)
+
+
+def is_near_digital_silence(path: Path) -> bool:
+    try:
+        with wave.open(str(path), "rb") as wav:
+            if wav.getsampwidth() != 2:
+                raise AudioAnalysisError("静音检测仅支持 16-bit PCM WAV")
+            peak = 0
+            square_sum = 0
+            sample_count = 0
+            while True:
+                frames = wav.readframes(65_536)
+                if not frames:
+                    break
+                samples = array("h")
+                samples.frombytes(frames)
+                if sys.byteorder != "little":
+                    samples.byteswap()
+                for sample in samples:
+                    magnitude = abs(sample)
+                    peak = max(peak, magnitude)
+                    square_sum += sample * sample
+                sample_count += len(samples)
+    except (OSError, EOFError, wave.Error) as exc:
+        raise AudioAnalysisError(f"静音检测无法读取 WAV：{type(exc).__name__}") from exc
+    if sample_count == 0:
+        raise AudioAnalysisError("静音检测发现空 WAV")
+    rms = math.sqrt(square_sum / sample_count)
+    return _to_dbfs(peak) <= SILENCE_PEAK_DBFS and _to_dbfs(rms) <= SILENCE_RMS_DBFS
 
 
 @dataclass(frozen=True)
@@ -250,6 +299,14 @@ class AudioAnalysisParser:
         if raw_segments and not local:
             raise AudioAnalysisError("所有人声片段均非法，无法建立可信分类")
 
+        usable: list[SpeechSegment] = []
+        for index, segment in enumerate(local):
+            if segment.text.strip() and not _is_meaningful_speech_text(segment.text):
+                warnings.append(f"丢弃文本不可用的人声片段 {index}")
+                continue
+            usable.append(segment)
+        local = usable
+
         local.sort(key=lambda segment: segment.start_sec)
         merged: list[SpeechSegment] = []
         for segment in local:
@@ -309,9 +366,12 @@ def aggregate_audio_chunks(
 
 __all__ = [
     "MAX_AUDIO_CHUNK_SECONDS",
+    "SILENCE_PEAK_DBFS",
+    "SILENCE_RMS_DBFS",
     "AudioExtractionError",
     "AudioAnalysisError",
     "AudioChunk",
+    "is_near_digital_silence",
     "ParsedAudioChunk",
     "AggregatedAudioResult",
     "AudioExtractor",

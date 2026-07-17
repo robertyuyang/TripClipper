@@ -64,8 +64,19 @@
 - **WHEN** 兼容端点明确因为不支持 `reasoning_effort` 而拒绝首次请求
 - **THEN** Provider 去掉该参数额外重试一次，再决定该块是否失败
 
+### Requirement: 近乎数字静音的分块不得调用模型
+系统 SHALL 在音频提取后对 16-bit PCM WAV 计算峰值和 RMS dBFS。只有分块同时满足峰值不高于 `-75 dBFS` 且 RMS 不高于 `-80 dBFS` 时，系统才 SHALL 把该分块作为成功的 `none` 结果参与聚合，并 MUST NOT 为该分块调用音频 Provider。非静音分块 MUST 继续正常调用 Provider，系统 MUST NOT 使用该门分类雨声、风声或其他明显非静音内容。
+
+#### Scenario: 分块接近数字静音
+- **WHEN** WAV 分块的峰值和 RMS 同时不高于规定阈值
+- **THEN** 系统跳过 Provider，把该块作为 `speech_quality=none` 且无片段的成功结果参与素材聚合
+
+#### Scenario: 分块有明显声音
+- **WHEN** WAV 分块任一统计值高于静音阈值
+- **THEN** 系统不根据音量推断是否有人说话，继续把该分块发送给 Provider
+
 ### Requirement: 分块响应必须经过校验和规范化
-系统 SHALL 校验顶层 JSON、`speech_quality` 枚举和每个人声片段。片段 MUST 满足 `0 <= start_sec < end_sec <= chunk.duration_sec`；Parser SHALL 丢弃非法片段并记录非阻断 warning，同时保留合法兄弟片段、加上分块起点偏移、按原视频开始时间排序，并合并同一块内的重叠片段。
+系统 SHALL 校验顶层 JSON、`speech_quality` 枚举、每个人声片段和非空文本的格式可用性。片段 MUST 满足 `0 <= start_sec < end_sec <= chunk.duration_sec`；Parser SHALL 丢弃非法片段、纯标点或整体为时间码的文本片段并记录非阻断 warning，同时保留纯数字、笑声文本、拟声词和其他合法兄弟片段、加上分块起点偏移、按原视频开始时间排序，并合并同一块内的重叠片段。
 
 #### Scenario: 单个片段非法
 - **WHEN** 响应同时包含一个越界片段和一个合法片段
@@ -82,6 +93,18 @@
 #### Scenario: clear 但没有可辨认文本
 - **WHEN** 分块返回 `speech_quality=clear`，但保留片段的文本全部为空
 - **THEN** Parser 把该块分类降为 `unclear` 并记录 warning
+
+#### Scenario: clear 只有格式垃圾文本
+- **WHEN** 分块返回 `speech_quality=clear`，但片段文本只有 `00:00`、`01:02:03.5` 或纯标点
+- **THEN** Parser 丢弃这些片段，把该块降为 `unclear` 并记录文本不可用 warning，不得直接推断为 `none`
+
+#### Scenario: 数字笑声和拟声词可能是人声
+- **WHEN** 分块片段文本为 `0`、`哈哈哈` 或 `滴滴拉滴滴拉`
+- **THEN** Parser 不得仅根据文本形态丢弃片段或降低模型分类
+
+#### Scenario: 无效文本存在合法兄弟片段
+- **WHEN** 同一分块同时包含无语言信息片段和正常中英文口语片段
+- **THEN** Parser 丢弃无效片段、保留正常片段，并允许正常片段继续支撑 `clear`
 
 #### Scenario: 无法保留可信分类
 - **WHEN** 顶层响应不可解析，或校验后无法建立可信分类

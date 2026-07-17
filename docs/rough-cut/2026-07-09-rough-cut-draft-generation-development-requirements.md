@@ -10,7 +10,7 @@
 
 ## 全局约束
 
-- 来源 spec：`docs/superpowers/specs/2026-07-09-rough-cut-draft-generation-design.md` 和 `docs/superpowers/specs/2026-07-09-rough-cut-draft-generation-technical.md`。
+- 来源 spec：`docs/rough-cut/2026-07-09-rough-cut-draft-generation-design.md` 和 `docs/rough-cut/2026-07-09-rough-cut-draft-generation-technical.md`。
 - 不修改、移动、覆盖原始素材文件。
 - 除了创建一个唯一命名的新草稿目录，不写入用户已有剪映草稿目录。
 - `install/create` 默认执行安装前检查；检查失败时停止，不创建草稿目录。
@@ -135,7 +135,7 @@ pyproject.toml
 **对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R0 实现 fixture 包。只做 R0，不实现 schema/exporter/installer/planner。完成后运行 R0 验收测试并提交。
+按 docs/rough-cut/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R0 实现 fixture 包。只做 R0，不实现 schema/exporter/installer/planner。完成后运行 R0 验收测试并提交。
 ```
 
 ---
@@ -198,7 +198,7 @@ pyproject.toml
 **对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R1 实现 RoughCutPlan schema/io/validator。只做 R1。依赖 R0 fixture。完成后运行 R1 验收测试并提交。
+按 docs/rough-cut/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R1 实现 RoughCutPlan schema/io/validator。只做 R1。依赖 R0 fixture。完成后运行 R1 验收测试并提交。
 ```
 
 ---
@@ -281,7 +281,7 @@ pyproject.toml
 **对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R2 实现 Jianying10Installer。只做 R2。输入是已有 draft_content.json fixture，不实现 exporter/planner/CLI。完成后运行 R2 验收测试并提交。
+按 docs/rough-cut/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R2 实现 Jianying10Installer。只做 R2。输入是已有 draft_content.json fixture，不实现 exporter/planner/CLI。完成后运行 R2 验收测试并提交。
 ```
 
 ---
@@ -369,7 +369,7 @@ minimal_rough_cut_plan.json
 **对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R3 实现 JianyingDraftExporter + PyJianYingDraftAdapter。只做 R3。依赖 R1/R2。完成后验证“minimal_rough_cut_plan.json -> exporter -> semantic comparison -> installer”链路并提交。
+按 docs/rough-cut/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R3 实现 JianyingDraftExporter + PyJianYingDraftAdapter。只做 R3。依赖 R1/R2。完成后验证“minimal_rough_cut_plan.json -> exporter -> semantic comparison -> installer”链路并提交。
 ```
 
 ---
@@ -424,7 +424,7 @@ minimal_rough_cut_plan.json
 **对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R4 实现启发式 RoughCutPlanner。只做 R4，不做 LLM/exporter/installer/CLI 串联。完成后运行 R4 验收测试并提交。
+按 docs/rough-cut/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R4 实现启发式 RoughCutPlanner。只做 R4，不做 LLM/exporter/installer/CLI 串联。完成后运行 R4 验收测试并提交。
 ```
 
 ---
@@ -481,7 +481,7 @@ minimal_rough_cut_plan.json
 **对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R5 实现 CLI 命令和 create 串联。只做 R5。依赖 R1-R4 已完成。完成后运行 R5 验收测试并提交。
+按 docs/rough-cut/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R5 实现 CLI 命令和 create 串联。只做 R5。依赖 R1-R4 已完成。完成后运行 R5 验收测试并提交。
 ```
 
 ---
@@ -528,7 +528,7 @@ minimal_rough_cut_plan.json
 **对话启动语：**
 
 ```text
-按 docs/superpowers/plans/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R6 实现可选 LLM planner 和 VectCutAPIAdapter。只做 R6。依赖 R1-R5 已完成。不要改变默认主链路。
+按 docs/rough-cut/2026-07-09-rough-cut-draft-generation-development-requirements.md 的需求 R6 实现可选 LLM planner 和 VectCutAPIAdapter。只做 R6。依赖 R1-R5 已完成。不要改变默认主链路。
 ```
 
 ---

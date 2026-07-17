@@ -9,6 +9,7 @@ TripClipper 目前能够分析视频画面，却无法识别素材中值得试�
 - 识别人类口语片段，按原语言生成粗略转写，并把视频分类为 `none`、`unclear` 或 `clear`。
 - 把完整人声片段保存在素材级独立转写 JSON 中，`cut_index.json` 只持久化 `speech_quality` 和 `transcript_path`。
 - 支持分块级重试、结果校验、部分成功聚合、转写文件原子替换，以及不重复画面分析的音频增量补跑。
+- 在模型调用前本地识别近乎数字静音的 WAV 分块，并在持久化前过滤纯标点和时间码等明确格式垃圾；纯数字、笑声文本和拟声词仍作为可能的人声保留。
 - 在 `assets.csv` 中导出人声质量，在 `review.html` 中展示人声质量和转写片段；转写数据不可用时明确降级提示。
 - Eagle 同步写入 `tc:speech_quality:<none|unclear|clear>` 标签，并在描述中写入带原视频时间范围的“语音识别”章节。
 - **破坏性变更**：把 `ModelConfig.transcription_model` 和 `AnalysisInfo.transcription_model` 改名为 `audio_analysis_model`；软件配置仍使用旧字段时，给出明确迁移错误。

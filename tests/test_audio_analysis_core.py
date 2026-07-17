@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from tripclipper import audio_analysis
 from tripclipper.audio_analysis import (
     AudioAnalysisError,
     AudioAnalysisParser,
@@ -17,12 +18,13 @@ from tripclipper.audio_analysis import (
 from tripclipper.models import SpeechQuality
 
 
-def _write_wav(path: Path, duration: float = 1.0) -> None:
+def _write_wav(path: Path, duration: float = 1.0, amplitude: int = 0) -> None:
     with wave.open(str(path), "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
         wav.setframerate(16_000)
-        wav.writeframes(b"\0\0" * int(16_000 * duration))
+        sample = int(amplitude).to_bytes(2, "little", signed=True)
+        wav.writeframes(sample * int(16_000 * duration))
 
 
 def test_chunk_ranges_cover_boundaries_without_overlap() -> None:
@@ -101,6 +103,66 @@ def test_parser_corrects_contradictory_quality() -> None:
         _chunk(0),
     )
     assert clear_without_text.speech_quality is SpeechQuality.unclear
+
+
+@pytest.mark.parametrize("text", ["00:00", "01:02:03.5", "！！！"])
+def test_parser_downgrades_clear_with_unusable_speech_text(text: str) -> None:
+    result = AudioAnalysisParser().parse(
+        {
+            "speech_quality": "clear",
+            "speech_segments": [{"start_sec": 1, "end_sec": 2, "text": text}],
+        },
+        _chunk(0),
+    )
+
+    assert result.speech_quality is SpeechQuality.unclear
+    assert result.speech_segments == []
+    assert any("文本不可用" in warning for warning in result.warnings)
+
+
+@pytest.mark.parametrize(
+    "text", ["先拍咱们俩", "OK, let's go", "0", "哈哈哈", "滴滴拉滴滴拉"]
+)
+def test_parser_keeps_normal_chinese_and_english_speech(text: str) -> None:
+    result = AudioAnalysisParser().parse(
+        {
+            "speech_quality": "clear",
+            "speech_segments": [{"start_sec": 1, "end_sec": 2, "text": text}],
+        },
+        _chunk(0),
+    )
+
+    assert result.speech_quality is SpeechQuality.clear
+    assert [segment.text for segment in result.speech_segments] == [text]
+
+
+def test_parser_drops_unusable_text_but_keeps_valid_sibling() -> None:
+    result = AudioAnalysisParser().parse(
+        {
+            "speech_quality": "clear",
+            "speech_segments": [
+                {"start_sec": 1, "end_sec": 2, "text": "00:00"},
+                {"start_sec": 3, "end_sec": 4, "text": "现在开始了"},
+            ],
+        },
+        _chunk(0),
+    )
+
+    assert result.speech_quality is SpeechQuality.clear
+    assert [segment.text for segment in result.speech_segments] == ["现在开始了"]
+    assert any("文本不可用" in warning for warning in result.warnings)
+
+
+def test_near_digital_silence_uses_conservative_pcm_thresholds(
+    tmp_path: Path,
+) -> None:
+    near_silent = tmp_path / "near-silent.wav"
+    audible = tmp_path / "audible.wav"
+    _write_wav(near_silent, amplitude=1)
+    _write_wav(audible, amplitude=1_000)
+
+    assert audio_analysis.is_near_digital_silence(near_silent) is True
+    assert audio_analysis.is_near_digital_silence(audible) is False
 
 
 def test_parser_rejects_untrustworthy_top_level() -> None:
