@@ -42,8 +42,10 @@ from typing import Any, Optional
 
 import httpx
 import yaml
+from pydantic import ValidationError
 
 from .config import ConfigError
+from .models import TranscriptDocument
 from .paths import eagle_mapping_default_template_path
 
 # ---------------------------------------------------------------------------
@@ -771,15 +773,59 @@ def _scalar_str(value: Any) -> str:
     return str(value)
 
 
+def _format_seconds(value: float) -> str:
+    total = max(0.0, float(value))
+    hours = int(total // 3600)
+    minutes = int((total % 3600) // 60)
+    seconds = total % 60
+    seconds_text = f"{seconds:06.3f}".rstrip("0").rstrip(".")
+    return f"{hours:02d}:{minutes:02d}:{seconds_text}"
+
+
+def _render_speech_section(asset: Any, project_dir: Optional[Path]) -> str:
+    quality = _get(asset, "speech_quality")
+    if quality is None:
+        return ""
+    if _scalar_str(quality) == "none":
+        return "未检测到人声"
+
+    transcript_path = _get(asset, "transcript_path")
+    if not transcript_path or project_dir is None:
+        return "转写文件不可用"
+    path = Path(transcript_path)
+    if not path.is_absolute():
+        path = project_dir / path
+    try:
+        document = TranscriptDocument.model_validate_json(
+            path.read_text(encoding="utf-8")
+        )
+    except (OSError, ValidationError, ValueError):
+        return "转写文件不可用"
+    if not document.speech_segments:
+        return "转写文件不可用"
+
+    return "\n".join(
+        f"- `{_format_seconds(segment.start_sec)} → "
+        f"{_format_seconds(segment.end_sec)}` "
+        f"{segment.text or '（无法辨认）'}"
+        for segment in document.speech_segments
+    )
+
+
 class AssetMapper:
     """Maps one :class:`Asset` to an :class:`AssetWritePlan`."""
 
     def __init__(
-        self, config: MappingConfig, project_slug: str, sync_timestamp: str
+        self,
+        config: MappingConfig,
+        project_slug: str,
+        sync_timestamp: str,
+        project_dir: Optional[Path] = None,
     ) -> None:
         self.config = config
         self.project_slug = project_slug
         self.sync_timestamp = sync_timestamp
+        self.project_dir = Path(project_dir) if project_dir is not None else None
 
     def plan(self, asset: Any) -> AssetWritePlan:
         cfg = self.config
@@ -857,6 +903,10 @@ class AssetMapper:
                 emit_value(name, value)
             else:
                 unknown_warnings.append(name)
+
+        speech_section = _render_speech_section(asset, self.project_dir)
+        if speech_section:
+            sections.append((5, "语音识别", speech_section))
 
         # 4. annotation
         header = cfg.note_template.header.format(

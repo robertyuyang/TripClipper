@@ -57,7 +57,7 @@ def test_init_write_read_roundtrip(tmp_path: Path) -> None:
 
     # Raw JSON has the eight top-level blocks plus schema_version.
     raw = json.loads(out.read_text(encoding="utf-8"))
-    assert raw["schema_version"] == "0.3"
+    assert raw["schema_version"] == "0.4"
     for block in TOP_LEVEL_BLOCKS:
         assert block in raw
     # Empty list blocks are arrays.
@@ -66,7 +66,7 @@ def test_init_write_read_roundtrip(tmp_path: Path) -> None:
 
     # Read back and check round-trip on key fields.
     loaded = read_cut_index(out)
-    assert loaded.schema_version == "0.3"
+    assert loaded.schema_version == "0.4"
     assert loaded.project.project_name == config.project_name
     assert loaded.project.project_slug == config.project_slug
     assert loaded.project.source_folder == config.source_folder

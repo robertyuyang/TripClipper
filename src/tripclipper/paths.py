@@ -55,6 +55,10 @@ def review_html_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     return exports_dir(slug, base_dir) / "review.html"
 
 
+def assets_csv_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
+    return exports_dir(slug, base_dir) / "assets.csv"
+
+
 def exported_cut_index_path(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     """Return ``projects/<slug>/exports/cut_index.json`` (M5 immutable snapshot)."""
     return exports_dir(slug, base_dir) / "cut_index.json"
@@ -90,6 +94,16 @@ def frames_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
 
 def transcripts_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     return cache_dir(slug, base_dir) / "transcripts"
+
+
+def audio_cache_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
+    return cache_dir(slug, base_dir) / "audio"
+
+
+def audio_asset_cache_dir(
+    slug: str, asset_id: str, base_dir: Optional[_PathLike] = None
+) -> Path:
+    return audio_cache_dir(slug, base_dir) / asset_id
 
 
 def logs_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
@@ -131,6 +145,7 @@ def ensure_project_dirs(slug: str, base_dir: Optional[_PathLike] = None) -> Path
         thumbnails_dir(slug, base_dir),
         frames_dir(slug, base_dir),
         transcripts_dir(slug, base_dir),
+        audio_cache_dir(slug, base_dir),
     ):
         directory.mkdir(parents=True, exist_ok=True)
     return pdir
@@ -142,6 +157,7 @@ __all__ = [
     "project_config_path",
     "exports_dir",
     "review_html_path",
+    "assets_csv_path",
     "exported_cut_index_path",
     "eagle_dry_run_path",
     "eagle_apply_result_path",
@@ -150,6 +166,8 @@ __all__ = [
     "thumbnails_dir",
     "frames_dir",
     "transcripts_dir",
+    "audio_cache_dir",
+    "audio_asset_cache_dir",
     "logs_dir",
     "analyze_log_path",
     "cluster_log_path",

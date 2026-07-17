@@ -39,7 +39,7 @@ _SUMMARY_FIELDS = (
     "api_key_env",
     "vision_model",
     "text_model",
-    "transcription_model",
+    "audio_analysis_model",
 )
 
 

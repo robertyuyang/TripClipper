@@ -90,7 +90,7 @@ model_config:
   api_key_env: "TRIPCLIPPER_MODEL_API_KEY"
   vision_model: "vision-model-name"
   text_model: "text-model-name"
-  transcription_model: "audio-model-name"
+  audio_analysis_model: "audio-model-name"
 analysis_config:
   sample_size: 25
   language: "zh-CN"

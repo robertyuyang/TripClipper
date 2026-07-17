@@ -31,7 +31,7 @@ from .cluster_runner import (
     ClusterRunnerError,
     cluster as cluster_runner_cluster,
 )
-from .exporter import ExportError, copy_cut_index, render_review_html
+from .exporter import ExportError, copy_cut_index, render_assets_csv, render_review_html
 from .progress import PeriodicProgressReporter
 from .scan import ScanResult, scan_project
 
@@ -49,6 +49,7 @@ class RunResult:
     cluster: Optional[ClusterResult] = None
     export_cut_index_path: Optional[Path] = None
     export_review_html_path: Optional[Path] = None
+    export_assets_csv_path: Optional[Path] = None
     interrupted: bool = False
     interrupted_stage: Optional[str] = None
     notes: list[str] = field(default_factory=list)
@@ -155,6 +156,15 @@ def run(
         raise
     except ExportError as exc:
         result.notes.append(f"export cut_index 跳过：{exc}")
+
+    try:
+        result.export_assets_csv_path = render_assets_csv(slug, base_dir=base_dir)
+    except KeyboardInterrupt:
+        result.interrupted = True
+        result.interrupted_stage = "export"
+        raise
+    except ExportError as exc:
+        result.notes.append(f"export assets.csv 跳过：{exc}")
 
     try:
         result.export_review_html_path = render_review_html(slug, base_dir=base_dir)

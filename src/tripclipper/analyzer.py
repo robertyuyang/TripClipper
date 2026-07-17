@@ -42,6 +42,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Literal, Optional, Union
 
+from .audio_analysis import (
+    AudioAnalysisParser,
+    AudioExtractor,
+    aggregate_audio_chunks,
+)
+from .audio_provider import AudioAnalysisProvider, AudioProviderError
 from .config import EditingIntent, ModelConfig, load_config, load_software_config
 from .cut_index import read_cut_index, write_cut_index
 from .logs import AnalyzeLogger
@@ -51,10 +57,14 @@ from .models import (
     Asset,
     CutIndex,
     Failure,
+    SpeechQuality,
+    TranscriptDocument,
+    WarningItem,
 )
-from .paths import cut_index_path
+from .paths import audio_cache_dir, cut_index_path, project_dir
 from .progress import PeriodicProgressReporter
 from .provider import Provider, ProviderError, apply_analysis
+from .transcript_store import TranscriptStore
 
 _PathLike = Union[str, Path]
 
@@ -233,7 +243,101 @@ def _should_process(asset: Asset, *, force: bool) -> bool:
     """
     if force:
         return True
-    return asset.analysis_status != AnalysisStatus.analyzed
+    audio_pending = (
+        asset.type is not None
+        and asset.type.value == "video"
+        and "has_audio" in (asset.metadata or {})
+        and asset.speech_quality is None
+    )
+    return asset.analysis_status != AnalysisStatus.analyzed or audio_pending
+
+
+def _analyze_asset_audio(
+    asset: Asset,
+    *,
+    source_path: Path,
+    extractor,
+    provider,
+    store,
+    force: bool = False,
+) -> Optional[str]:
+    """Run the independent audio substep and return a safe error summary."""
+    if asset.type is None or asset.type.value != "video":
+        return None
+    if not bool((asset.metadata or {}).get("has_audio")):
+        asset.speech_quality = SpeechQuality.none
+        asset.transcript_path = None
+        return None
+
+    asset_id = asset.asset_id or "<unknown>"
+    try:
+        chunks = extractor.extract(source_path, asset_id, force=force)
+    except Exception as exc:
+        reason = f"音频提取失败：{type(exc).__name__}: {exc}"
+        asset.failures.append(
+            Failure(
+                stage="audio_analysis",
+                target=asset_id,
+                reason=reason,
+                suggestion="检查 ffmpeg、源文件音轨与缓存目录后重试",
+                blocking=False,
+            ).model_dump()
+        )
+        return reason
+
+    parser = AudioAnalysisParser()
+    parsed_chunks = []
+    chunk_errors: list[str] = []
+    for index, chunk in enumerate(chunks):
+        try:
+            parsed = parser.parse(provider.analyze(chunk), chunk)
+            parsed_chunks.append(parsed)
+            for warning in parsed.warnings:
+                asset.warnings.append(
+                    WarningItem(
+                        stage="audio_analysis",
+                        target=asset_id,
+                        reason=warning,
+                        blocking=False,
+                    ).model_dump()
+                )
+        except Exception as exc:
+            parsed_chunks.append(None)
+            chunk_errors.append(f"分块 {index} 失败：{type(exc).__name__}: {exc}")
+
+    aggregate = aggregate_audio_chunks(parsed_chunks)
+    if aggregate.incomplete:
+        asset.warnings.append(
+            WarningItem(
+                stage="audio_analysis",
+                target=asset_id,
+                reason="音频分析不完整，部分分块失败",
+                blocking=False,
+            ).model_dump()
+        )
+    if aggregate.speech_quality is not None:
+        document = TranscriptDocument(
+            speech_quality=aggregate.speech_quality,
+            speech_segments=aggregate.speech_segments,
+        )
+        try:
+            store.save(asset, document, complete=aggregate.all_succeeded)
+        except Exception as exc:
+            chunk_errors.append(f"转写保存失败：{type(exc).__name__}: {exc}")
+
+    if chunk_errors:
+        reason = "；".join(chunk_errors)
+        asset.failures.append(
+            Failure(
+                stage="audio_analysis",
+                target=asset_id,
+                reason=reason,
+                suggestion="稍后重跑音频分析；已有画面和完整转写不会被覆盖",
+                blocking=False,
+            ).model_dump()
+        )
+        return reason
+    return None
 
 
 def _classify_reason(reason: str) -> str:
@@ -377,7 +481,8 @@ def _run(
     # ---------- 项目级 Provider 探测 ----------
     try:
         Provider(llm_config, editing_intent)
-    except ProviderError as exc:
+        AudioAnalysisProvider(llm_config)
+    except (ProviderError, AudioProviderError) as exc:
         # 项目级失败：直接写到 CutIndex.failures（list[Failure]，无需 model_dump）。
         cut.failures.append(
             Failure(
@@ -387,7 +492,7 @@ def _run(
                 suggestion=(
                     "请检查 .env 中 TRIPCLIPPER_MODEL_API_KEY 是否设置，"
                     "并确认软件配置中的 model_config.provider / base_url / "
-                    "vision_model 完整"
+                    "vision_model / audio_analysis_model 完整"
                 ),
                 blocking=True,
             )
@@ -420,7 +525,7 @@ def _run(
         provider=llm_config.provider,
         vision_model=llm_config.vision_model,
         text_model=llm_config.text_model,
-        transcription_model=llm_config.transcription_model,
+        audio_analysis_model=llm_config.audio_analysis_model,
         stage=stage,
         sample_size=sample_size_value,
         started_at=started_at,
@@ -442,12 +547,21 @@ def _run(
     counter = {"done": 0}
     # 每线程一个独立 Provider 实例（Q8：httpx.Client 非线程安全）。
     thread_local = threading.local()
+    extractor = AudioExtractor(audio_cache_dir(slug, base_dir))
+    transcript_store = TranscriptStore(project_dir(slug, base_dir))
 
     def _get_provider() -> Provider:
         existing = getattr(thread_local, "provider", None)
         if existing is None:
             existing = Provider(llm_config, editing_intent)
             thread_local.provider = existing
+        return existing
+
+    def _get_audio_provider() -> AudioAnalysisProvider:
+        existing = getattr(thread_local, "audio_provider", None)
+        if existing is None:
+            existing = AudioAnalysisProvider(llm_config)
+            thread_local.audio_provider = existing
         return existing
 
     def _analyze_one(asset: Asset) -> tuple[str, Optional[tuple[str, str]]]:
@@ -466,64 +580,73 @@ def _run(
             frame_count=frame_count,
         )
         t0 = time.monotonic()
-        try:
-            provider = _get_provider()
-            result = provider.analyze(asset)
-        except ProviderError as exc:
-            latency_ms = int((time.monotonic() - t0) * 1000)
-            asset.analysis_status = AnalysisStatus.analysis_failed
-            reason = str(exc)
-            if exc.transient:
+        errors_for_asset: list[str] = []
+        visual_needed = force or asset.analysis_status != AnalysisStatus.analyzed
+        if visual_needed:
+            try:
+                result = _get_provider().analyze(asset)
+                apply_analysis(asset, result)
+            except ProviderError as exc:
+                asset.analysis_status = AnalysisStatus.analysis_failed
+                reason = str(exc)
                 suggestion = (
-                    "瞬时错误：建议稍后重跑 "
-                    "`tripclipper analyze --stage full --force`"
+                    "瞬时错误：建议稍后重跑 `tripclipper analyze --stage full --force`"
+                    if exc.transient
+                    else "模型输出格式异常或鉴权失败：检查 prompt、vision_model 或 API key"
                 )
-            else:
-                suggestion = (
-                    "模型输出格式异常或鉴权失败：检查 prompt、vision_model 或 "
-                    "API key"
+                asset.failures.append(
+                    Failure(
+                        stage=_ANALYZE_STAGE,
+                        target=asset_id,
+                        reason=reason,
+                        suggestion=suggestion,
+                        blocking=True,
+                    ).model_dump()
                 )
-            asset.failures.append(
-                Failure(
-                    stage=_ANALYZE_STAGE,
-                    target=asset_id,
-                    reason=reason,
-                    suggestion=suggestion,
-                    blocking=True,
-                ).model_dump()
-            )
-            logger.call_end(
-                asset_id=asset_id,
-                attempt=attempt,
-                status="failure",
-                latency_ms=latency_ms,
-                error=reason,
-            )
-            return ("failed", (asset_id, reason))
-        except Exception as exc:  # 防御：意外异常不能拖垮整批
-            latency_ms = int((time.monotonic() - t0) * 1000)
-            asset.analysis_status = AnalysisStatus.analysis_failed
-            reason = f"意外异常: {type(exc).__name__}: {exc}"
-            asset.failures.append(
-                Failure(
-                    stage=_ANALYZE_STAGE,
-                    target=asset_id,
-                    reason=reason,
-                    suggestion="请检查日志与 cut_index.json 后重跑",
-                    blocking=True,
-                ).model_dump()
-            )
-            logger.call_end(
-                asset_id=asset_id,
-                attempt=attempt,
-                status="failure",
-                latency_ms=latency_ms,
-                error=reason,
-            )
-            return ("failed", (asset_id, reason))
+                errors_for_asset.append(reason)
+            except Exception as exc:
+                asset.analysis_status = AnalysisStatus.analysis_failed
+                reason = f"意外异常: {type(exc).__name__}: {exc}"
+                asset.failures.append(
+                    Failure(
+                        stage=_ANALYZE_STAGE,
+                        target=asset_id,
+                        reason=reason,
+                        suggestion="请检查日志与 cut_index.json 后重跑",
+                        blocking=True,
+                    ).model_dump()
+                )
+                errors_for_asset.append(reason)
+
+        source_value = asset.path or asset.file or asset.relative_path
+        source_path = (
+            Path(source_value)
+            if source_value and Path(source_value).is_absolute()
+            else Path(project_config.source_folder)
+            / (asset.relative_path or source_value or "")
+        )
+        audio_error = _analyze_asset_audio(
+            asset,
+            source_path=source_path,
+            extractor=extractor,
+            provider=_get_audio_provider(),
+            store=transcript_store,
+            force=force,
+        )
+        if audio_error:
+            errors_for_asset.append(audio_error)
 
         latency_ms = int((time.monotonic() - t0) * 1000)
-        apply_analysis(asset, result)
+        if errors_for_asset:
+            reason = "；".join(errors_for_asset)
+            logger.call_end(
+                asset_id=asset_id,
+                attempt=attempt,
+                status="failure",
+                latency_ms=latency_ms,
+                error=reason,
+            )
+            return ("failed", (asset_id, reason))
         logger.call_end(
             asset_id=asset_id,
             attempt=attempt,
@@ -553,6 +676,18 @@ def _run(
                             progress.advance_failure()
                         if err is not None:
                             errors.append(err)
+                            cut.failures.append(
+                                Failure(
+                                    stage=_ANALYZE_STAGE,
+                                    target=asset.asset_id,
+                                    reason=err[1],
+                                    suggestion="检查素材级 failures 与结构化日志后重跑",
+                                    blocking=(
+                                        asset.analysis_status
+                                        == AnalysisStatus.analysis_failed
+                                    ),
+                                )
+                            )
                     # Q12：每完成 _PERSIST_EVERY 个素材增量落盘一次。
                     if done % _PERSIST_EVERY == 0:
                         _persist(cut, index_path, done=done, callback=_persist_callback)

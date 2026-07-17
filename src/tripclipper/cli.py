@@ -54,6 +54,7 @@ from .exporter import (
     ExportError,
     _summarise_for_stdout,
     copy_cut_index,
+    render_assets_csv,
     render_review_html,
 )
 from .models import AnalysisStatus
@@ -552,6 +553,8 @@ def run(slug: str, base_dir: str, pause_after: str, concurrency: int) -> None:
         click.echo(f"  [export] cut_index 副本: {result.export_cut_index_path}")
     if result.export_review_html_path is not None:
         click.echo(f"  [export] review.html:   {result.export_review_html_path}")
+    if result.export_assets_csv_path is not None:
+        click.echo(f"  [export] assets.csv:   {result.export_assets_csv_path}")
     for note in result.notes:
         click.echo(f"  · {note}")
 
@@ -574,6 +577,8 @@ def export(slug: str, base_dir: str, cut_index_only: bool) -> None:
     try:
         cut_index_copy_path = copy_cut_index(slug, base_dir=base_dir)
         click.echo(f"已生成 cut_index 副本: {cut_index_copy_path}")
+        csv_path = render_assets_csv(slug, base_dir=base_dir)
+        click.echo(f"已生成 assets.csv: {csv_path}")
         html_path: Optional[Path] = None
         if not cut_index_only:
             html_path = render_review_html(slug, base_dir=base_dir)
@@ -754,7 +759,10 @@ def sync_eagle(
                     sys.exit(2)
 
             mapper = AssetMapper(
-                config, project_slug=project_slug, sync_timestamp=sync_timestamp
+                config,
+                project_slug=project_slug,
+                sync_timestamp=sync_timestamp,
+                project_dir=cut_index_path(project_slug).parent,
             )
             runner = EagleSyncRunner(
                 client,

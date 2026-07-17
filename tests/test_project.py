@@ -56,7 +56,7 @@ def _full_model_block(extra_lines: str = "") -> str:
         '  api_key_env: "TRIPCLIPPER_MODEL_API_KEY"\n'
         '  vision_model: "vision-model-name"\n'
         '  text_model: "text-model-name"\n'
-        '  transcription_model: "audio-model-name"\n'
+        '  audio_analysis_model: "audio-model-name"\n'
     )
     return block + extra_lines
 

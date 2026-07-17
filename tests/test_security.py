@@ -18,7 +18,7 @@ def test_summarize_model_config_drops_plaintext_secret_from_dict() -> None:
         "api_key": "secret123",  # must never appear in summary
         "vision_model": "v",
         "text_model": "t",
-        "transcription_model": "a",
+        "audio_analysis_model": "a",
     }
     summary = summarize_model_config(raw)
     assert summary["api_key_env"] == "TRIPCLIPPER_MODEL_API_KEY"
@@ -40,7 +40,7 @@ def test_summarize_model_config_from_model_object() -> None:
         "api_key_env",
         "vision_model",
         "text_model",
-        "transcription_model",
+        "audio_analysis_model",
     }
     assert summary["api_key_env"] == "KEY_ENV"
 

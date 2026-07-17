@@ -36,6 +36,15 @@
   .status-other { color: #888; }
   .stars { color: #f5a623; letter-spacing: 1px; }
   .segment { color: #555; font-family: SFMono-Regular, Consolas, monospace; font-size: 11px; }
+  .speech-cell { min-width: 280px; max-width: 420px; line-height: 1.45; }
+  .speech-quality { display: inline-block; padding: 1px 7px; border-radius: 10px; font-weight: 600; margin-bottom: 3px; }
+  .speech-clear { background: #e8f5e9; color: #237a28; }
+  .speech-unclear { background: #fff3e0; color: #a65d00; }
+  .speech-none { background: #f0f1f3; color: #666; }
+  .speech-pending { background: #fff8e1; color: #9a6a00; }
+  .speech-segment { margin-top: 3px; border-top: 1px dashed #ddd; padding-top: 3px; }
+  .speech-time { color: #2a5db0; font-family: SFMono-Regular, Consolas, monospace; font-size: 11px; }
+  .transcript-error { color: #c03030; font-size: 11px; }
   .tags-cell { min-width: 220px; max-width: 320px; overflow-wrap: anywhere; word-break: normal; }
   .summary-cell { min-width: 360px; max-width: 520px; overflow-wrap: anywhere; word-break: normal; line-height: 1.45; }
   .summary-cell .scan-info { color: #c08010; font-weight: 600; display: inline-block; margin-bottom: 2px; }
@@ -120,6 +129,7 @@ __SIMILAR_GROUPS_HTML__
   <select id="filter-subject-type"><option value="">subject_type: 全部</option></select>
   <select id="filter-shot-scale"><option value="">shot_scale: 全部</option></select>
   <select id="filter-status"><option value="">analysis_status: 全部</option></select>
+  <select id="filter-speech-quality"><option value="">speech_quality: 全部</option></select>
   <select id="filter-similar">
     <option value="">相似组: 全部</option>
     <option value="in-group">仅相似组成员</option>
@@ -209,6 +219,7 @@ __SESSIONS_HTML__
   fillFilterOptions('filter-subject-type', 'data-subject-type');
   fillFilterOptions('filter-shot-scale', 'data-shot-scale');
   fillFilterOptions('filter-status', 'data-status');
+  fillFilterOptions('filter-speech-quality', 'data-speech-quality');
   fillFilterOptions('filter-session', 'data-session-id', sessionLabelsById);
 
   function currentFilters(){
@@ -217,6 +228,7 @@ __SESSIONS_HTML__
       fst: document.getElementById('filter-subject-type').value,
       fss: document.getElementById('filter-shot-scale').value,
       fst2: document.getElementById('filter-status').value,
+      fspeech: document.getElementById('filter-speech-quality').value,
       fsim: document.getElementById('filter-similar').value,
       fcand: document.getElementById('filter-candidate').value,
       fsession: document.getElementById('filter-session').value
@@ -231,6 +243,7 @@ __SESSIONS_HTML__
     if (f.fst && r.getAttribute('data-subject-type') !== f.fst) return false;
     if (f.fss && r.getAttribute('data-shot-scale') !== f.fss) return false;
     if (f.fst2 && r.getAttribute('data-status') !== f.fst2) return false;
+    if (f.fspeech && r.getAttribute('data-speech-quality') !== f.fspeech) return false;
     if (f.fsim){
       var gid = r.getAttribute('data-similar-group-id') || '';
       if (f.fsim === 'in-group' && !gid) return false;

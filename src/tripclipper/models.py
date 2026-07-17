@@ -1,4 +1,4 @@
-"""Data models and field enums for ``cut_index.json`` (schema_version 0.3).
+"""Data models and field enums for ``cut_index.json`` (schema_version 0.4).
 
 This module is the single source of truth for every field name and every
 enumerated value used across TripClipper. Other modules MUST import these
@@ -14,7 +14,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from . import SCHEMA_VERSION
 
@@ -90,6 +90,12 @@ class EditCandidateStatus(str, Enum):
     needs_review = "needs_review"
 
 
+class SpeechQuality(str, Enum):
+    none = "none"
+    unclear = "unclear"
+    clear = "clear"
+
+
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
@@ -122,6 +128,36 @@ class ClipSuggestion(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class SpeechSegment(BaseModel):
+    """A coarse original-language speech interval on the source timeline."""
+
+    model_config = _MODEL_CONFIG
+    start_sec: float
+    end_sec: float
+    text: str = ""
+
+    @model_validator(mode="after")
+    def validate_interval(self) -> "SpeechSegment":
+        if self.start_sec < 0 or self.end_sec <= self.start_sec:
+            raise ValueError("speech segment must satisfy 0 <= start_sec < end_sec")
+        return self
+
+
+class TranscriptDocument(BaseModel):
+    """Per-asset transcript stored outside ``cut_index.json``."""
+
+    model_config = _MODEL_CONFIG
+    speech_quality: SpeechQuality
+    speech_segments: list[SpeechSegment] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_order(self) -> "TranscriptDocument":
+        starts = [segment.start_sec for segment in self.speech_segments]
+        if starts != sorted(starts):
+            raise ValueError("speech_segments must be ordered by start_sec")
+        return self
+
+
 class Asset(BaseModel):
     """A single media asset (TD 7 ``asset``)."""
 
@@ -143,6 +179,7 @@ class Asset(BaseModel):
     # are written together and must have matching length and ordering.
     frame_timestamps: list[float] = Field(default_factory=list)
     transcript_path: Optional[str] = None
+    speech_quality: Optional[SpeechQuality] = None
     analysis_status: AnalysisStatus = AnalysisStatus.scanned
     scene: Optional[str] = None
     summary: Optional[str] = None
@@ -282,7 +319,7 @@ class AnalysisInfo(BaseModel):
     provider: Optional[str] = None
     vision_model: Optional[str] = None
     text_model: Optional[str] = None
-    transcription_model: Optional[str] = None
+    audio_analysis_model: Optional[str] = None
     stage: Optional[str] = None
     sample_size: Optional[int] = None
     started_at: Optional[str] = None
@@ -335,7 +372,10 @@ __all__ = [
     "ShotFunction",
     "SimilarSelection",
     "EditCandidateStatus",
+    "SpeechQuality",
     "ClipSuggestion",
+    "SpeechSegment",
+    "TranscriptDocument",
     "Asset",
     "SimilarGroup",
     "Session",

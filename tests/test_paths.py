@@ -69,9 +69,7 @@ def test_review_html_path_is_under_exports_dir(tmp_path: Path) -> None:
     ) / "review.html"
 
 
-def test_paths_csv_md_helpers_removed() -> None:
-    with pytest.raises(ImportError):
-        from tripclipper.paths import assets_csv_path  # noqa: F401
+def test_legacy_segments_and_summary_helpers_remain_removed() -> None:
     with pytest.raises(ImportError):
         from tripclipper.paths import segments_csv_path  # noqa: F401
     with pytest.raises(ImportError):

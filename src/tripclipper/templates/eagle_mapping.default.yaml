@@ -16,6 +16,7 @@ mappings:
   similar_selection:      { target: tag }
   similar_group_id:       { target: tag }
   edit_candidate_status:  { target: tag }
+  speech_quality:          { target: tag }
 
   edit_candidate_reason:
     target: note_section
@@ -37,7 +38,7 @@ mappings:
   failures:
     target: note_section
     title: 分析失败原因
-    order: 5
+    order: 6
     renderer: failures_list
 
 skip_fields:

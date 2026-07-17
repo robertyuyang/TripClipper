@@ -28,15 +28,12 @@ def _utc_now_iso() -> str:
 def check_schema_compatible(version: str) -> bool:
     """Return True when ``version`` is compatible with the current schema.
 
-    Compatibility rule: pre-1.0, every minor bump is treated as **breaking**
-    (we do not yet promise minor backward compatibility); the on-disk version
-    must therefore equal :data:`SCHEMA_VERSION` exactly. Once we reach 1.0
-    minor versions can become backward compatible. Raises
-    :class:`SchemaVersionError` on incompatibility.
+    Schema 0.4 explicitly accepts 0.3 so audio fields can be populated
+    incrementally. Older or newer versions remain incompatible.
     """
     if version is None:
         raise SchemaVersionError("Missing schema_version in cut_index.json")
-    if str(version) != SCHEMA_VERSION:
+    if str(version) not in {"0.3", SCHEMA_VERSION}:
         raise SchemaVersionError(
             f"Incompatible schema_version {version!r}; "
             f"this build requires {SCHEMA_VERSION!r}. Refusing to migrate silently. "
@@ -82,6 +79,7 @@ def write_cut_index(path: _PathLike, cut_index: CutIndex) -> None:
     """Serialise ``cut_index`` to ``path`` as UTF-8 JSON (creating parents)."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    cut_index.schema_version = SCHEMA_VERSION
     payload = cut_index.model_dump(mode="json", by_alias=True, exclude_none=False)
     with target.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
@@ -98,6 +96,7 @@ def read_cut_index(path: _PathLike) -> CutIndex:
         data = json.load(fh)
 
     check_schema_compatible(data.get("schema_version"))
+    data["schema_version"] = SCHEMA_VERSION
     return CutIndex.model_validate(data)
 
 

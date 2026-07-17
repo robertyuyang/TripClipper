@@ -31,6 +31,7 @@ Design notes (brainstorming Q1–Q10):
 from __future__ import annotations
 
 import html
+import csv
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,9 +46,11 @@ from .models import (
     EditCandidateStatus,
     SimilarGroup,
     SimilarSelection,
+    TranscriptDocument,
 )
 from .session_splitter import UNKNOWN_SESSION_ID
 from .paths import (
+    assets_csv_path,
     cut_index_path,
     exported_cut_index_path,
     exports_dir,
@@ -575,6 +578,36 @@ def _format_candidate_cell(asset: Asset) -> str:
     return head
 
 
+def _format_speech_cell(asset: Asset, project_dir_path: Path) -> str:
+    quality = _enum_value(asset.speech_quality)
+    label = quality or "未分析"
+    css = f"speech-{quality}" if quality else "speech-pending"
+    head = f'<span class="speech-quality {css}">{html.escape(label)}</span>'
+    if not asset.transcript_path:
+        if quality in {"clear", "unclear"}:
+            return head + '<br><span class="transcript-error">转写文件不可用</span>'
+        return head
+    path = Path(asset.transcript_path)
+    if not path.is_absolute():
+        path = project_dir_path / path
+    try:
+        document = TranscriptDocument.model_validate_json(path.read_text(encoding="utf-8"))
+    except Exception:
+        return head + '<br><span class="transcript-error">转写文件不可用</span>'
+    if not document.speech_segments:
+        return head + '<br><span class="muted">（无人声片段）</span>'
+    parts = []
+    for segment in document.speech_segments:
+        timing = f"{segment.start_sec:g}–{segment.end_sec:g} 秒"
+        text = segment.text or "（无法辨认）"
+        parts.append(
+            '<div class="speech-segment">'
+            f'<span class="speech-time">{html.escape(timing)}</span> '
+            f'{html.escape(text)}</div>'
+        )
+    return head + "".join(parts)
+
+
 def _format_session_cell(asset: Asset) -> str:
     """Render the session column for one asset in the flat table.
 
@@ -772,6 +805,8 @@ def _asset_to_row(
     summary_html = _render_summary_cell(asset)
     segments_html = _format_clip_suggestions(asset.clip_suggestions)
     audio_strategy = html.escape(asset.audio_strategy or "")
+    speech_html = _format_speech_cell(asset, project_dir_path)
+    speech_quality = _enum_value(asset.speech_quality)
     primary_subject = html.escape(asset.primary_subject or "")
     subject_cell = html.escape(subject_type)
     if primary_subject:
@@ -816,6 +851,7 @@ def _asset_to_row(
         f' data-similar-group-id="{similar_gid_attr}"'
         f' data-edit-candidate-status="{candidate_status_attr}"'
         f' data-session-id="{session_id_attr}"'
+        f' data-speech-quality="{html.escape(speech_quality)}"'
         f' data-search="{html.escape(search_blob)}">'
         f'<td class="thumb-cell">{thumb_html}</td>'
         f'<td class="filename-cell" title="{html.escape(filename)}">{html.escape(filename)}</td>'
@@ -828,6 +864,7 @@ def _asset_to_row(
         f'<td class="tags-cell">{tags_html}</td>'
         f'<td class="summary-cell">{summary_html}</td>'
         f'<td>{segments_html}</td>'
+        f'<td class="speech-cell">{speech_html}</td>'
         f'<td>{audio_strategy}</td>'
         f'<td>{placeholder_m4_similar}</td>'
         f'<td>{placeholder_m4_candidate}</td>'
@@ -853,6 +890,7 @@ def _render_asset_table_header(*, include_session: bool = False) -> str:
         '<th data-key="tags">tags</th>'
         '<th data-key="summary">summary</th>'
         '<th data-key="clip_suggestions">clip_suggestions</th>'
+        '<th data-key="speech_quality">speech_quality / 转写</th>'
         '<th data-key="audio_strategy">audio_strategy</th>'
         '<th data-key="similar_group">相似组</th>'
         '<th data-key="edit_candidate_status">候选池状态</th>'
@@ -1160,8 +1198,46 @@ def render_review_html(
     return out_path
 
 
+def render_assets_csv(
+    slug: str, *, base_dir: Optional[Path] = None
+) -> Path:
+    """Write a flat, spreadsheet-friendly asset export."""
+    index_path = cut_index_path(slug, base_dir=base_dir)
+    if not index_path.exists():
+        raise ExportError(f"项目 `{slug}` 尚未初始化，请先运行 `tripclipper init`")
+    cut = read_cut_index(index_path)
+    output = assets_csv_path(slug, base_dir=base_dir)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fields = (
+        "asset_id",
+        "filename",
+        "relative_path",
+        "type",
+        "analysis_status",
+        "speech_quality",
+        "transcript_path",
+    )
+    with output.open("w", encoding="utf-8-sig", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        for asset in cut.assets:
+            writer.writerow(
+                {
+                    "asset_id": asset.asset_id or "",
+                    "filename": asset.filename or "",
+                    "relative_path": asset.relative_path or "",
+                    "type": _enum_value(asset.type),
+                    "analysis_status": _enum_value(asset.analysis_status),
+                    "speech_quality": _enum_value(asset.speech_quality),
+                    "transcript_path": asset.transcript_path or "",
+                }
+            )
+    return output
+
+
 __all__ = [
     "ExportError",
     "copy_cut_index",
+    "render_assets_csv",
     "render_review_html",
 ]

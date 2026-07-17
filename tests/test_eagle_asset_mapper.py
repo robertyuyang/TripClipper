@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 
 from tripclipper.eagle_sync import AssetMapper, load_mapping_config
 from tripclipper.models import (
@@ -11,6 +12,7 @@ from tripclipper.models import (
     ClipSuggestion,
     EditCandidateStatus,
     ShotFunction,
+    SpeechQuality,
 )
 
 SLUG = "2026-japan-trip"
@@ -124,3 +126,65 @@ def test_plan_strict_mapping_skips_unknown() -> None:
     plan = _mapper(config).plan(asset)
     assert "tc:tags:x" not in plan.tags
     assert "tags" in plan.unknown_warnings
+
+
+def test_plan_maps_clear_speech_to_tag_and_annotation(tmp_path: Path) -> None:
+    transcript = tmp_path / "cache" / "transcripts" / "asset_x.json"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text(
+        '{"speech_quality":"clear","speech_segments":['
+        '{"start_sec":3.5,"end_sec":8.2,"text":"你好 Eagle"}]}',
+        encoding="utf-8",
+    )
+    asset = Asset(
+        speech_quality=SpeechQuality.clear,
+        transcript_path="cache/transcripts/asset_x.json",
+        analysis_status=AnalysisStatus.analyzed,
+    )
+
+    plan = AssetMapper(load_mapping_config(), SLUG, TS, tmp_path).plan(asset)
+
+    assert "tc:speech_quality:clear" in plan.tags
+    assert "## 语音识别" in plan.annotation
+    assert "`00:00:03.5 → 00:00:08.2` 你好 Eagle" in plan.annotation
+    assert all("你好 Eagle" not in tag for tag in plan.tags)
+
+
+def test_plan_maps_no_speech_to_tag_and_explicit_annotation(tmp_path: Path) -> None:
+    asset = Asset(
+        speech_quality=SpeechQuality.none,
+        analysis_status=AnalysisStatus.analyzed,
+    )
+
+    plan = AssetMapper(load_mapping_config(), SLUG, TS, tmp_path).plan(asset)
+
+    assert "tc:speech_quality:none" in plan.tags
+    assert "## 语音识别\n未检测到人声" in plan.annotation
+
+
+def test_plan_skips_speech_output_when_not_analyzed(tmp_path: Path) -> None:
+    asset = Asset(analysis_status=AnalysisStatus.analyzed)
+
+    plan = AssetMapper(load_mapping_config(), SLUG, TS, tmp_path).plan(asset)
+
+    assert all("speech_quality" not in tag for tag in plan.tags)
+    assert "## 语音识别" not in plan.annotation
+
+
+def test_plan_degrades_invalid_transcript_without_leaking_text_to_tags(
+    tmp_path: Path,
+) -> None:
+    transcript = tmp_path / "cache" / "transcripts" / "asset_bad.json"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text("not-json 私密转写", encoding="utf-8")
+    asset = Asset(
+        speech_quality=SpeechQuality.unclear,
+        transcript_path="cache/transcripts/asset_bad.json",
+        analysis_status=AnalysisStatus.analyzed,
+    )
+
+    plan = AssetMapper(load_mapping_config(), SLUG, TS, tmp_path).plan(asset)
+
+    assert "tc:speech_quality:unclear" in plan.tags
+    assert "## 语音识别\n转写文件不可用" in plan.annotation
+    assert all("私密转写" not in tag for tag in plan.tags)

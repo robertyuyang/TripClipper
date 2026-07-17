@@ -19,8 +19,8 @@ from tripclipper.models import (
 )
 
 
-def test_schema_version_is_0_3() -> None:
-    assert SCHEMA_VERSION == "0.3"
+def test_schema_version_is_0_4() -> None:
+    assert SCHEMA_VERSION == "0.4"
 
 
 def test_construct_asset_with_valid_enums() -> None:

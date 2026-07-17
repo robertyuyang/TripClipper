@@ -28,7 +28,7 @@ class ModelConfig(BaseModel):
     api_key_env: Optional[str] = None
     vision_model: Optional[str] = None
     text_model: Optional[str] = None
-    transcription_model: Optional[str] = None
+    audio_analysis_model: Optional[str] = None
     language: Optional[str] = "zh-CN"
 
     def is_usable(self) -> bool:
@@ -42,6 +42,10 @@ class ModelConfig(BaseModel):
                 self.vision_model,
             )
         )
+
+    def is_audio_analysis_usable(self) -> bool:
+        """Return whether shared access fields and the audio model exist."""
+        return self.is_usable() and bool(self.audio_analysis_model)
 
 
 class AnalysisConfig(BaseModel):
@@ -190,6 +194,10 @@ def _parse_software_sections(
     raw_model_config = data.get("model_config") or {}
     if not isinstance(raw_model_config, dict):
         raise ConfigError("model_config must be a mapping/object")
+    if "transcription_model" in raw_model_config:
+        raise ConfigError(
+            "配置字段 transcription_model 已废弃；请改名为 audio_analysis_model"
+        )
     llm = ModelConfig.model_validate(raw_model_config)
 
     raw_analysis_config = data.get("analysis_config") or {}

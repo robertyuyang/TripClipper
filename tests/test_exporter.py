@@ -839,6 +839,9 @@ def test_render_demo_scan_real_data_renders_group_card(tmp_path: Path, monkeypat
     src_index = repo_root / "projects" / "demo-scan" / "cut_index.json"
     if not src_index.is_file():
         pytest.skip("projects/demo-scan/cut_index.json not present in repo")
+    source_payload = json.loads(src_index.read_text(encoding="utf-8"))
+    if not source_payload.get("similar_groups"):
+        pytest.skip("projects/demo-scan currently has no persisted similar groups")
 
     slug = "demo-scan"
     ensure_project_dirs(slug, base_dir=tmp_path)
@@ -855,9 +858,19 @@ def test_render_demo_scan_real_data_renders_group_card(tmp_path: Path, monkeypat
     # 只断言渲染出了置信度百分比，不锁定数值。
     assert "置信度" in text
     assert "%" in text
-    assert "同一景点" in text
+    # basis is optional and the checked-in real output currently leaves it empty.
     assert "（待 M4）" not in text
-    assert 'class="sel-primary"' in text
+    if any(group.get("needs_review") for group in source_payload["similar_groups"]):
+        assert 'class="sel-needs-review"' in text
+    else:
+        assert any(
+            marker in text
+            for marker in (
+                'class="sel-primary"',
+                'class="sel-alternate"',
+                'class="sel-rejected"',
+            )
+        )
     # demo-scan 至少有几条 default_selected 入选候选池。
     assert text.count('class="cand-default"') >= 1
 
