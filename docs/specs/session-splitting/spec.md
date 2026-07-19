@@ -69,16 +69,16 @@
 - 加一行日志（跟现有 scan 摘要风格一致）："切分为 N 个 session（gap=1h）"。
 - **无参数暴露到 CLI**。
 
-### 4. `src/tripclipper/eagle_sync.py`：默认按 session 建 folder
+### 4. `src/tripclipper/eagle_sync.py`：原始目录与 Session 双视图
 
 - 新增 `EagleClient.folder_create(name: str, parent_id: Optional[str] = None) -> str`：包 `POST /api/v2/folder/create`。跟现有 `tag_group_create` 对称。
-- `EagleClient.add_from_path`（[eagle_sync.py L253-L271](../../../src/tripclipper/eagle_sync.py#L253-L271)）新增可选参数 `folder_id: Optional[str] = None`，非空时写入 request body 的 `folderId`。
-- sync flow 层（在 `SyncOptions`/`sync_project` 附近，具体位置待实现时定）：
-  - 首次同步或首次遇到某 session_id 时，`folder_create(name=session.session_id 或人类可读名, parent_id=<项目父 folder id>)`，memo 到 dict。
-  - 项目父 folder：`folder_create(name=f"TripClipper: {project.slug}")`，同样 memo。
-  - 调 `add_from_path(..., folder_id=<session 子 folder id>)`。
-- **存量 item 不迁移**（Q5=B）：若 asset 已有 `eagle_item_id`，跳过 folder 归属，写 warning `"item already synced; folder assignment skipped"`。
-- **无参数暴露到 CLI**（无 `--split-by-session` 开关）。旧项目 `sessions=[]` 时退化为不建子 folder，全部素材放在项目父 folder 下（或不建父 folder，见"待确认"）。
+- `EagleClient.add_from_path(..., folder_ids: list[str])` 通过 V2 `item/add` 写入多个文件夹归属；`item/update` 通过 `folders` 对账存量 item。
+- 项目根目录固定为 `TripClipper · {project_slug}`，包含两个分支：
+  - `按原始目录/...`：按 `Asset.relative_path` 复刻有实际导入素材的目录路径；根目录文件直接放在该分支下。
+  - `按拍摄批次/session_XX · YYYY-MM-DD HH:mm`：按 `Asset.session_id` 归档；无匹配 Session 的素材进入 `未识别批次`。
+- 同一 Eagle item 同时属于原始目录叶子和 Session 文件夹，不重复导入文件。
+- 二次同步移除该项目根目录下失效的归属，保留用户手工添加的项目外普通文件夹。
+- **无参数暴露到 CLI**（无 `--split-by-session` 开关）。
 
 ### 5. dry-run 输出："Sessions preview" 段
 
@@ -100,7 +100,7 @@
   - 部分 asset `modified_time=None` → 归入 `session_00_unknown`
   - 空 assets → 空 sessions
 - `tests/test_scan.py`（补充断言）：scan 完 `cut_index.sessions` 非空且每个 asset 有 `session_id`。
-- `tests/test_eagle_sync.py`（补充）：mock EagleClient 验证 `folder_create` + `add_from_path(folder_id=...)` 调用顺序。
+- `tests/test_eagle_sync.py`（补充）：mock EagleClient 验证多级 `folder_create` + `add_from_path(folder_ids=[...])` 调用顺序。
 
 ### 7. review.html：Session 视图切换（Q12=B）
 
@@ -152,14 +152,14 @@
 ### Q2：分层结构
 扁平的活动段（`session_01`、`session_02`……）。**不做**"多天出行 = 顶层 + 每天多段 = 里层"的两级结构。理由：命名简单，产品第一版够用；如果未来用户需要"这一次东京行"的语义聚合，走 [todolist.md](../../todolist.md#L107-L131) 的 `project.yaml trips:` 那条路。
 
-### Q3'：Eagle folder 一级平铺 + slug 前缀（Q13 修正）
-早期 grilling 时定了"两级：项目父 folder + session 子 folder"，本轮修正为**一级平铺**，folder 名带项目 slug 前缀避免多项目撞名。理由：产品早期用户项目数少，父 folder 增加视觉层级而未带来收益；未来若多项目同时活跃，再回头加父 folder。
+### Q3'：Eagle 项目根目录 + 双视图
+采用 `TripClipper · {slug}` 项目根目录，并用 `按原始目录`、`按拍摄批次` 两个固定分支隔离命名空间。同一 item 可属于两个普通文件夹，因此无需复制素材。
 
-### Q4：Session 命名 `{slug} · {session_id} · {起始时间}`（Q14 敲定）
-形如 `tokyo · session_01 · 2026-06-15 09:30`。分隔符 ` · `（中点带空格），避开 Eagle folder 名不支持的字符。`session_00_unknown` 简化为 `{slug} · session_00_unknown`（无时间）。
+### Q4：Session 命名 `{session_id} · {起始时间}`（Q14 修订）
+形如 `session_01 · 2026-06-15 09:30`。项目名已由外层目录表达，不在 Session 名中重复；未知素材统一进入 `未识别批次`。
 
-### Q5：存量 item 不迁移（=B）
-`item/update` 无 `folderId`，无法把已同步的老 item 移入 folder。老 item 保持原状，写 warning。存量库补跑此功能形同虚设，但这个代价用户接受。
+### Q5：存量 item 对账并保留用户目录
+Eagle V2 `item/update` 支持 `folders` 数组。同步时读取 item 当前归属，只替换 `TripClipper · {slug}` 根目录下的受管归属，保留项目外的用户文件夹。
 
 ### Q6：无 CLI 参数（架构复议：从"塞进 sync-eagle"简化为"零参数默认"）
 - session 切分在 scan 阶段自动发生，不需要 `analyze --stage session` 子命令。
@@ -187,8 +187,8 @@
 ### 架构复议：session 切分归"分析阶段"而非"同步阶段"
 用户提问："这实际是一种素材的分析，放在分析环节合理吗？" — 是的。session 是"素材间关系分析"的结论（与 M4 `similar_group_id` 对偶），应该持久化到 cut_index.json，让 M6/M5/review.html 消费同一份产物。这个复议避免了未来 3 条演进路径（EXIF / LLM / project.yaml trips）需要返工。
 
-## 待确认
+## 已确认的兼容行为
 
-- 旧项目（`sessions=[]`）同步到 Eagle 时，是否仍建项目父 folder？还是完全跳过 folder 逻辑、退化到 M6 原始行为？
-- `session_00_unknown` 是否也需要建 folder，还是这些 asset 直接放项目父 folder 下？
-- session 名字最终以 `session_id`（`session_01`）还是 `Q4 命名格式`（`session_01_2026-06-15_09-30`）作为 Eagle folder 名？
+- 旧项目 `sessions=[]` 仍创建双分支，所有可同步素材在 Session 视图中进入 `未识别批次`。
+- 空目录及只含不支持文件的目录不创建。
+- Session 文件夹使用 `session_id · 起始时间`；未知分组使用中文名 `未识别批次`。

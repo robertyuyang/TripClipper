@@ -3,16 +3,16 @@
 Per ADR-004 (`docs/adr/ADR-004-eagle-sync-as-thin-mapping-layer.md`) and the
 M6 spec (`docs/specs/M6-eagle-sync/spec.md`), this module maps each
 ``cut_index`` asset field to an Eagle write dimension (rating / tag / note)
-WITHOUT inventing tag names, business filters, or folder structure. Semantics
-stay upstream in the cut_index field values.
+WITHOUT inventing tag names or business filters. Folder structure mirrors
+source paths and the upstream session assignments.
 
 The module is organised as four layers:
 
 1. ``EagleV2Client`` — a thin ``httpx``-based wrapper over the Eagle Web API
    (``http://localhost:41595``). Eagle 4.x exposes a hybrid V1/V2 API: item
-   read/write mutations (``item/addFromPath``, ``item/moveToTrash``) still
-   live under the ``/api/`` prefix, while ``library/info``, ``item/update``
-   and the ``tagGroup/*`` family live under ``/api/v2/``. Authentication is
+   ``item/moveToTrash`` still lives under the ``/api/`` prefix, while
+   ``library/info``, ``item/{add,update}`` and the ``tagGroup/*`` family live
+   under ``/api/v2/``. Authentication is
    done via the ``?token=`` query parameter (not an Authorization header).
    Version < 4.0 Build 22 (no V2 endpoints reachable) surfaces as
    :class:`EagleVersionError`; an unreachable Eagle surfaces as
@@ -24,7 +24,8 @@ The module is organised as four layers:
    :class:`MappingConfig` into an :class:`AssetWritePlan` (tags / rating /
    annotation / item name / source path / tag-group updates).
 4. ``EagleSyncRunner`` — walks a ``CutIndex``, plans each asset, drives the
-   client (dry-run vs apply), maintains tag groups idempotently (server does
+   client (dry-run vs apply), maintains folders and tag groups idempotently
+   (server does
    NOT dedupe tag groups by name, so we build a name→id map from the initial
    ``library/info`` snapshot), tolerates per-asset failures, hard-aborts
    after N consecutive network failures, and produces an
@@ -38,7 +39,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 
 import httpx
@@ -163,10 +164,9 @@ class EagleV2Client:
 
     Eagle 4.x exposes a hybrid V1/V2 API on ``http://localhost:41595``:
 
-    - ``/api/v2/library/info`` (used for both health and tag group snapshot),
-      ``/api/v2/item/update``, ``/api/v2/tagGroup/{create,update,remove}``
-    - ``/api/item/addFromPath``, ``/api/item/moveToTrash`` (V2 does not have
-      these; they still live under ``/api/``)
+    - ``/api/v2/library/info``（健康检查和标签组快照）、
+      ``/api/v2/item/{add,update}``、``/api/v2/tagGroup/{create,update,remove}``
+    - ``/api/item/moveToTrash`` 仍位于旧版 ``/api/`` 路径
 
     Authentication uses the ``?token=<uuid>`` query parameter — Eagle rejects
     ``Authorization: Bearer`` headers. All requests get the token appended
@@ -312,7 +312,7 @@ class EagleV2Client:
         tags: list[str],
         rating: Optional[int],
         annotation: str,
-        folder_id: Optional[str] = None,
+        folder_ids: Optional[list[str]] = None,
     ) -> str:
         body: dict[str, Any] = {
             "path": path,
@@ -322,10 +322,9 @@ class EagleV2Client:
         }
         if rating is not None:
             body["star"] = rating
-        if folder_id:
-            body["folderId"] = folder_id
-        # V1-only endpoint (V2 returns 404 "method not allowed").
-        data = self._post(self._V1 + "item/addFromPath", body)
+        if folder_ids:
+            body["folders"] = folder_ids
+        data = self._post(self._V2 + "item/add", body)
         return self._extract_id(data)
 
     def update_item(
@@ -335,6 +334,7 @@ class EagleV2Client:
         tags: Optional[list[str]] = None,
         rating: Optional[int] = None,
         annotation: Optional[str] = None,
+        folders: Optional[list[str]] = None,
     ) -> None:
         body: dict[str, Any] = {"id": item_id}
         if tags is not None:
@@ -343,7 +343,19 @@ class EagleV2Client:
             body["star"] = rating
         if annotation is not None:
             body["annotation"] = annotation
+        if folders is not None:
+            body["folders"] = folders
         self._post(self._V2 + "item/update", body)
+
+    def get_item_folders(self, item_id: str) -> list[str]:
+        """读取一个 Eagle item 当前所属的普通文件夹。"""
+        data = self._get(self._V2 + "item/get", {"id": item_id})
+        if isinstance(data, dict) and isinstance(data.get("data"), list):
+            rows = data["data"]
+            data = rows[0] if rows else {}
+        if not isinstance(data, dict):
+            return []
+        return [str(folder_id) for folder_id in data.get("folders") or []]
 
     def move_to_trash(self, item_ids: list[str]) -> None:
         # V1-only endpoint.
@@ -367,6 +379,50 @@ class EagleV2Client:
             body["parent"] = parent_id
         data = self._post(self._V2 + "folder/create", body)
         return self._extract_id(data)
+
+    def folder_list(self) -> list[dict[str, Optional[str]]]:
+        """以扁平的 ``id/name/parent`` 结构返回全部普通文件夹。"""
+        roots: list[dict] = []
+        offset = 0
+        limit = 1000
+        while True:
+            data = self._get(
+                self._V2 + "folder/get", {"offset": offset, "limit": limit}
+            )
+            if isinstance(data, dict) and isinstance(data.get("data"), list):
+                page = [row for row in data["data"] if isinstance(row, dict)]
+                total = int(data.get("total") or len(page))
+            elif isinstance(data, list):
+                page = [row for row in data if isinstance(row, dict)]
+                total = len(page)
+            else:
+                page = []
+                total = 0
+            roots.extend(page)
+            offset += len(page)
+            if not page or offset >= total:
+                break
+
+        flattened: list[dict[str, Optional[str]]] = []
+
+        def visit(folder: dict, parent_id: Optional[str]) -> None:
+            folder_id = str(folder.get("id") or "")
+            if not folder_id:
+                return
+            flattened.append(
+                {
+                    "id": folder_id,
+                    "name": str(folder.get("name") or ""),
+                    "parent": parent_id,
+                }
+            )
+            for child in folder.get("children") or []:
+                if isinstance(child, dict):
+                    visit(child, folder_id)
+
+        for root in roots:
+            visit(root, None)
+        return flattened
 
     def smart_folder_list(self) -> list[dict]:
         """Return the raw smart-folder list from Eagle V2."""
@@ -1072,18 +1128,21 @@ def _dedupe(seq: list[str]) -> list[str]:
 # avoids characters Eagle rejects in folder names (session-splitting spec Q14).
 SESSION_FOLDER_SEP = " · "
 
-# Warning emitted when an already-synced asset can't be moved into a folder
-# (Eagle's item/update has no folderId; session-splitting spec Q5=B).
-FOLDER_SKIP_WARNING = "item already synced; folder assignment skipped"
+PROJECT_FOLDER_PREFIX = "TripClipper · "
+SOURCE_FOLDER_BRANCH = "按原始目录"
+SESSION_FOLDER_BRANCH = "按拍摄批次"
+UNKNOWN_SESSION_FOLDER = "未识别批次"
 
 
 def session_folder_name(slug: str, session: Any) -> str:
-    """Human-readable Eagle folder name for one session (spec Q14).
+    """返回项目目录内的人类可读 Session 文件夹名。
 
-    ``{slug} · {session_id} · {started_at:%Y-%m-%d %H:%M}`` for timed sessions;
-    ``{slug} · session_00_unknown`` (no time) for the unknown bucket.
+    ``slug`` 保留在签名中以兼容既有调用方；项目名已由外层目录表达。
     """
-    parts = [slug, session.session_id]
+    del slug
+    if session.session_id == "session_00_unknown":
+        return UNKNOWN_SESSION_FOLDER
+    parts = [session.session_id]
     started_at = getattr(session, "started_at", None)
     if started_at is not None:
         # started_at is stored in UTC; show local wall-clock time.
@@ -1091,6 +1150,96 @@ def session_folder_name(slug: str, session: Any) -> str:
             started_at = started_at.astimezone()
         parts.append(started_at.strftime("%Y-%m-%d %H:%M"))
     return SESSION_FOLDER_SEP.join(parts)
+
+
+class ProjectFolderPlanner:
+    """幂等维护一个项目的原始目录视图和 Session 视图。"""
+
+    def __init__(self, client: EagleV2Client, project_slug: str) -> None:
+        self.client = client
+        self.project_root_name = f"{PROJECT_FOLDER_PREFIX}{project_slug}"
+        self._by_parent_and_name: dict[tuple[Optional[str], str], str] = {}
+        self._parent_by_id: dict[str, Optional[str]] = {}
+        for folder in client.folder_list():
+            folder_id = str(folder.get("id") or "")
+            name = str(folder.get("name") or "")
+            parent = folder.get("parent")
+            if folder_id and name:
+                self._by_parent_and_name.setdefault((parent, name), folder_id)
+                self._parent_by_id[folder_id] = parent
+
+        self.project_root_id = self._by_parent_and_name.get(
+            (None, self.project_root_name)
+        )
+        self.managed_folder_ids: set[str] = set()
+        if self.project_root_id:
+            self._refresh_managed_ids()
+
+    def _refresh_managed_ids(self) -> None:
+        root_id = self.project_root_id
+        if not root_id:
+            return
+        managed = {root_id}
+        changed = True
+        while changed:
+            changed = False
+            for folder_id, parent_id in self._parent_by_id.items():
+                if parent_id in managed and folder_id not in managed:
+                    managed.add(folder_id)
+                    changed = True
+        self.managed_folder_ids = managed
+
+    def _ensure_child(self, parent_id: Optional[str], name: str) -> str:
+        key = (parent_id, name)
+        existing = self._by_parent_and_name.get(key)
+        if existing:
+            return existing
+        folder_id = self.client.folder_create(name, parent_id=parent_id)
+        if not folder_id:
+            raise EagleClientError(stage="api/v2/folder/create")
+        self._by_parent_and_name[key] = folder_id
+        self._parent_by_id[folder_id] = parent_id
+        if parent_id is None and name == self.project_root_name:
+            self.project_root_id = folder_id
+        self._refresh_managed_ids()
+        return folder_id
+
+    def _ensure_project_root(self) -> str:
+        if self.project_root_id:
+            return self.project_root_id
+        return self._ensure_child(None, self.project_root_name)
+
+    def source_folder(self, relative_path: Optional[str]) -> str:
+        parent_id = self._ensure_child(
+            self._ensure_project_root(), SOURCE_FOLDER_BRANCH
+        )
+        normalised = (relative_path or "").replace("\\", "/")
+        directory_parts = PurePosixPath(normalised).parent.parts
+        for part in directory_parts:
+            if part not in {"", ".", ".."}:
+                parent_id = self._ensure_child(parent_id, part)
+        return parent_id
+
+    def session_folder(self, session: Any) -> str:
+        branch_id = self._ensure_child(
+            self._ensure_project_root(), SESSION_FOLDER_BRANCH
+        )
+        name = (
+            session_folder_name("", session)
+            if session is not None
+            else UNKNOWN_SESSION_FOLDER
+        )
+        return self._ensure_child(branch_id, name)
+
+    def reconcile_item_folders(
+        self, current_folder_ids: list[str], desired_managed_ids: list[str]
+    ) -> list[str]:
+        user_folder_ids = [
+            folder_id
+            for folder_id in current_folder_ids
+            if folder_id not in self.managed_folder_ids
+        ]
+        return _dedupe(user_folder_ids + desired_managed_ids)
 
 
 class EagleSyncRunner:
@@ -1161,13 +1310,16 @@ class EagleSyncRunner:
         aborted = False
         abort_reason: Optional[str] = None
 
-        # 6b. session folders (spec §4 / Q13 flat + Q14 naming). Old projects
-        #     with no sessions degrade to plain root-level adds.
+        # 6b. project folder tree. Folder creation remains lazy, so empty
+        #     source branches are never materialised in Eagle.
         cut_sessions = list(getattr(cut_index, "sessions", []) or [])
         sessions_by_id = {s.session_id: s for s in cut_sessions}
-        session_folders_enabled = bool(cut_sessions)
-        session_folder_id: dict[str, str] = {}
         folder_warnings: list[str] = []
+        folder_planner = (
+            ProjectFolderPlanner(self.client, self.mapper.project_slug)
+            if opts.apply
+            else None
+        )
 
         # 7. iterate assets
         for asset in assets:
@@ -1197,40 +1349,27 @@ class EagleSyncRunner:
                 totals["synced"] += 1
                 continue
 
-            # resolve session folder for the (new-item) apply path
-            folder_id: Optional[str] = None
-            if session_folders_enabled:
-                if asset.eagle_item_id:
-                    # Q5=B: item/update has no folderId; existing items stay put.
-                    folder_warnings.append(
-                        f"{asset.asset_id or asset.path or '?'}: {FOLDER_SKIP_WARNING}"
-                    )
-                elif asset.session_id and asset.session_id in sessions_by_id:
-                    folder_id = session_folder_id.get(asset.session_id)
-                    if folder_id is None:
-                        session = sessions_by_id[asset.session_id]
-                        try:
-                            folder_id = self.client.folder_create(
-                                session_folder_name(
-                                    self.mapper.project_slug, session
-                                )
-                            )
-                            session_folder_id[asset.session_id] = folder_id
-                        except (EagleClientError, EagleUnavailableError) as exc:
-                            folder_warnings.append(
-                                f"session {asset.session_id}: "
-                                f"folder_create failed: {exc}"
-                            )
-                            folder_id = None
-
             # apply path
             try:
+                assert folder_planner is not None
+                desired_managed_folders = [
+                    folder_planner.source_folder(asset.relative_path),
+                    folder_planner.session_folder(
+                        sessions_by_id.get(asset.session_id)
+                    ),
+                ]
                 if asset.eagle_item_id:
+                    current_folders = self.client.get_item_folders(
+                        asset.eagle_item_id
+                    )
                     self.client.update_item(
                         asset.eagle_item_id,
                         tags=plan.tags,
                         rating=plan.rating,
                         annotation=plan.annotation,
+                        folders=folder_planner.reconcile_item_folders(
+                            current_folders, desired_managed_folders
+                        ),
                     )
                 else:
                     new_id = self.client.add_from_path(
@@ -1239,7 +1378,7 @@ class EagleSyncRunner:
                         plan.tags,
                         plan.rating,
                         plan.annotation,
-                        folder_id=folder_id,
+                        folder_ids=desired_managed_folders,
                     )
                     asset.eagle_item_id = new_id
                 asset.eagle_sync_status = "synced"
@@ -1397,7 +1536,7 @@ __all__ = [
     "SyncPreconditionError",
     "EagleAbortError",
     "EagleSyncRunner",
+    "ProjectFolderPlanner",
     "session_folder_name",
     "SESSION_FOLDER_SEP",
-    "FOLDER_SKIP_WARNING",
 ]

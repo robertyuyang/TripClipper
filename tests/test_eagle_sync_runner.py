@@ -51,7 +51,11 @@ class Recorder:
         self.addfrompath_count = 0
         self.folder_create_count = 0
         self.folder_names: list[str] = []
-        self.addfrompath_folder_ids: list[str | None] = []
+        self.folder_create_bodies: list[dict] = []
+        self.folder_tree: list[dict] = []
+        self.addfrompath_folder_ids: list[list[str]] = []
+        self.item_folders: dict[str, list[str]] = {}
+        self.item_update_bodies: list[dict] = []
         self.smart_folder_list_payload: list[dict] = []
         self.smart_folder_create_calls: list[dict] = []
         self.smart_folder_update_calls: list[tuple[str, dict]] = []
@@ -77,10 +81,10 @@ class Recorder:
                     },
                 },
             )
-        if path.endswith("item/addFromPath"):
+        if path.endswith("item/add"):
             self.addfrompath_count += 1
             body = json.loads(request.content.decode("utf-8"))
-            self.addfrompath_folder_ids.append(body.get("folderId"))
+            self.addfrompath_folder_ids.append(body.get("folders", []))
             if self.connect_error_addfrompath:
                 raise httpx.ConnectError("refused", request=request)
             if self.addfrompath_count in self.fail_addfrompath_on:
@@ -93,11 +97,37 @@ class Recorder:
             self.folder_create_count += 1
             body = json.loads(request.content.decode("utf-8"))
             self.folder_names.append(body.get("name", ""))
+            self.folder_create_bodies.append(body)
             return httpx.Response(
                 200,
                 json={
                     "status": "success",
                     "data": {"id": f"folder-{self.folder_create_count}"},
+                },
+            )
+        if path.endswith("folder/get"):
+            return httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "data": {
+                        "data": self.folder_tree,
+                        "total": len(self.folder_tree),
+                        "offset": 0,
+                        "limit": 1000,
+                    },
+                },
+            )
+        if path.endswith("item/get"):
+            item_id = request.url.params.get("id", "")
+            return httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "data": {
+                        "id": item_id,
+                        "folders": self.item_folders.get(item_id, []),
+                    },
                 },
             )
         if path.endswith("smartFolder/get"):
@@ -119,6 +149,7 @@ class Recorder:
             self.smart_folder_update_calls.append((str(body.get("id") or ""), body))
             return httpx.Response(200, json={"status": "success", "data": None})
         if path.endswith("item/update"):
+            self.item_update_bodies.append(json.loads(request.content.decode("utf-8")))
             return httpx.Response(200, json={"status": "success", "data": None})
         if path.endswith("item/moveToTrash"):
             return httpx.Response(200, json={"status": "success", "data": None})
@@ -153,7 +184,7 @@ def test_dry_run_no_write() -> None:
     cut = _cut_index(assets)
     _, result = _runner(_make_client(rec), SyncOptions(apply=False)).run(cut)
 
-    assert not _called(rec, "item/addFromPath")
+    assert not _called(rec, "item/add")
     assert all(a.eagle_item_id is None for a in assets)
     assert result.totals["synced"] == 2
 
@@ -257,7 +288,7 @@ def test_apply_update_existing() -> None:
     _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
 
     assert _called(rec, "item/update")
-    assert not _called(rec, "item/addFromPath")
+    assert not _called(rec, "item/add")
 
 
 def test_skip_synced_flag() -> None:
@@ -287,7 +318,7 @@ def test_scanned_hard_abort() -> None:
         raise AssertionError("expected SyncPreconditionError")
     except SyncPreconditionError:
         pass
-    assert not _called(rec, "item/addFromPath")
+    assert not _called(rec, "item/add")
 
 
 def test_scanned_soft_skip() -> None:
@@ -348,8 +379,8 @@ def test_reset_moves_to_trash() -> None:
     ).run(cut)
 
     assert _called(rec, "item/moveToTrash")
-    # Item id was cleared then re-created via addFromPath.
-    assert _called(rec, "item/addFromPath")
+    # Item id was cleared then re-created via item/add.
+    assert _called(rec, "item/add")
     assert asset.eagle_item_id == "item-1"
 
 
@@ -383,7 +414,7 @@ def test_tag_group_failure_warning_only() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Session folders (session-splitting spec §4 / Q13 flat / Q14 naming)
+# Project folder tree: original source hierarchy + session hierarchy
 # ---------------------------------------------------------------------------
 
 _S1_START = datetime(2026, 6, 15, 9, 30, tzinfo=timezone.utc)
@@ -396,71 +427,129 @@ def _cut_with_sessions(assets: list[Asset], sessions: list[Session]) -> CutIndex
     )
 
 
-def test_session_folder_created_once_per_session_and_used() -> None:
+def test_new_items_share_source_and_session_folder_views() -> None:
     rec = Recorder()
     assets = [
-        _analyzed(asset_id="a1", session_id="session_01"),
-        _analyzed(asset_id="a2", session_id="session_01"),
-        _analyzed(asset_id="a3", session_id="session_02"),
+        _analyzed(
+            asset_id="a1",
+            relative_path="无人机/远景/a1.mp4",
+            session_id="session_01",
+        ),
+        _analyzed(
+            asset_id="a2",
+            relative_path="无人机/远景/a2.mp4",
+            session_id="session_01",
+        ),
     ]
     sessions = [
         Session(session_id="session_01", asset_ids=["a1", "a2"], started_at=_S1_START),
-        Session(session_id="session_02", asset_ids=["a3"], started_at=_S2_START),
     ]
     cut = _cut_with_sessions(assets, sessions)
     _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
 
-    # One folder per distinct session, created on first encounter.
-    assert rec.folder_create_count == 2
     _s1 = _S1_START.astimezone().strftime("%Y-%m-%d %H:%M")
-    _s2 = _S2_START.astimezone().strftime("%Y-%m-%d %H:%M")
     assert rec.folder_names == [
-        f"{SLUG} · session_01 · {_s1}",
-        f"{SLUG} · session_02 · {_s2}",
+        f"TripClipper · {SLUG}",
+        "按原始目录",
+        "无人机",
+        "远景",
+        "按拍摄批次",
+        f"session_01 · {_s1}",
     ]
-    # Two items in session_01 -> same folder; third -> the other folder.
-    assert rec.addfrompath_folder_ids == ["folder-1", "folder-1", "folder-2"]
+    assert rec.folder_create_bodies == [
+        {"name": f"TripClipper · {SLUG}"},
+        {"name": "按原始目录", "parent": "folder-1"},
+        {"name": "无人机", "parent": "folder-2"},
+        {"name": "远景", "parent": "folder-3"},
+        {"name": "按拍摄批次", "parent": "folder-1"},
+        {"name": f"session_01 · {_s1}", "parent": "folder-5"},
+    ]
+    # 两个展示位置指向同一 Eagle item，而不是导入两个副本。
+    assert rec.addfrompath_count == 2
+    assert rec.addfrompath_folder_ids == [
+        ["folder-4", "folder-6"],
+        ["folder-4", "folder-6"],
+    ]
 
 
-def test_no_sessions_degrades_to_flat_root() -> None:
+def test_missing_session_uses_unknown_bucket_and_root_file_uses_source_branch() -> None:
     rec = Recorder()
-    assets = [_analyzed(asset_id="a1"), _analyzed(asset_id="a2")]
-    cut = _cut_index(assets)  # sessions == []
+    assets = [_analyzed(asset_id="a1", relative_path="a.mp4")]
+    cut = _cut_index(assets)
     _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
 
-    assert rec.folder_create_count == 0
-    assert rec.addfrompath_folder_ids == [None, None]
+    assert rec.folder_names == [
+        f"TripClipper · {SLUG}",
+        "按原始目录",
+        "按拍摄批次",
+        "未识别批次",
+    ]
+    assert rec.addfrompath_folder_ids == [["folder-2", "folder-4"]]
 
 
-def test_existing_item_skips_folder_with_warning() -> None:
+def test_existing_item_reconciles_managed_folders_and_preserves_user_folders() -> None:
     rec = Recorder()
+    _s2 = _S2_START.astimezone().strftime("%Y-%m-%d %H:%M")
+    rec.folder_tree = [
+        {
+            "id": "managed-root",
+            "name": f"TripClipper · {SLUG}",
+            "children": [
+                {
+                    "id": "source-root",
+                    "name": "按原始目录",
+                    "children": [
+                        {"id": "old-source", "name": "旧目录", "children": []},
+                        {"id": "new-source", "name": "新目录", "children": []},
+                    ],
+                },
+                {
+                    "id": "session-root",
+                    "name": "按拍摄批次",
+                    "children": [
+                        {"id": "old-session", "name": "session_01", "children": []},
+                        {
+                            "id": "new-session",
+                            "name": f"session_02 · {_s2}",
+                            "children": [],
+                        },
+                    ],
+                },
+            ],
+        }
+    ]
+    rec.item_folders["existing-1"] = ["user-folder", "old-source", "old-session"]
     assets = [
-        _analyzed(asset_id="a1", session_id="session_01", eagle_item_id="existing-1"),
+        _analyzed(
+            asset_id="a1",
+            relative_path="新目录/a.mp4",
+            session_id="session_02",
+            eagle_item_id="existing-1",
+        ),
     ]
     sessions = [
-        Session(session_id="session_01", asset_ids=["a1"], started_at=_S1_START),
+        Session(session_id="session_02", asset_ids=["a1"], started_at=_S2_START),
     ]
     cut = _cut_with_sessions(assets, sessions)
-    _, result = _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
+    _runner(_make_client(rec), SyncOptions(apply=True)).run(cut)
 
-    # No folder created; item updated in place; warning recorded (Q5=B).
     assert rec.folder_create_count == 0
-    assert _called(rec, "item/update")
-    assert any("already synced" in w for w in result.folder_warnings)
+    assert rec.item_update_bodies[0]["folders"] == [
+        "user-folder",
+        "new-source",
+        "new-session",
+    ]
 
 
 def test_unknown_session_folder_has_no_time() -> None:
     session = Session(session_id="session_00_unknown", asset_ids=["a1"])
-    assert session_folder_name(SLUG, session) == f"{SLUG} · session_00_unknown"
+    assert session_folder_name(SLUG, session) == "未识别批次"
 
 
 def test_timed_session_folder_name_format() -> None:
     session = Session(session_id="session_01", asset_ids=["a1"], started_at=_S1_START)
     expected_time = _S1_START.astimezone().strftime("%Y-%m-%d %H:%M")
-    assert (
-        session_folder_name(SLUG, session)
-        == f"{SLUG} · session_01 · {expected_time}"
-    )
+    assert session_folder_name(SLUG, session) == f"session_01 · {expected_time}"
 
 
 def test_result_omits_smart_folders_when_none() -> None:

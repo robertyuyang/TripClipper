@@ -21,7 +21,7 @@ PRD 示例 JSON 还展示了"为雷同组创建子文件夹"的用法。grilling
 可选路径：
 
 - **路径 1 — 业务化 M6**：M6 内置一套"中文友好"tag 命名（建议删除/默认候选/...）和过滤策略（excluded 不同步 / 创建场景子 folder），按"用户视角的 Eagle 体验"组织。
-- **路径 2 — 通用字段映射层**：M6 仅做"cut_index 字段 → Eagle 写入维度（rating/tag/note）"的字面映射，不发明命名、不做业务过滤、不建 folder。所有"什么算应删""什么是默认候选"由上游字段值决定。
+- **路径 2 — 通用字段映射层**：M6 对业务字段仅做"cut_index 字段 → Eagle 写入维度（rating/tag/note）"的字面映射，不发明业务命名、不做业务过滤。目录归属只忠实呈现上游已有的 `relative_path` 与 `session_id`。
 - **路径 3 — 折中**：默认薄映射 + 提供少量内置语义快捷 tag（如 `建议删除`）作为便利层。
 
 ## 决策
@@ -31,14 +31,16 @@ PRD 示例 JSON 还展示了"为雷同组创建子文件夹"的用法。grilling
 具体形态：
 
 ### 一、范围与原则
-- M6 不发明字段、不创造 tag/folder 命名、不翻译枚举值
+- M6 不发明业务字段、不创造语义分类、不翻译枚举值
 - M6 不做业务过滤；同步范围 = 所有 `analysis_status == analyzed` 的素材（含 default_selected / alternate / excluded / needs_review 全部四档）
 - `analysis_status == scanned` 启动期阻断（提示先跑 analyze，可 `--skip-unanalyzed` 逃生）
 - `analysis_status == analysis_failed` 软放行（带 `tc:analysis_status:analysis_failed` tag + note 区块写失败原因）
 
 ### 二、Eagle 版本与布局
 - 仅支持 Eagle V2 Web API（≥ 4.0 Build 22），低版本启动期硬阻断
-- 不建 folder（flat 布局），项目维度依靠 tag `tc:project:{slug}` 区分
+- 普通文件夹采用双视图：`TripClipper · {slug}/按原始目录/...` 忠实复刻有素材的原始目录，`TripClipper · {slug}/按拍摄批次/...` 展示上游 Session；同一 item 同时属于两个分支，不复制文件
+- 二次同步只对账该项目根目录下的归属，移除失效的 TripClipper 归属并保留用户手工添加的项目外文件夹
+- 项目维度仍写入 tag `tc:project:{slug}`，供跨文件夹筛选和 Smart Folder 使用
 - 通过 V2 `tagGroup` API 自动维护字段分组：每个 cut_index 字段对应一个 tag group，例如 group `tc:edit_candidate_status` 包含 `tc:edit_candidate_status:default_selected` / `:alternate` / `:excluded` / `:needs_review` 四个 tag
 
 ### 二·补 Smart Folder as user-facing view layer
@@ -47,7 +49,7 @@ PRD 示例 JSON 还展示了"为雷同组创建子文件夹"的用法。grilling
 `sync-eagle --apply` 结束后自动维护一批 name 前缀 `TC · ` 的 Eagle
 Smart Folder，作为“用户友好视图层”。Smart Folder 是 Eagle 侧保存的查询规则，
 rule 全部由 `tc:*` tag 组合构成，本身不新造字段、不发明命名，也不是物理
-folder，因此不与 §一 flat 布局决策冲突。
+folder，不改变普通文件夹双视图的归档结构。
 
 这兑现了本 ADR 退出条件中的第二条：当用户反馈“打开 Eagle 后总要花时间筛 /
 配 smart folder 才能进入工作状态”时，用视图层增强补足体验，而不是把业务

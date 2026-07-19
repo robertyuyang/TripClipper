@@ -67,15 +67,23 @@ class FakeClient:
     def health_check(self):
         return {"library": "/tmp/lib.library", "tagsGroups": []}
 
-    def add_from_path(self, path, name, tags, rating, annotation, folder_id=None):
-        self.added.append((path, tags, rating, folder_id))
+    def add_from_path(self, path, name, tags, rating, annotation, folder_ids=None):
+        self.added.append((path, tags, rating, folder_ids))
         return "item_" + str(len(self.added))
+
+    def folder_list(self):
+        return []
 
     def folder_create(self, name, parent_id=None):
         self.folders_created.append(name)
         return "folder_" + str(len(self.folders_created))
 
-    def update_item(self, item_id, *, tags=None, rating=None, annotation=None):
+    def get_item_folders(self, item_id):
+        return []
+
+    def update_item(
+        self, item_id, *, tags=None, rating=None, annotation=None, folders=None
+    ):
         self.updated.append(item_id)
 
     def move_to_trash(self, item_ids):
@@ -105,10 +113,10 @@ class FakeClient:
 class FailingSecondAddClient(FakeClient):
     """add_from_path raises EagleClientError on the 2nd call."""
 
-    def add_from_path(self, path, name, tags, rating, annotation, folder_id=None):
-        self.added.append((path, tags, rating, folder_id))
+    def add_from_path(self, path, name, tags, rating, annotation, folder_ids=None):
+        self.added.append((path, tags, rating, folder_ids))
         if len(self.added) == 2:
-            raise EagleClientError(stage="item/addFromPath")
+            raise EagleClientError(stage="item/add")
         return "item_" + str(len(self.added))
 
 

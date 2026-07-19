@@ -79,8 +79,7 @@ def test_fetch_library_falls_back_to_library_field() -> None:
 def test_client_tolerates_old_base_url_with_api_v2_suffix() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         # Old configs used ``/api/v2/`` as base_url; we still need to end up
-        # calling the correct hybrid paths (``/api/v2/library/info``,
-        # ``/api/item/addFromPath``).
+        # calling the correct V2 library path.
         assert request.url.path.endswith("library/info")
         assert "/api/v2/" in request.url.path
         return httpx.Response(
@@ -135,7 +134,7 @@ def test_health_check_connection_refused() -> None:
 
 def test_add_from_path_returns_id() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path.endswith("item/addFromPath")
+        assert request.url.path.endswith("item/add")
         return httpx.Response(
             200, json={"status": "success", "data": {"id": "UUID-123"}}
         )
@@ -147,7 +146,7 @@ def test_add_from_path_returns_id() -> None:
     assert item_id == "UUID-123"
 
 
-def test_add_from_path_omits_folder_id_when_absent() -> None:
+def test_add_from_path_omits_folders_when_absent() -> None:
     captured: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -159,10 +158,10 @@ def test_add_from_path_omits_folder_id_when_absent() -> None:
     with _client(handler) as client:
         client.add_from_path("/x/a.mp4", "a.mp4", [], None, "")
 
-    assert "folderId" not in captured["body"]
+    assert "folders" not in captured["body"]
 
 
-def test_add_from_path_includes_folder_id_when_given() -> None:
+def test_add_from_path_includes_multiple_folders_when_given() -> None:
     captured: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -173,10 +172,15 @@ def test_add_from_path_includes_folder_id_when_given() -> None:
 
     with _client(handler) as client:
         client.add_from_path(
-            "/x/a.mp4", "a.mp4", [], None, "", folder_id="folder-123"
+            "/x/a.mp4",
+            "a.mp4",
+            [],
+            None,
+            "",
+            folder_ids=["source-folder", "session-folder"],
         )
 
-    assert captured["body"]["folderId"] == "folder-123"
+    assert captured["body"]["folders"] == ["source-folder", "session-folder"]
 
 
 def test_update_item_omits_none_fields() -> None:
@@ -195,6 +199,76 @@ def test_update_item_omits_none_fields() -> None:
     assert body["tags"] == ["a"]
     assert "star" not in body
     assert "annotation" not in body
+
+
+def test_update_item_replaces_folder_assignments_when_given() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"status": "success", "data": None})
+
+    with _client(handler) as client:
+        client.update_item(
+            "item-1", folders=["user-folder", "source-folder", "session-folder"]
+        )
+
+    assert captured["body"]["folders"] == [
+        "user-folder",
+        "source-folder",
+        "session-folder",
+    ]
+
+
+def test_get_item_folders_normalises_single_item() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("item/get")
+        assert request.url.params["id"] == "item-1"
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {"id": "item-1", "folders": ["f1", "f2"]},
+            },
+        )
+
+    with _client(handler) as client:
+        folders = client.get_item_folders("item-1")
+
+    assert folders == ["f1", "f2"]
+
+
+def test_folder_list_flattens_nested_tree() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("folder/get")
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {
+                    "data": [
+                        {
+                            "id": "root",
+                            "name": "TripClipper · demo",
+                            "children": [
+                                {"id": "child", "name": "按原始目录", "children": []}
+                            ],
+                        }
+                    ],
+                    "total": 1,
+                    "offset": 0,
+                    "limit": 1000,
+                },
+            },
+        )
+
+    with _client(handler) as client:
+        folders = client.folder_list()
+
+    assert folders == [
+        {"id": "root", "name": "TripClipper · demo", "parent": None},
+        {"id": "child", "name": "按原始目录", "parent": "root"},
+    ]
 
 
 def test_move_to_trash_batch() -> None:

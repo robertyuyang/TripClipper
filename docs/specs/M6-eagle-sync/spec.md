@@ -12,13 +12,13 @@ PRD §FR-9/§FR-10 要求 TripClipper 把分析结果同步到 Eagle，让用户
 Grilling 阶段对 M6 形态做了密集推敲，关键张力是：**M6 是"业务呈现层"还是"通用映射层"**？
 
 - 业务呈现层：M6 内置中文友好 tag 翻译（`tc:edit_candidate_status:excluded` → 「建议删除」）、按候选池状态过滤、按 shot_function 创建子 folder。这接近 PRD §FR-10 示例 JSON 的字面理解。
-- 通用映射层：M6 仅做"字段值 → Eagle 写入维度"的字面映射，由上游 cut_index 字段决定语义，不翻译、不过滤、不建 folder。
+- 通用映射层：M6 仅做"字段值 → Eagle 写入维度"的字面映射，由上游 cut_index 字段决定语义，不翻译、不过滤；普通文件夹仅呈现 `relative_path` 与 `session_id`。
 
 [ADR-004](../../adr/ADR-004-eagle-sync-as-thin-mapping-layer.md) 已拍板取**通用映射层**。本 spec 是该决策的工程兑现。
 
-PRD §FR-10 的 JSON 示例（`folders_to_create: ["项目/高光"]`）在本 spec 中**不被字面兑现**，按 ADR-004 的解读：示例为数据形状演示，验收文字仅要求"成功素材在 Eagle 中具备 ... 标签、星级、状态和备注"，本 spec 通过 tag + Eagle V2 tag group 的组合完整覆盖该验收口径，未实现 folder 维度。
+PRD §FR-10 的业务分类目录示例（`folders_to_create: ["项目/高光"]`）不被字面兑现；M6 不根据高光、删除建议等业务结论建普通文件夹。普通文件夹只用于无损呈现原始目录和 Session。
 
-> **后续扩展**：[session-splitting](../session-splitting/spec.md) 在本模块产出之上补齐了 folder 维度——按 `Asset.session_id` 一级平铺创建 Eagle folder 并归属素材（详见该 spec §Eagle 同步扩展）。本 spec 的 tag/rating/status 映射口径保持不变，folder 归属是叠加能力。
+> **目录扩展**：[session-splitting](../session-splitting/spec.md) 提供 Session 事实源。Eagle 在 `TripClipper · {slug}` 下维护 `按原始目录` 与 `按拍摄批次` 两个分支，同一 item 同时归属两处。
 
 ## What Changes
 
@@ -133,7 +133,7 @@ connection_failure_threshold: 5
     {
       "asset_id": "IMG_1078",
       "asset_path": "/abs/path/to/IMG_1078.MOV",
-      "stage": "addFromPath",
+      "stage": "item/add",
       "error": "Eagle returned 500: file not accessible",
       "retryable": true
     }
@@ -316,7 +316,7 @@ M6 SHALL NOT 在 mapping 之外发明 tag 命名、过滤素材、或建立 fold
 单条 asset 失败 SHALL NOT 阻断整体；连续 5 条网络层失败 SHALL 触发整体退出。
 
 #### Scenario: 单条失败继续
-- **WHEN** 第 N 条 asset 调用 `addFromPath` 返回业务层错误（如文件不可访问）
+- **WHEN** 第 N 条 asset 调用 `item/add` 返回业务层错误（如文件不可访问）
 - **THEN** 该 asset 的 `eagle_sync_status` SHALL 设为 `"failed"`
 - **AND** 失败原因 SHALL 记入 `eagle_apply_result.json` 的 `failures`
 - **AND** sync-eagle SHALL 继续处理第 N+1 条
@@ -363,8 +363,9 @@ note 内容 SHALL 由头部 + 区块组成，区块按固定顺序排列，空�
 PRD §FR-9 「Eagle 同步预览」和 §FR-10 「Eagle 同步执行」SHALL 按以下方式在 MVP 阶段兑现：
 
 - **预览能力（FR-9）**：由 `sync-eagle <slug> --dry-run`（默认）兑现：检查连通性 / 版本 / cut_index 校验 / 计算待同步素材计数与分类摘要，不写入 Eagle。
-- **写入能力（FR-10）**：由 `sync-eagle <slug> --apply` 兑现：通过 Eagle V2 Web API 写入 rating/tag/note，并自动维护 tag group 结构。
-- **PRD §FR-10 JSON 示例中的 `folders_to_create`** SHALL NOT 在本 MVP 阶段实现：M6 采用 flat layout，不建 folder（详见 [ADR-004](../../adr/ADR-004-eagle-sync-as-thin-mapping-layer.md)）。
+- **写入能力（FR-10）**：由 `sync-eagle <slug> --apply` 兑现：通过 Eagle V2 Web API 写入 rating/tag/note/folders，并自动维护 tag group 结构。
+- **普通文件夹** SHALL 在 `TripClipper · {slug}` 下维护 `按原始目录` 与 `按拍摄批次` 两个分支；只创建含实际导入素材的原始目录路径，缺少 Session 的素材进入 `未识别批次`。
+- **二次同步** SHALL 替换项目根目录下已经失效的归属，并保留用户添加的项目外文件夹归属。
 - **「中文友好 tag 命名」** SHALL NOT 在本 MVP 阶段实现：tag 命名严格 `tc:{field}:{value}` 格式，由 Eagle 客户端 smart folder 等能力承担用户友好视图（详见 [ADR-004](../../adr/ADR-004-eagle-sync-as-thin-mapping-layer.md)）。
 
 ## REMOVED Requirements
@@ -375,7 +376,7 @@ PRD §FR-9 「Eagle 同步预览」和 §FR-10 「Eagle 同步执行」SHALL 按
 
 - **M7 启动页与状态面板** SHALL 消费 `eagle_apply_result.json` 展示最近一次同步结果（成功/失败计数、待重试列表）。
 - **Eagle Smart Folder 预设**：M6 `--apply` 结束后自动维护一批 smart folder 作为“用户友好视图层”，不改 tag 命名与字段映射。详见 [eagle-smart-folders spec](../eagle-smart-folders/spec.md)。
-- **未来"sha1 去重"优化**（见 [todolist.md](../../todolist.md)）SHALL 在 `EagleV2Client` 中增加 `find_item_by_sha1` 方法，并在 `EagleSyncRunner` 的 `addFromPath` 之前增加去重短路。该改动向后兼容，不破坏现有 cut_index 与 eagle_apply_result schema。
+- **未来"sha1 去重"优化**（见 [todolist.md](../../todolist.md)）SHALL 在 `EagleV2Client` 中增加 `find_item_by_sha1` 方法，并在 `EagleSyncRunner` 的 `item/add` 之前增加去重短路。该改动向后兼容，不破坏现有 cut_index 与 eagle_apply_result schema。
 - **未来"中文友好命名"增强**（如确认有需要）SHALL 通过给 mapping yaml 加 `display_name` 字段 + 渲染器实现，不改动核心字段映射逻辑。
 
 ## 验收口径（人类可执行）

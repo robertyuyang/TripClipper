@@ -43,7 +43,7 @@ class RecordingBackend:
         self._next_id = 0
 
     def handler(self, request: httpx.Request) -> httpx.Response:
-        path = request.url.path  # e.g. /api/v2/item/addFromPath
+        path = request.url.path  # e.g. /api/v2/item/add
         body: dict = {}
         if request.content:
             try:
@@ -64,7 +64,26 @@ class RecordingBackend:
                     },
                 },
             )
-        if path.endswith("item/addFromPath"):
+        if path.endswith("folder/get"):
+            return httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "data": {"data": [], "total": 0, "offset": 0, "limit": 1000},
+                },
+            )
+        if path.endswith("folder/create"):
+            self._next_id += 1
+            return httpx.Response(
+                200,
+                json={"status": "success", "data": {"id": f"folder_{self._next_id}"}},
+            )
+        if path.endswith("item/get"):
+            return httpx.Response(
+                200,
+                json={"status": "success", "data": {"folders": []}},
+            )
+        if path.endswith("item/add"):
             self._next_id += 1
             return httpx.Response(
                 200,
@@ -110,7 +129,7 @@ def _make(apply: bool, **opt):
     Note: the on-disk cut_index may have ``eagle_item_id`` populated from a
     previous *real-Eagle* apply run (M6 task 15 acceptance). To keep this
     fixture-driven test deterministic, we always start from a
-    ``eagle_item_id=None`` state so the runner walks the addFromPath branch
+    ``eagle_item_id=None`` state so the runner walks the item/add branch
     for fresh items — real-machine idempotency is covered separately by
     :func:`test_reapply_updates_not_creates`.
     """
@@ -141,7 +160,7 @@ def _addfrompath_bodies(backend: RecordingBackend) -> list[dict]:
     return [
         body
         for _method, path, body in backend.calls
-        if path.endswith("item/addFromPath")
+        if path.endswith("item/add")
     ]
 
 
@@ -149,7 +168,7 @@ def test_dry_run_on_demo_scan():
     backend, _updated, result = _make(apply=False)
 
     # dry-run must never create items
-    assert not any(p.endswith("item/addFromPath") for _m, p, _b in backend.calls)
+    assert not any(p.endswith("item/add") for _m, p, _b in backend.calls)
 
     expected = _analyzed_count()
     assert expected == 9
@@ -172,7 +191,7 @@ def test_apply_on_demo_scan_writes_expected_tags():
     # ratings are present on demo-scan assets, so at least one body carries a
     # star, and it must be an int mirroring the asset rating.
     starred = [body for body in bodies if "star" in body]
-    assert starred, "expected at least one addFromPath body with a star"
+    assert starred, "expected at least one item/add body with a star"
     for body in starred:
         assert isinstance(body["star"], int)
 
@@ -200,7 +219,7 @@ def test_reapply_updates_not_creates():
 
     paths = [p for _m, p, _b in backend2.calls]
     assert any(p.endswith("item/update") for p in paths)
-    assert not any(p.endswith("item/addFromPath") for p in paths)
+    assert not any(p.endswith("item/add") for p in paths)
 
 
 def test_dry_run_does_not_touch_disk():
