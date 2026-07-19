@@ -171,16 +171,23 @@ def test_dry_run_on_demo_scan():
     assert not any(p.endswith("item/add") for _m, p, _b in backend.calls)
 
     expected = _analyzed_count()
-    assert expected == 9
+    assert expected == 12
     assert result.totals["synced"] == expected
-    assert result.totals["total"] == 9
+    assert result.totals["total"] == expected
 
 
 def test_apply_on_demo_scan_writes_expected_tags():
     backend, _updated, _result = _make(apply=True)
 
     bodies = _addfrompath_bodies(backend)
-    assert len(bodies) == 9
+    assert len(bodies) == _analyzed_count()
+
+    created_folder_names = {
+        body.get("name")
+        for _method, path, body in backend.calls
+        if path.endswith("folder/create")
+    }
+    assert {"Baymax-Phone", "mydji", "我的记录仪"} <= created_folder_names
 
     all_tags = [tag for body in bodies for tag in body.get("tags", [])]
     assert any("tc:project:demo-scan" in body.get("tags", []) for body in bodies)
