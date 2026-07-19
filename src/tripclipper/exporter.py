@@ -1106,7 +1106,9 @@ def _render_project_header(cut_index: CutIndex) -> str:
             stage = html.escape(getattr(f, "stage", "") or "")
             target = html.escape(getattr(f, "target", "") or "")
             reason = html.escape(getattr(f, "reason", "") or "")
-            items.append(f"<div>[{stage}] {target}: {reason}</div>")
+            occurred_at = html.escape(getattr(f, "occurred_at", "") or "")
+            time_prefix = f"[{occurred_at}] " if occurred_at else ""
+            items.append(f"<div>{time_prefix}[{stage}] {target}: {reason}</div>")
         failures_html = (
             '<div class="failures"><b>项目级 failures：</b>' + "".join(items) + "</div>"
         )

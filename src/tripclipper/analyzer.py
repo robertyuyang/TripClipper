@@ -125,6 +125,11 @@ def _top_directory(relative_path: Optional[str]) -> str:
     return head[0]
 
 
+def _clear_previous_project_failures(cut: CutIndex) -> None:
+    """清除上一次 analyze 写入的项目级失败，保留其他阶段记录。"""
+    cut.failures = [failure for failure in cut.failures if failure.stage != _ANALYZE_STAGE]
+
+
 def _largest_remainder_allocate(
     sizes: dict[str, int],
     quota: int,
@@ -284,6 +289,7 @@ def _analyze_asset_audio(
                 reason=reason,
                 suggestion="检查 ffmpeg、源文件音轨与缓存目录后重试",
                 blocking=False,
+                occurred_at=datetime.now(timezone.utc).isoformat(),
             ).model_dump()
         )
         return reason
@@ -340,6 +346,7 @@ def _analyze_asset_audio(
                 reason=reason,
                 suggestion="稍后重跑音频分析；已有画面和完整转写不会被覆盖",
                 blocking=False,
+                occurred_at=datetime.now(timezone.utc).isoformat(),
             ).model_dump()
         )
         return reason
@@ -484,6 +491,8 @@ def _run(
     analysis_config = software_config.analysis
     editing_intent: EditingIntent = project_config.editing_intent
 
+    _clear_previous_project_failures(cut)
+
     # ---------- 项目级 Provider 探测 ----------
     try:
         Provider(llm_config, editing_intent)
@@ -501,6 +510,7 @@ def _run(
                     "vision_model / audio_analysis_model 完整"
                 ),
                 blocking=True,
+                occurred_at=datetime.now(timezone.utc).isoformat(),
             )
         )
         write_cut_index(index_path, cut)
@@ -607,6 +617,7 @@ def _run(
                         reason=reason,
                         suggestion=suggestion,
                         blocking=True,
+                        occurred_at=datetime.now(timezone.utc).isoformat(),
                     ).model_dump()
                 )
                 errors_for_asset.append(reason)
@@ -620,6 +631,7 @@ def _run(
                         reason=reason,
                         suggestion="请检查日志与 cut_index.json 后重跑",
                         blocking=True,
+                        occurred_at=datetime.now(timezone.utc).isoformat(),
                     ).model_dump()
                 )
                 errors_for_asset.append(reason)
@@ -692,6 +704,7 @@ def _run(
                                         asset.analysis_status
                                         == AnalysisStatus.analysis_failed
                                     ),
+                                    occurred_at=datetime.now(timezone.utc).isoformat(),
                                 )
                             )
                     # Q12：每完成 _PERSIST_EVERY 个素材增量落盘一次。

@@ -606,6 +606,7 @@ def scan_project(
                         reason=f"媒体信息探测失败：{exc}",
                         suggestion="确认该文件为完整有效的媒体文件后重试",
                         blocking=False,
+                        occurred_at=datetime.now(timezone.utc).isoformat(),
                     ).model_dump()
                 )
 
@@ -625,6 +626,7 @@ def scan_project(
                         reason=f"缩略图/关键帧抽取失败：{exc}",
                         suggestion="确认该文件为完整有效的视频文件后重试",
                         blocking=False,
+                        occurred_at=datetime.now(timezone.utc).isoformat(),
                     ).model_dump()
                 )
 

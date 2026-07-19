@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from pydantic import ValidationError
 
@@ -11,6 +13,7 @@ from tripclipper.models import (
     AssetType,
     ClipSuggestion,
     CutIndex,
+    Failure,
     PeoplePresence,
     ProjectInfo,
     Session,
@@ -21,6 +24,20 @@ from tripclipper.models import (
 
 def test_schema_version_is_0_4() -> None:
     assert SCHEMA_VERSION == "0.4"
+
+
+def test_failure_records_explicit_occurrence_time() -> None:
+    occurred_at = "2026-07-19T08:30:12.123456+00:00"
+    failure = Failure(stage="analyze", occurred_at=occurred_at)
+
+    assert failure.occurred_at == occurred_at
+    assert datetime.fromisoformat(failure.occurred_at).tzinfo is not None
+
+
+def test_failure_without_occurrence_time_remains_backward_compatible() -> None:
+    failure = Failure.model_validate({"stage": "analyze", "reason": "旧失败"})
+
+    assert failure.occurred_at is None
 
 
 def test_construct_asset_with_valid_enums() -> None:

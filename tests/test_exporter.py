@@ -347,6 +347,23 @@ def test_render_project_header_lists_project_failures() -> None:
     assert "ffprobe missing" in html
 
 
+def test_render_project_header_shows_failure_occurrence_time_when_present() -> None:
+    ci = _make_cut_index(
+        failures=[
+            Failure(
+                stage="analyze",
+                target="demo",
+                reason="模型不可用",
+                occurred_at="2026-07-19T08:30:12+00:00",
+            )
+        ]
+    )
+
+    html = _render_project_header(ci)
+
+    assert "2026-07-19T08:30:12+00:00" in html
+
+
 def test_render_project_header_includes_overview_section() -> None:
     # Task 3：_render_project_header 在 <dl> 之后拼入 _render_overview_section 的输出。
     ci = _make_cut_index(

@@ -17,13 +17,21 @@ from pathlib import Path
 
 from tripclipper.analyzer import (
     _classify_reason,
+    _clear_previous_project_failures,
     _should_process,
     _stratified_sample,
     _summarize_errors,
     _top_directory,
 )
 from tripclipper.logs import AnalyzeLogger
-from tripclipper.models import AnalysisStatus, Asset, AssetType
+from tripclipper.models import (
+    AnalysisStatus,
+    Asset,
+    AssetType,
+    CutIndex,
+    Failure,
+    ProjectInfo,
+)
 from tripclipper.progress import PeriodicProgressReporter
 
 
@@ -146,6 +154,22 @@ def test_stratified_sample_different_seed_yields_different_pick():
 # ---------------------------------------------------------------------------
 # SubTask 7.4：_should_process 跳过判定（纯函数版，不调 Provider.analyze）
 # ---------------------------------------------------------------------------
+
+
+def test_analyze_rerun_clears_only_previous_analyze_project_failures():
+    cut = CutIndex(
+        project=ProjectInfo(project_slug="demo"),
+        failures=[
+            Failure(stage="analyze", target="demo", reason="旧分析失败"),
+            Failure(stage="cluster", target="group-1", reason="旧聚类失败"),
+        ],
+    )
+
+    _clear_previous_project_failures(cut)
+
+    assert [(failure.stage, failure.reason) for failure in cut.failures] == [
+        ("cluster", "旧聚类失败")
+    ]
 
 
 def test_should_process_force_processes_all():

@@ -213,6 +213,7 @@ def cluster(slug: str, *, base_dir: Optional[_PathLike] = None) -> ClusterResult
                     "vision_model 完整"
                 ),
                 blocking=True,
+                occurred_at=datetime.now(timezone.utc).isoformat(),
             )
         )
         write_cut_index(index_path, cut)
@@ -322,6 +323,7 @@ def cluster(slug: str, *, base_dir: Optional[_PathLike] = None) -> ClusterResult
                     reason=reason,
                     suggestion=suggestion,
                     blocking=False,
+                    occurred_at=datetime.now(timezone.utc).isoformat(),
                 )
             )
 

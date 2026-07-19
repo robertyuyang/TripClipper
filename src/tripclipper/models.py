@@ -267,6 +267,7 @@ class Failure(BaseModel):
     reason: Optional[str] = None
     suggestion: Optional[str] = None
     blocking: bool = False
+    occurred_at: Optional[str] = None
 
 
 class WarningItem(BaseModel):
