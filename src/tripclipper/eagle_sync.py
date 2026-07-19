@@ -34,6 +34,7 @@ The module is organised as four layers:
 from __future__ import annotations
 
 import dataclasses
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -45,7 +46,7 @@ import yaml
 from pydantic import ValidationError
 
 from .config import ConfigError
-from .models import TranscriptDocument
+from .models import AnalysisStatus, AssetType, TranscriptDocument
 from .paths import eagle_mapping_default_template_path
 
 # ---------------------------------------------------------------------------
@@ -57,6 +58,54 @@ _VALID_SMART_FOLDER_ICON_COLORS = frozenset(
     {"red", "orange", "yellow", "green", "aqua", "blue", "purple", "pink"}
 )
 _VALID_SMART_FOLDER_MATCH = frozenset({"AND", "OR"})
+_UNSAFE_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
+_EAGLE_ITEM_NAME_MAX_UTF8_BYTES = 240
+
+
+def _safe_title(title: str) -> str:
+    cleaned = _UNSAFE_FILENAME_CHARS.sub("-", title.strip())
+    cleaned = re.sub(r"-+", "-", cleaned)
+    return cleaned.strip(" .-")
+
+
+def _truncate_utf8(text: str, max_bytes: int) -> str:
+    if len(text.encode("utf-8")) <= max_bytes:
+        return text
+    return text.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+
+
+def eagle_item_name(asset: Any) -> str:
+    """返回素材首次导入 Eagle 时使用的名称。"""
+    filename = (
+        getattr(asset, "filename", None)
+        or (Path(asset.path).name if getattr(asset, "path", None) else None)
+        or getattr(asset, "asset_id", None)
+        or "unknown"
+    )
+    if getattr(asset, "type", None) != AssetType.video:
+        return filename
+
+    status = getattr(asset, "analysis_status", None)
+    if status == AnalysisStatus.scanned:
+        title = "未分析"
+    elif status == AnalysisStatus.analysis_failed:
+        title = "分析失败"
+    else:
+        title = getattr(asset, "content_title", None)
+    if not title:
+        return filename
+
+    suffix = Path(filename).suffix
+    stem = filename[: -len(suffix)] if suffix else filename
+    title = _safe_title(title)
+    if not title:
+        return filename
+    fixed_bytes = len(f"{stem}__{suffix}".encode("utf-8"))
+    available = _EAGLE_ITEM_NAME_MAX_UTF8_BYTES - fixed_bytes
+    if available <= 0:
+        return filename
+    title = _truncate_utf8(title, available).rstrip(" .-")
+    return f"{stem}__{title}{suffix}" if title else filename
 
 
 @dataclass
@@ -917,12 +966,7 @@ class AssetMapper:
         annotation = header + ("\n\n" + "\n\n".join(parts) if parts else "")
 
         # 5. item name
-        item_name = (
-            getattr(asset, "filename", None)
-            or (Path(asset.path).name if getattr(asset, "path", None) else None)
-            or getattr(asset, "asset_id", None)
-            or "unknown"
-        )
+        item_name = eagle_item_name(asset)
 
         # 6. source path
         source_path = getattr(asset, "path", None) or ""

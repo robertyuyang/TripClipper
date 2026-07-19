@@ -182,6 +182,7 @@ class Asset(BaseModel):
     speech_quality: Optional[SpeechQuality] = None
     analysis_status: AnalysisStatus = AnalysisStatus.scanned
     scene: Optional[str] = None
+    content_title: Optional[str] = None
     summary: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     rating: Optional[int] = None

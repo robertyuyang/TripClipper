@@ -67,6 +67,9 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一名严谨的旅拍素材剪辑助理，负
    - 禁止输出多个 JSON 对象或 JSON 数组顶层包裹。
 
 2. JSON 对象必须包含以下字段：
+   - `content_title`：仅视频素材填写中文内容短标题，客观描述可见的“主体 + 动作 + 场景”，
+     不加入“高光、推荐、氛围感、近景”等评价或镜头标签；表达简洁但不设固定字数。
+     图片和音频素材输出空字符串 `""`。
    - `summary`：中文一段话，1-3 句，概括画面内容与可用作。
    - `tags`：中文字符串数组，3-8 个标签，覆盖主体、动作、氛围、地点等关键词。
    - `rating`：整数 1-5，5 为最高，依据画面质量、构图、叙事价值打分。
@@ -88,7 +91,7 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一名严谨的旅拍素材剪辑助理，负
      * `tags`：中文字符串数组，3-6 个，描述该片段独有的关键词。
      若整段素材没有值得抽取的高光片段（废片 / 过场），输出 `"clip_suggestions": []` 即可。
 
-3. 中文强制：`summary`、`tags`、`primary_subject`、`audio_strategy` 以及
+3. 中文强制：`content_title`、`summary`、`tags`、`primary_subject`、`audio_strategy` 以及
    `clip_suggestions` 内的 `role`/`reason`/`audio_strategy`/`tags` 一律使用中文。
    枚举值保持英文标识符不变。
 
@@ -148,6 +151,7 @@ class AnalysisResult:
     least one invalid entry.
     """
 
+    content_title: Optional[str] = None
     summary: Optional[str] = None
     tags: list[str] = field(default_factory=list)
     rating: Optional[int] = None
@@ -734,6 +738,13 @@ def _parse_response(text: str, *, duration: Optional[float] = None) -> AnalysisR
             transient=False,
         )
 
+    content_title = payload.get("content_title")
+    content_title = (
+        content_title
+        if isinstance(content_title, str) and content_title
+        else None
+    )
+
     summary = payload.get("summary")
     summary = summary if isinstance(summary, str) and summary else None
 
@@ -768,6 +779,7 @@ def _parse_response(text: str, *, duration: Optional[float] = None) -> AnalysisR
     )
 
     return AnalysisResult(
+        content_title=content_title,
         summary=summary,
         tags=tags,
         rating=rating,
@@ -834,6 +846,7 @@ def apply_analysis(asset: Asset, result: AnalysisResult) -> Asset:
     N suggestions but K were discarded due to invalid timecodes" without
     failing the asset.
     """
+    asset.content_title = result.content_title
     asset.summary = result.summary
     asset.tags = list(result.tags)
     asset.rating = result.rating

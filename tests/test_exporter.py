@@ -206,6 +206,7 @@ def test_asset_to_row_contains_data_attrs_and_escapes(tmp_path: Path, monkeypatc
         filename="weird<name>.mp4",
         relative_path="weird<name>.mp4",
         type=AssetType.video,
+        content_title="女孩在海边奔跑",
         analysis_status=AnalysisStatus.analyzed,
         summary="hello",
         tags=["a", "b"],
@@ -237,6 +238,8 @@ def test_asset_to_row_contains_data_attrs_and_escapes(tmp_path: Path, monkeypatc
     # filename escaped
     assert "weird&lt;name&gt;.mp4" in html
     assert "<weird>" not in html  # raw not present
+    assert "Eagle 目标名" in html
+    assert "weird&lt;name&gt;__女孩在海边奔跑.mp4" in html
 
     # M4 placeholders gone (no group / no candidate status on this asset)
     assert "（待 M4）" not in html

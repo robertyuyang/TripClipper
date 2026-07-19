@@ -21,6 +21,7 @@ import pytest
 
 from tripclipper.config import EditingIntent
 from tripclipper.models import (
+    AnalysisStatus,
     Asset,
     AssetType,
     PeoplePresence,
@@ -38,6 +39,7 @@ from tripclipper.provider import (
     _parse_response,
     _parse_timecode,
     _should_retry,
+    apply_analysis,
 )
 
 
@@ -48,6 +50,7 @@ from tripclipper.provider import (
 
 def _valid_payload() -> dict:
     return {
+        "content_title": "无人机俯瞰雪山",
         "summary": "无人机俯瞰雪山的开场镜头",
         "tags": ["雪山", "航拍", "开场"],
         "rating": 4,
@@ -76,6 +79,7 @@ def _valid_payload() -> dict:
 def test_parse_response_happy_path():
     result = _parse_response(json.dumps(_valid_payload(), ensure_ascii=False), duration=10.0)
     assert isinstance(result, AnalysisResult)
+    assert result.content_title == "无人机俯瞰雪山"
     assert result.summary == "无人机俯瞰雪山的开场镜头"
     assert result.tags == ["雪山", "航拍", "开场"]
     assert result.rating == 4
@@ -94,6 +98,16 @@ def test_parse_response_happy_path():
     assert seg.shot_scale == ShotScale.extreme_wide
     assert seg.rating == 4
     assert seg.tags == ["雪山", "航拍"]
+
+
+def test_apply_analysis_writes_content_title_to_asset():
+    asset = Asset(type=AssetType.video)
+    result = AnalysisResult(content_title="女孩在海边追着风筝奔跑")
+
+    apply_analysis(asset, result)
+
+    assert asset.content_title == "女孩在海边追着风筝奔跑"
+    assert asset.analysis_status == AnalysisStatus.analyzed
 
 
 def test_parse_response_strips_json_code_fence():

@@ -12,6 +12,7 @@ TripClipper 是一个本地优先的 Python 工具，用来扫描素材目录、
 - 聚类
 - 导出 review 页面
 - `sync-eagle` 同步到 Eagle
+- 为视频生成中文内容短标题，并在首次导入 Eagle 时保留原文件名追加内容描述
 
 本地 FastAPI 页面 `serve` 目前仍是占位实现。
 
@@ -139,6 +140,12 @@ tripclipper export <slug> --cut-index-only
 ```
 
 ### 6. 同步到 Eagle
+
+视频分析成功后，首次导入 Eagle 的名称采用
+`原文件名主干__中文内容短标题.原扩展名`，例如
+`DJI_0001__海边日落下两人并肩散步.MP4`。源文件不会被重命名，
+`review.html` 会只读展示 Eagle 目标名。已经同步的 Eagle item 不会在后续同步时改名；
+如需用新名称重建，使用 `--reset`。
 
 ```bash
 # 只预览，不写入

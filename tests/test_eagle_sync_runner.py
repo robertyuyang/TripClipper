@@ -16,6 +16,7 @@ from tripclipper.eagle_sync import (
     SmartFolderWarning,
     SyncOptions,
     SyncPreconditionError,
+    eagle_item_name,
     load_mapping_config,
     session_folder_name,
 )
@@ -166,6 +167,87 @@ def test_apply_full_success() -> None:
     assert rec.addfrompath_count == 3
     assert all(a.eagle_sync_status == "synced" for a in assets)
     assert result.totals["synced"] == 3
+
+
+def test_mapper_uses_descriptive_name_only_for_analyzed_video() -> None:
+    mapper = _runner(_make_client(Recorder()), SyncOptions(apply=False)).mapper
+    video = _analyzed(
+        filename="DJI_20260612134026_0001_D.MP4",
+        path="/x/DJI_20260612134026_0001_D.MP4",
+        type="video",
+        content_title="海边日落下两人并肩散步",
+    )
+    image = _analyzed(
+        filename="IMG_0001.JPG",
+        path="/x/IMG_0001.JPG",
+        type="image",
+        content_title="海边日落",
+    )
+
+    assert (
+        mapper.plan(video).item_name
+        == "DJI_20260612134026_0001_D__海边日落下两人并肩散步.MP4"
+    )
+    assert mapper.plan(image).item_name == "IMG_0001.JPG"
+
+
+def test_mapper_does_not_turn_content_title_into_unique_tag() -> None:
+    mapper = _runner(_make_client(Recorder()), SyncOptions(apply=False)).mapper
+    asset = _analyzed(
+        filename="clip.mp4",
+        type="video",
+        content_title="海边两人散步",
+    )
+
+    plan = mapper.plan(asset)
+
+    assert not any(tag.startswith("tc:content_title:") for tag in plan.tags)
+
+
+def test_eagle_item_name_cleans_unsafe_title_characters() -> None:
+    asset = _analyzed(
+        filename="clip.MP4",
+        type="video",
+        content_title="  女孩/海边:奔跑?\n  ",
+    )
+
+    assert eagle_item_name(asset) == "clip__女孩-海边-奔跑.MP4"
+
+
+def test_eagle_item_name_marks_unanalyzed_and_failed_video() -> None:
+    scanned = _analyzed(
+        filename="clip.mp4",
+        type="video",
+        analysis_status=AnalysisStatus.scanned,
+    )
+    failed = _analyzed(
+        filename="clip.mp4",
+        type="video",
+        analysis_status=AnalysisStatus.analysis_failed,
+    )
+
+    assert eagle_item_name(scanned) == "clip__未分析.mp4"
+    assert eagle_item_name(failed) == "clip__分析失败.mp4"
+
+
+def test_eagle_item_name_keeps_old_analyzed_video_name_without_title() -> None:
+    asset = _analyzed(filename="clip.mp4", type="video")
+
+    assert eagle_item_name(asset) == "clip.mp4"
+
+
+def test_eagle_item_name_truncates_only_title_to_safe_utf8_length() -> None:
+    asset = _analyzed(
+        filename="DJI_0001.MP4",
+        type="video",
+        content_title="海" * 200,
+    )
+
+    name = eagle_item_name(asset)
+
+    assert len(name.encode("utf-8")) <= 240
+    assert name.startswith("DJI_0001__")
+    assert name.endswith(".MP4")
 
 
 def test_apply_update_existing() -> None:

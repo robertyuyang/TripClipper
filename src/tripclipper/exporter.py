@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Optional
 
 from .cut_index import read_cut_index
+from .eagle_sync import eagle_item_name
 from .models import (
     AnalysisStatus,
     Asset,
@@ -782,6 +783,14 @@ def _asset_to_row(
 
     rating_value = "" if asset.rating is None else str(asset.rating)
     filename = asset.filename or asset.relative_path or asset.path or ""
+    target_filename = eagle_item_name(asset)
+    filename_html = html.escape(filename)
+    if target_filename != filename:
+        escaped_target = html.escape(target_filename)
+        filename_html += (
+            f'<span class="eagle-target-name" title="{escaped_target}">'
+            f"Eagle 目标名：{escaped_target}</span>"
+        )
     media_info_html = _format_media_info(asset)
 
     thumb_uris = _thumbnail_uris(asset)
@@ -821,6 +830,7 @@ def _asset_to_row(
         [
             (asset.filename or ""),
             (asset.relative_path or ""),
+            target_filename,
             (asset.summary or ""),
             ", ".join(asset.tags or []),
         ]
@@ -854,7 +864,7 @@ def _asset_to_row(
         f' data-speech-quality="{html.escape(speech_quality)}"'
         f' data-search="{html.escape(search_blob)}">'
         f'<td class="thumb-cell">{thumb_html}</td>'
-        f'<td class="filename-cell" title="{html.escape(filename)}">{html.escape(filename)}</td>'
+        f'<td class="filename-cell" title="{html.escape(filename)}">{filename_html}</td>'
         f'<td class="media-cell">{media_info_html}</td>'
         f'<td>{rating_html}</td>'
         f'<td>{subject_cell}</td>'
