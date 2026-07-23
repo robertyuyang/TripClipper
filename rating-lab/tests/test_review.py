@@ -120,3 +120,51 @@ def test_write_manual_review_html_is_blind_and_escapes_paths(tmp_path: Path) -> 
     assert "expected_rating" in rendered
     with pytest.raises(FileExistsError):
         write_manual_review_html(path, manifest, "/素材")
+
+
+def _read_prompt(name: str) -> str:
+    return (Path(__file__).parents[1] / "prompts" / name).read_text(
+        encoding="utf-8"
+    )
+
+
+def test_v5_prompts_share_non_negotiable_contract() -> None:
+    prompts = [
+        _read_prompt("single-highlight-v5-balanced.txt"),
+        _read_prompt("single-highlight-v5-conservative.txt"),
+        _read_prompt("single-highlight-v5-recall.txt"),
+    ]
+
+    for prompt in prompts:
+        assert "素材总评分必须等于最佳片段的评分" in prompt
+        assert "主体显著性" in prompt
+        assert "持续且非叙事性的倾斜" in prompt
+        assert "横竖方向本身不决定评分" in prompt
+        assert "趣味动作" in prompt
+        assert "少见运镜" in prompt
+        assert "不得编造" in prompt
+
+
+def test_v5_balanced_encodes_default_thresholds() -> None:
+    prompt = _read_prompt("single-highlight-v5-balanced.txt")
+
+    assert "实验室默认候选" in prompt
+    assert "主体过小、处于边缘或构图意图不清时，最高 3 星" in prompt
+    assert "内容意义不明、只能给出泛化用途时，最高 2 星" in prompt
+    assert "一个足够强且清楚可见的证据" in prompt
+
+
+def test_v5_conservative_requires_multiple_high_rating_evidence() -> None:
+    prompt = _read_prompt("single-highlight-v5-conservative.txt")
+
+    assert "至少两项相互独立的可见证据" in prompt
+    assert "只有一个普通正向证据时，最高 3 星" in prompt
+    assert "优先降低高分误判" in prompt
+
+
+def test_v5_recall_accepts_one_strong_visible_highlight() -> None:
+    prompt = _read_prompt("single-highlight-v5-recall.txt")
+
+    assert "一个足够强且清楚可见的趣味细节" in prompt
+    assert "局部高光不因占素材比例小而降级" in prompt
+    assert "不放宽事实依据和时间范围要求" in prompt
