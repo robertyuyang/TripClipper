@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "dataset_id": "development-v1",
+  "sample_count": 45,
+  "sources": [
+    {
+      "project_slug": "26shidu",
+      "cut_index": "projects/26shidu/cut_index.json",
+      "role": "read-only-source"
+    }
+  ],
+  "batches": [
+    {
+      "batch": "initial-30",
+      "manifest": "batches/initial-30/manifest.json",
+      "sample_count": 30
+    },
+    {
+      "batch": "extension-15",
+      "manifest": "batches/extension-15/manifest.json",
+      "sample_count": 15
+    }
+  ],
+  "assets": [
+    {
+      "asset_id": "asset_4fcc6d22fe1d",
+      "relative_path": "Action6/DJI_20260613111904_0083_D.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_5632cd93ba0d",
+      "relative_path": "Action6/DJI_20260612134026_0001_D.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_1d7faf8ae47d",
+      "relative_path": "Robert-iPhone/IMG_4293.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_399e110ef06d",
+      "relative_path": "Robert-iPhone/IMG_4328.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_19c90ef73031",
+      "relative_path": "jixin-Nano/dji_mimo_20260612_161722_20260612161723_1781257158009_video.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_de4c87c97932",
+      "relative_path": "Action6/DJI_20260613144503_0109_D.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_9aecc49cacb4",
+      "relative_path": "Robert-iPhone/IMG_4343.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_73db1344d9d0",
+      "relative_path": "Robert-iPhone/IMG_4281.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_50fc29c93238",
+      "relative_path": "Robert-iPhone/IMG_4291.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_f47b58e38c53",
+      "relative_path": "Action6/DJI_20260613102503_0054_D.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_36065cea16d5",
+      "relative_path": "Action6/DJI_20260613143925_0104_D.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_588339a6dd99",
+      "relative_path": "Robert-iPhone/IMG_4289.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_6ad9a06742ae",
+      "relative_path": "Robert-iPhone/IMG_4307.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_f9b03c8bf769",
+      "relative_path": "jixin-Nano/dji_mimo_20260613_102348_20260613102348_1781320061900_video.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_1c5fed861a8e",
+      "relative_path": "Action6/DJI_20260613145058_0115_D.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_377fc3f9400a",
+      "relative_path": "Robert-iPhone/IMG_4347.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_35c7b26bc726",
+      "relative_path": "Robert-iPhone/IMG_4278.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_3c58cc80f7b5",
+      "relative_path": "QiWei-Action/dji_mimo_20230108_014246_20230107174246_1783443331727_video(1).mp4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_49ba9c5ba398",
+      "relative_path": "Robert-iPhone/IMG_4283.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_19c9d3250a4a",
+      "relative_path": "Baymax-Phone/448c94fb03a77fe3591be85d5d9bcb6d_raw.mp4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_db7ca8e21e85",
+      "relative_path": "Robert-iPhone/copy_8D60C065-B0E7-4821-964F-D77B058248C6.mov",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_7d780ff509fe",
+      "relative_path": "Robert-iPhone/IMG_4288.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_0536b39c93fa",
+      "relative_path": "Action6/DJI_20260613112538_0090_D.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_8e9bddf980e5",
+      "relative_path": "jixin-Nano/dji_mimo_20260613_103226_20260613103227_1781320043386_video.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_b9d7cb9dd0a1",
+      "relative_path": "Robert-iPhone/IMG_4338.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_2dc71a50d977",
+      "relative_path": "Robert-iPhone/IMG_4345.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_c054fc048448",
+      "relative_path": "Robert-iPhone/IMG_4301.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_3dbefc668b8b",
+      "relative_path": "jixin-Nano/dji_mimo_20260612_153416_20260612153417_1781257191686_video.MP4",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_7a799c8168cd",
+      "relative_path": "Robert-iPhone/IMG_4292.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_164c5788ff39",
+      "relative_path": "Robert-iPhone/IMG_4308.MOV",
+      "batch": "initial-30"
+    },
+    {
+      "asset_id": "asset_96340366d4ce",
+      "relative_path": "Action6/DJI_20260613111512_0076_D.MP4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_0b644710c4ca",
+      "relative_path": "Action6/DJI_20260612161515_0038_D.MP4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_3056452450fb",
+      "relative_path": "Robert-iPhone/IMG_4333.MOV",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_6db010837f51",
+      "relative_path": "Robert-iPhone/IMG_4346.MOV",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_030e3aca65aa",
+      "relative_path": "Action6/DJI_20260613111723_0079_D.MP4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_88844cf7f24f",
+      "relative_path": "Robert-iPhone/IMG_4282.MOV",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_158895b72f22",
+      "relative_path": "Action6/DJI_20260613142807_0099_D.MP4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_08c943eb9686",
+      "relative_path": "Baymax-Phone/aeba74158f1c4d091f0b02cda1f2ea0a_raw.mp4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_953859dca426",
+      "relative_path": "Action6/DJI_20260613111546_0077_D.MP4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_9c300cf78fc5",
+      "relative_path": "Action6/DJI_20260612161430_0037_D.MP4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_45ba04150e7e",
+      "relative_path": "Robert-iPhone/IMG_4330.MOV",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_a638791ae696",
+      "relative_path": "jixin-Nano/dji_mimo_20260612_162052_20260612162052_1781257151129_video.MP4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_5b691e6d1dbf",
+      "relative_path": "Robert-iPhone/IMG_4344.MOV",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_9196effa5897",
+      "relative_path": "Action6/DJI_20260612155517_0029_D.MP4",
+      "batch": "extension-15"
+    },
+    {
+      "asset_id": "asset_3df6a158ee7d",
+      "relative_path": "jixin-Nano/dji_mimo_20260613_103420_20260613103421_1781320040416_video.MP4",
+      "batch": "extension-15"
+    }
+  ]
+}

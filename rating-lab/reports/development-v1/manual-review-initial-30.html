@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TripClipper · 评分盲评台</title>
+  <style>
+    :root {
+      --ink: #ece6d8;
+      --muted: #9c978c;
+      --workbench: #111210;
+      --panel: #1a1c19;
+      --line: #353830;
+      --accent: #e6a632;
+      --accent-soft: #4a3818;
+      --ok: #9fc38f;
+      --danger: #e07a66;
+    }
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        var(--workbench);
+      background-size: 28px 28px;
+      font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+    }
+    button, select, textarea, input { font: inherit; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: center;
+      padding: 20px clamp(18px, 4vw, 56px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(17, 18, 16, .94);
+      backdrop-filter: blur(14px);
+    }
+    .eyebrow, .counter, .path, .index {
+      font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+      letter-spacing: .06em;
+    }
+    .eyebrow { margin: 0 0 4px; color: var(--accent); font-size: 12px; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(24px, 4vw, 42px); font-weight: 600; letter-spacing: -.03em; }
+    .toolbar { display: flex; align-items: center; gap: 16px; }
+    .counter { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .counter strong { color: var(--ok); font-size: 18px; }
+    .export {
+      border: 1px solid var(--accent);
+      border-radius: 2px;
+      padding: 11px 16px;
+      color: #17130b;
+      background: var(--accent);
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: 4px 4px 0 var(--accent-soft);
+    }
+    .export:hover { transform: translate(-1px, -1px); box-shadow: 6px 6px 0 var(--accent-soft); }
+    .intro {
+      max-width: 940px;
+      margin: 0 auto;
+      padding: 36px 22px 18px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .intro strong { color: var(--ink); }
+    main { max-width: 1180px; margin: 0 auto; padding: 18px 22px 80px; }
+    .card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(310px, .8fr);
+      gap: clamp(18px, 3vw, 38px);
+      margin: 0 0 28px;
+      padding: clamp(16px, 2.5vw, 28px);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--line);
+      background: linear-gradient(145deg, rgba(255,255,255,.025), transparent 55%), var(--panel);
+      box-shadow: 0 18px 50px rgba(0,0,0,.22);
+    }
+    .card.complete { border-left-color: var(--ok); }
+    .media-wrap { min-width: 0; }
+    .media {
+      display: block;
+      width: 100%;
+      max-height: 66vh;
+      border: 1px solid #080908;
+      background: #070807;
+      object-fit: contain;
+    }
+    .identity { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; margin-top: 12px; }
+    .index { color: var(--accent); font-size: 12px; }
+    .path { color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+    .form { display: flex; flex-direction: column; gap: 20px; }
+    fieldset { margin: 0; padding: 0; border: 0; }
+    legend, label.block { display: block; margin-bottom: 9px; color: var(--muted); font-size: 13px; }
+    .ratings, .scope { display: grid; gap: 7px; }
+    .ratings { grid-template-columns: repeat(5, 1fr); }
+    .scope { grid-template-columns: 1fr 1fr; }
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice span {
+      display: flex;
+      min-height: 42px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: #131512;
+      cursor: pointer;
+    }
+    .choice input:checked + span { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+    .choice input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+    select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      padding: 11px 12px;
+      color: var(--ink);
+      background: #131512;
+    }
+    textarea { min-height: 92px; resize: vertical; line-height: 1.6; }
+    .status { min-height: 20px; color: var(--muted); font-size: 12px; }
+    .status.saved { color: var(--ok); }
+    @media (max-width: 820px) {
+      .topbar { grid-template-columns: 1fr; gap: 14px; }
+      .toolbar { justify-content: space-between; }
+      .card { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">TripClipper / Blind Rating Desk</p>
+      <h1>评分盲评台</h1>
+    </div>
+    <div class="toolbar">
+      <div class="counter"><strong id="done-count">0</strong> / <span id="total-count">0</span> 已标注</div>
+      <button class="export" id="export-button" type="button">导出 CSV</button>
+    </div>
+  </header>
+  <section class="intro">
+    <strong>先看素材，再凭直觉给分。</strong> 页面不会显示任何历史或模型评分。完成星级、处理意见和使用范围后会自动保存在当前浏览器；全部完成后导出 CSV。
+  </section>
+  <main id="review-list"></main>
+  <template id="media-template">
+    <video class="media" controls preload="metadata"></video>
+  </template>
+  <script id="calibration-data" type="application/json">{"project_slug": "26shidu", "items": [{"asset_id": "asset_4fcc6d22fe1d", "relative_path": "Action6/DJI_20260613111904_0083_D.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613111904_0083_D.MP4"}, {"asset_id": "asset_5632cd93ba0d", "relative_path": "Action6/DJI_20260612134026_0001_D.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260612134026_0001_D.MP4"}, {"asset_id": "asset_1d7faf8ae47d", "relative_path": "Robert-iPhone/IMG_4293.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4293.MOV"}, {"asset_id": "asset_399e110ef06d", "relative_path": "Robert-iPhone/IMG_4328.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4328.MOV"}, {"asset_id": "asset_19c90ef73031", "relative_path": "jixin-Nano/dji_mimo_20260612_161722_20260612161723_1781257158009_video.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260612_161722_20260612161723_1781257158009_video.MP4"}, {"asset_id": "asset_de4c87c97932", "relative_path": "Action6/DJI_20260613144503_0109_D.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613144503_0109_D.MP4"}, {"asset_id": "asset_9aecc49cacb4", "relative_path": "Robert-iPhone/IMG_4343.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4343.MOV"}, {"asset_id": "asset_73db1344d9d0", "relative_path": "Robert-iPhone/IMG_4281.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4281.MOV"}, {"asset_id": "asset_50fc29c93238", "relative_path": "Robert-iPhone/IMG_4291.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4291.MOV"}, {"asset_id": "asset_f47b58e38c53", "relative_path": "Action6/DJI_20260613102503_0054_D.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613102503_0054_D.MP4"}, {"asset_id": "asset_36065cea16d5", "relative_path": "Action6/DJI_20260613143925_0104_D.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613143925_0104_D.MP4"}, {"asset_id": "asset_588339a6dd99", "relative_path": "Robert-iPhone/IMG_4289.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4289.MOV"}, {"asset_id": "asset_6ad9a06742ae", "relative_path": "Robert-iPhone/IMG_4307.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4307.MOV"}, {"asset_id": "asset_f9b03c8bf769", "relative_path": "jixin-Nano/dji_mimo_20260613_102348_20260613102348_1781320061900_video.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260613_102348_20260613102348_1781320061900_video.MP4"}, {"asset_id": "asset_1c5fed861a8e", "relative_path": "Action6/DJI_20260613145058_0115_D.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613145058_0115_D.MP4"}, {"asset_id": "asset_377fc3f9400a", "relative_path": "Robert-iPhone/IMG_4347.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4347.MOV"}, {"asset_id": "asset_35c7b26bc726", "relative_path": "Robert-iPhone/IMG_4278.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4278.MOV"}, {"asset_id": "asset_3c58cc80f7b5", "relative_path": "QiWei-Action/dji_mimo_20230108_014246_20230107174246_1783443331727_video(1).mp4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/QiWei-Action/dji_mimo_20230108_014246_20230107174246_1783443331727_video%281%29.mp4"}, {"asset_id": "asset_49ba9c5ba398", "relative_path": "Robert-iPhone/IMG_4283.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4283.MOV"}, {"asset_id": "asset_19c9d3250a4a", "relative_path": "Baymax-Phone/448c94fb03a77fe3591be85d5d9bcb6d_raw.mp4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Baymax-Phone/448c94fb03a77fe3591be85d5d9bcb6d_raw.mp4"}, {"asset_id": "asset_db7ca8e21e85", "relative_path": "Robert-iPhone/copy_8D60C065-B0E7-4821-964F-D77B058248C6.mov", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/copy_8D60C065-B0E7-4821-964F-D77B058248C6.mov"}, {"asset_id": "asset_7d780ff509fe", "relative_path": "Robert-iPhone/IMG_4288.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4288.MOV"}, {"asset_id": "asset_0536b39c93fa", "relative_path": "Action6/DJI_20260613112538_0090_D.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613112538_0090_D.MP4"}, {"asset_id": "asset_8e9bddf980e5", "relative_path": "jixin-Nano/dji_mimo_20260613_103226_20260613103227_1781320043386_video.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260613_103226_20260613103227_1781320043386_video.MP4"}, {"asset_id": "asset_b9d7cb9dd0a1", "relative_path": "Robert-iPhone/IMG_4338.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4338.MOV"}, {"asset_id": "asset_2dc71a50d977", "relative_path": "Robert-iPhone/IMG_4345.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4345.MOV"}, {"asset_id": "asset_c054fc048448", "relative_path": "Robert-iPhone/IMG_4301.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4301.MOV"}, {"asset_id": "asset_3dbefc668b8b", "relative_path": "jixin-Nano/dji_mimo_20260612_153416_20260612153417_1781257191686_video.MP4", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260612_153416_20260612153417_1781257191686_video.MP4"}, {"asset_id": "asset_7a799c8168cd", "relative_path": "Robert-iPhone/IMG_4292.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4292.MOV"}, {"asset_id": "asset_164c5788ff39", "relative_path": "Robert-iPhone/IMG_4308.MOV", "media_uri": "file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4308.MOV"}]}</script>
+  <script>
+    (() => {
+      const payload = JSON.parse(document.getElementById('calibration-data').textContent);
+      const storageKey = `tripclipper-rating-review:${payload.project_slug}`;
+      const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      const list = document.getElementById('review-list');
+      const doneCount = document.getElementById('done-count');
+      const totalCount = document.getElementById('total-count');
+      totalCount.textContent = payload.items.length;
+
+      const actions = [
+        ['', '请选择'],
+        ['highlight', '重点展示'],
+        ['likely_use', '大概率入片'],
+        ['review', '需要复核'],
+        ['fallback', '低优先级备用'],
+        ['discard', '舍弃'],
+      ];
+
+      function answerFor(id) {
+        return saved[id] || {
+          expected_rating: '', expected_action: '', whole_asset_or_clip: '', notes: ''
+        };
+      }
+
+      function isComplete(answer) {
+        return Boolean(answer.expected_rating && answer.expected_action && answer.whole_asset_or_clip);
+      }
+
+      function persist() {
+        localStorage.setItem(storageKey, JSON.stringify(saved));
+        let done = 0;
+        document.querySelectorAll('.card').forEach((card) => {
+          const complete = isComplete(answerFor(card.dataset.assetId));
+          card.classList.toggle('complete', complete);
+          if (complete) done += 1;
+        });
+        doneCount.textContent = done;
+      }
+
+      function choice(name, value, label, checked) {
+        const wrapper = document.createElement('label');
+        wrapper.className = 'choice';
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = name;
+        input.value = value;
+        input.checked = checked;
+        const span = document.createElement('span');
+        span.textContent = label;
+        wrapper.append(input, span);
+        return wrapper;
+      }
+
+      payload.items.forEach((item, index) => {
+        const answer = answerFor(item.asset_id);
+        saved[item.asset_id] = answer;
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.dataset.assetId = item.asset_id;
+
+        const mediaWrap = document.createElement('div');
+        mediaWrap.className = 'media-wrap';
+        const video = document.getElementById('media-template').content.firstElementChild.cloneNode(true);
+        video.src = item.media_uri;
+        const identity = document.createElement('div');
+        identity.className = 'identity';
+        const number = document.createElement('span');
+        number.className = 'index';
+        number.textContent = String(index + 1).padStart(2, '0');
+        const path = document.createElement('span');
+        path.className = 'path';
+        path.textContent = item.relative_path;
+        identity.append(number, path);
+        mediaWrap.append(video, identity);
+
+        const form = document.createElement('div');
+        form.className = 'form';
+        const ratingField = document.createElement('fieldset');
+        const ratingLegend = document.createElement('legend');
+        ratingLegend.textContent = '你的期望星级';
+        const ratings = document.createElement('div');
+        ratings.className = 'ratings';
+        for (let rating = 1; rating <= 5; rating += 1) {
+          const option = choice(
+            `rating-${item.asset_id}`, String(rating), `${rating}★`,
+            answer.expected_rating === String(rating)
+          );
+          option.querySelector('input').addEventListener('change', (event) => {
+            answer.expected_rating = event.target.value;
+            persist();
+          });
+          ratings.append(option);
+        }
+        ratingField.append(ratingLegend, ratings);
+
+        const actionLabel = document.createElement('label');
+        actionLabel.className = 'block';
+        actionLabel.textContent = '剪辑处理意见';
+        const action = document.createElement('select');
+        actions.forEach(([value, label]) => action.add(new Option(label, value)));
+        action.value = answer.expected_action;
+        action.addEventListener('change', () => { answer.expected_action = action.value; persist(); });
+        const actionWrap = document.createElement('div');
+        actionWrap.append(actionLabel, action);
+
+        const scopeField = document.createElement('fieldset');
+        const scopeLegend = document.createElement('legend');
+        scopeLegend.textContent = '可用范围';
+        const scope = document.createElement('div');
+        scope.className = 'scope';
+        [['whole_asset', '整段可用'], ['clip_only', '仅局部片段']].forEach(([value, label]) => {
+          const option = choice(
+            `scope-${item.asset_id}`, value, label, answer.whole_asset_or_clip === value
+          );
+          option.querySelector('input').addEventListener('change', (event) => {
+            answer.whole_asset_or_clip = event.target.value;
+            persist();
+          });
+          scope.append(option);
+        });
+        scopeField.append(scopeLegend, scope);
+
+        const notesLabel = document.createElement('label');
+        notesLabel.className = 'block';
+        notesLabel.textContent = '备注（可选）';
+        const notes = document.createElement('textarea');
+        notes.placeholder = '例如：前 5 秒精彩，后段普通';
+        notes.value = answer.notes;
+        notes.addEventListener('input', () => { answer.notes = notes.value; persist(); });
+        const notesWrap = document.createElement('div');
+        notesWrap.append(notesLabel, notes);
+
+        const status = document.createElement('div');
+        status.className = 'status';
+        status.textContent = '自动保存在当前浏览器';
+        form.append(ratingField, actionWrap, scopeField, notesWrap, status);
+        card.append(mediaWrap, form);
+        list.append(card);
+      });
+
+      function csvCell(value) {
+        const text = String(value ?? '');
+        return `"${text.replaceAll('"', '""')}"`;
+      }
+
+      document.getElementById('export-button').addEventListener('click', () => {
+        const header = [
+          'asset_id', 'relative_path', 'expected_rating',
+          'expected_action', 'whole_asset_or_clip', 'notes'
+        ];
+        const rows = payload.items.map((item) => {
+          const answer = answerFor(item.asset_id);
+          return [
+            item.asset_id, item.relative_path, answer.expected_rating,
+            answer.expected_action, answer.whole_asset_or_clip, answer.notes
+          ].map(csvCell).join(',');
+        });
+        const blob = new Blob(['\ufeff' + [header.join(','), ...rows].join('\r\n')], {
+          type: 'text/csv;charset=utf-8'
+        });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'manual_labels.csv';
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+
+      persist();
+    })();
+  </script>
+</body>
+</html>

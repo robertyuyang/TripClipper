@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>26十渡 · 45条评分差异审片台</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #ebe8df;
+      --muted: #97958f;
+      --panel: #151616;
+      --panel-2: #1b1c1b;
+      --line: #30312f;
+      --acid: #d5f653;
+      --danger: #ff6b4a;
+      --danger-soft: rgba(255,107,74,.14);
+      --cold: #6ab7ff;
+      --cold-soft: rgba(106,183,255,.13);
+      --ok: #7dd899;
+      --ok-soft: rgba(125,216,153,.12);
+      --paper: #20211f;
+      --shadow: 0 18px 55px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    html { background: #0d0e0e; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Avenir Next Condensed", "DIN Alternate", "PingFang SC", sans-serif;
+      background:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        radial-gradient(circle at 15% 0%, #262a20 0, transparent 32rem),
+        #0d0e0e;
+      background-size: 32px 32px, 32px 32px, auto, auto;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .16;
+      mix-blend-mode: soft-light;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E");
+      z-index: 10;
+    }
+    button, select { font: inherit; }
+    .shell { width: min(1480px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 80px; }
+    .masthead {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(320px, .8fr);
+      gap: 28px;
+      align-items: end;
+      border-top: 1px solid var(--line);
+      padding-top: 22px;
+    }
+    .eyebrow {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      color: var(--acid);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 44px; height: 3px; background: var(--acid); }
+    h1 {
+      margin: 12px 0 0;
+      max-width: 920px;
+      font-family: "DIN Condensed", "Avenir Next Condensed", "PingFang SC", sans-serif;
+      font-size: clamp(44px, 7vw, 104px);
+      line-height: .88;
+      letter-spacing: -.045em;
+      font-weight: 900;
+    }
+    .intro {
+      margin: 0 0 4px;
+      color: #c4c2bc;
+      line-height: 1.65;
+      font-size: 16px;
+      border-left: 1px solid var(--line);
+      padding-left: 22px;
+    }
+    .intro strong { color: var(--danger); }
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      margin: 42px 0 28px;
+      border: 1px solid var(--line);
+      background: rgba(20,21,20,.9);
+      box-shadow: var(--shadow);
+    }
+    .metric { min-height: 112px; padding: 18px 20px; border-right: 1px solid var(--line); }
+    .metric:last-child { border-right: 0; }
+    .metric-label { color: var(--muted); font-size: 12px; letter-spacing: .12em; }
+    .metric-value { display: block; margin-top: 9px; font-size: 34px; font-weight: 900; line-height: 1; }
+    .metric-value.alert { color: var(--danger); }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 8;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 24px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      background: rgba(13,14,14,.93);
+      backdrop-filter: blur(16px);
+    }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-btn {
+      border: 1px solid var(--line);
+      color: #bbb9b3;
+      background: transparent;
+      padding: 9px 13px;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+    .filter-btn:hover { color: white; border-color: #62645e; }
+    .filter-btn.active { color: #10110e; border-color: var(--acid); background: var(--acid); font-weight: 800; }
+    .toolbar-right { display: flex; gap: 10px; align-items: center; color: var(--muted); }
+    select { color: var(--ink); background: #151616; border: 1px solid var(--line); padding: 9px 34px 9px 10px; }
+    #visibleCount { color: var(--acid); font-weight: 800; white-space: nowrap; }
+    #annotationProgress { color: #d2d0c9; font-size: 12px; white-space: nowrap; }
+    .export-btn {
+      border: 1px solid var(--acid);
+      color: #10110e;
+      background: var(--acid);
+      padding: 9px 13px;
+      cursor: pointer;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .export-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .cards { display: grid; gap: 22px; }
+    .review-card {
+      --signal: var(--line);
+      display: grid;
+      grid-template-columns: minmax(360px, .9fr) minmax(0, 1.1fr);
+      min-height: 360px;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--signal);
+      background: linear-gradient(140deg, rgba(255,255,255,.018), transparent 36%), var(--panel);
+      box-shadow: 0 14px 35px rgba(0,0,0,.24);
+      overflow: hidden;
+      animation: rise .5s both;
+    }
+    .review-card.over { --signal: var(--danger); }
+    .review-card.under { --signal: var(--cold); }
+    .review-card.exact { --signal: var(--ok); }
+    @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+    .media-side { position: relative; min-height: 320px; background: #050606; }
+    video { width: 100%; height: 100%; min-height: 320px; display: block; object-fit: contain; background: #050606; }
+    .asset-index {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 2;
+      padding: 6px 9px;
+      color: #10110e;
+      background: var(--acid);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .08em;
+    }
+    .details { min-width: 0; padding: 24px 26px 26px; }
+    .topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+    .path { margin: 0 0 7px; color: var(--muted); font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+    h2 { margin: 0; font-size: 27px; line-height: 1.08; letter-spacing: -.015em; }
+    .gap-chip {
+      flex: 0 0 auto;
+      min-width: 74px;
+      padding: 8px 10px;
+      text-align: center;
+      border: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .gap-chip.over { color: var(--danger); background: var(--danger-soft); border-color: rgba(255,107,74,.38); }
+    .gap-chip.under { color: var(--cold); background: var(--cold-soft); border-color: rgba(106,183,255,.35); }
+    .gap-chip.exact { color: var(--ok); background: var(--ok-soft); border-color: rgba(125,216,153,.32); }
+    .score-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0; }
+    .score-box { padding: 14px 15px; background: var(--paper); border: 1px solid var(--line); }
+    .score-label { color: var(--muted); font-size: 12px; letter-spacing: .08em; }
+    .score-stars { display: flex; gap: 3px; margin-top: 7px; color: #494b47; font-size: 20px; letter-spacing: -2px; }
+    .score-stars .on.human { color: var(--acid); }
+    .score-stars .on.model { color: #f4a65b; }
+    .score-number { float: right; color: var(--ink); font-size: 26px; line-height: 1; font-weight: 900; }
+    .meta-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 17px; }
+    .meta-pill { padding: 5px 8px; color: #bdbbb5; border: 1px solid var(--line); font-size: 12px; }
+    .section-label { margin: 18px 0 7px; color: var(--muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+    .summary { margin: 0; color: #d2d0c9; font-size: 15px; line-height: 1.62; }
+    .manual-note { color: #b9b7b0; }
+    .clips { display: grid; gap: 8px; }
+    .clip {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 11px;
+      align-items: start;
+      padding: 10px;
+      border: 1px solid var(--line);
+      background: #111212;
+    }
+    .seek {
+      border: 1px solid #585a55;
+      color: var(--acid);
+      background: transparent;
+      padding: 6px 8px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+    .seek:hover { background: var(--acid); color: #10110e; border-color: var(--acid); }
+    .clip-title { font-size: 13px; font-weight: 800; }
+    .clip-reason { margin-top: 4px; color: #a9a7a1; font-size: 13px; line-height: 1.45; }
+    .annotation-panel {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #4a4c46;
+      background:
+        linear-gradient(135deg, rgba(213,246,83,.055), transparent 48%),
+        #101110;
+    }
+    .annotation-head { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; margin-bottom: 12px; }
+    .annotation-title { color: var(--acid); font-size: 12px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+    .save-status { color: #787a74; font-size: 11px; }
+    .annotation-grid { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); gap: 11px; }
+    .annotation-field { display: grid; gap: 6px; }
+    .annotation-field.wide { grid-column: 1 / -1; }
+    .annotation-field label { color: #9b9993; font-size: 11px; letter-spacing: .06em; }
+    .annotation-panel textarea,
+    .annotation-panel input,
+    .annotation-panel select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      color: var(--ink);
+      background: #191a18;
+      padding: 10px 11px;
+      outline: none;
+    }
+    .annotation-panel textarea { min-height: 92px; resize: vertical; line-height: 1.55; }
+    .annotation-panel textarea:focus,
+    .annotation-panel input:focus,
+    .annotation-panel select:focus { border-color: var(--acid); box-shadow: 0 0 0 1px var(--acid); }
+    .time-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .annotation-hint { margin-top: 9px; color: #73756f; font-size: 11px; line-height: 1.45; }
+    .empty {
+      padding: 70px 20px;
+      text-align: center;
+      border: 1px dashed var(--line);
+      color: var(--muted);
+    }
+    footer { margin-top: 32px; color: #71736d; font-size: 12px; line-height: 1.6; }
+    @media (max-width: 980px) {
+      .masthead { grid-template-columns: 1fr; }
+      .intro { border-left: 0; padding-left: 0; max-width: 720px; }
+      .metric-strip { grid-template-columns: repeat(2, 1fr); }
+      .metric { border-bottom: 1px solid var(--line); }
+      .review-card { grid-template-columns: 1fr; }
+      .media-side, video { min-height: 260px; max-height: 70vh; }
+    }
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 20px, 1480px); padding-top: 24px; }
+      .metric-strip { grid-template-columns: 1fr 1fr; }
+      .metric { min-height: 94px; padding: 14px; }
+      .metric-value { font-size: 27px; }
+      .toolbar { align-items: stretch; flex-direction: column; }
+      .toolbar-right { justify-content: space-between; }
+      .details { padding: 19px 16px 22px; }
+      .topline { flex-direction: column; }
+      .gap-chip { min-width: 0; }
+      .annotation-grid { grid-template-columns: 1fr; }
+      .annotation-field.wide { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <div class="eyebrow">Combined review / 45 assets</div>
+        <h1>评分差异<br>审片台</h1>
+      </div>
+      <p class="intro">
+        26十渡评分分析全集 · 前30条采用 calibration run-005，后15条采用 validation run-002。页面收录全部45条素材，默认聚焦<strong>相差至少2星</strong>的严重偏差；红色表示模型高估，蓝色表示低估。
+      </p>
+    </header>
+
+    <section class="metric-strip" aria-label="45条综合指标">
+      <div class="metric"><span class="metric-label">完全一致率</span><strong class="metric-value">35.6%</strong></div>
+      <div class="metric"><span class="metric-label">平均绝对误差</span><strong class="metric-value">0.87</strong></div>
+      <div class="metric"><span class="metric-label">严重偏差</span><strong class="metric-value alert">9 / 45</strong></div>
+      <div class="metric"><span class="metric-label">高分精确率</span><strong class="metric-value alert">62.1%</strong></div>
+      <div class="metric"><span class="metric-label">高分召回率</span><strong class="metric-value">78.3%</strong></div>
+    </section>
+
+    <nav class="toolbar" aria-label="筛选与排序">
+      <div class="filters">
+        <button class="filter-btn" data-filter="all">全部 45</button>
+        <button class="filter-btn" data-filter="exact">评分一致 16</button>
+        <button class="filter-btn" data-filter="one">相差 1 星 20</button>
+        <button class="filter-btn active" data-filter="severe">相差 ≥2 星 9</button>
+      </div>
+      <div class="toolbar-right">
+        <span id="visibleCount">显示 9 / 45</span>
+        <span id="annotationProgress">已写理由 0 / 45</span>
+        <select id="sortSelect" aria-label="排序方式">
+          <option value="gap-desc">差距从大到小</option>
+          <option value="human-desc">人工评分从高到低</option>
+          <option value="model-desc">Prompt评分从高到低</option>
+          <option value="path">文件路径</option>
+        </select>
+        <button id="exportAnnotations" class="export-btn" type="button">导出标注 CSV</button>
+      </div>
+    </nav>
+
+    <section id="cards" class="cards" aria-live="polite"></section>
+    <footer>
+      本页面为离线审片产物。视频通过本地 file:// 路径读取，不嵌入页面、不上传网络。
+      “Prompt评分”合并自原30条 calibration run-005 与后15条 validation run-002。
+    </footer>
+  </main>
+
+  <script>
+    const DATA = [{"batch":"calibration-30","asset_id":"asset_4fcc6d22fe1d","relative_path":"Action6/DJI_20260613111904_0083_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613111904_0083_D.MP4","candidate_rating":1,"expected_rating":2,"delta":-1,"gap":1,"expected_action":"discard","whole_asset_or_clip":"clip_only","notes":"","content_title":"越野沙滩车停在石子路旁","summary":"视频起初展示了停放在石子路上的越野沙滩车，但随后镜头转向地面并被手指严重遮挡，导致大部分画面无法使用，建议舍弃。","tags":["沙滩车","户外越野","石子路","镜头遮挡","废片"],"clip_suggestions":[]},{"batch":"calibration-30","asset_id":"asset_5632cd93ba0d","relative_path":"Action6/DJI_20260612134026_0001_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260612134026_0001_D.MP4","candidate_rating":1,"expected_rating":1,"delta":0,"gap":0,"expected_action":"discard","whole_asset_or_clip":"clip_only","notes":"","content_title":"山前空地人群手持横幅站立","summary":"画面展示在山前空地上，一群人手持蓝色横幅站立准备合影。视频后半段（约2秒后）出现严重的手指遮挡镜头穿帮，且前半段内容普通，无实际剪辑价值，建议舍弃。","tags":["户外活动","合影准备","山景","人群","穿帮镜头"],"clip_suggestions":[]},{"batch":"calibration-30","asset_id":"asset_1d7faf8ae47d","relative_path":"Robert-iPhone/IMG_4293.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4293.MOV","candidate_rating":3,"expected_rating":3,"delta":0,"gap":0,"expected_action":"fallback","whole_asset_or_clip":"clip_only","notes":"","content_title":"夜晚院子中燃放烟花","summary":"视频记录了夜晚院子中燃放烟花的过程。起初画面展示了未点燃的篝火堆，随后地面烟花被点燃，冒出浓烟并向空中喷射出金色火花，可作为夜间活动或旅行Vlog的氛围B-roll。","tags":["夜晚","烟花","院子","火花","夜景","氛围感"],"clip_suggestions":[{"in":"00:06","out":"00:14","role":"氛围过场","subject_type":"activity","shot_scale":"wide","rating":3,"reason":"记录了烟花从冒烟到喷射出金色火花的动态过程，具有较好的夜间活动氛围，但镜头有轻微晃动。","audio_strategy":"保留烟花燃放声与现场环境音","tags":["烟花燃放","金色火花","夜间氛围"]}]},{"batch":"calibration-30","asset_id":"asset_399e110ef06d","relative_path":"Robert-iPhone/IMG_4328.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4328.MOV","candidate_rating":3,"expected_rating":4,"delta":-1,"gap":1,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"男子坐在床边准备吃早餐","summary":"男子身穿白T恤坐在酒店床边，身旁放着一份简易早餐，他神情轻松地对着镜头或旁人说话。画面适合作为旅行Vlog中清晨起床、准备用餐的日常生活片段，需结合实际音频决定是否保留对话。","tags":["男子","酒店房间","早餐","日常","Vlog","谈话","清晨"],"clip_suggestions":[{"in":"00:03","out":"00:10","role":"日常生活记录","subject_type":"people","shot_scale":"medium","rating":3,"reason":"男子神态自然，有说话和微笑的动作，适合展现旅行中的清晨日常或转场过渡。","audio_strategy":"保留现场人声对话","tags":["日常","谈话","早餐","Vlog"]}]},{"batch":"calibration-30","asset_id":"asset_19c90ef73031","relative_path":"jixin-Nano/dji_mimo_20260612_161722_20260612161723_1781257158009_video.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260612_161722_20260612161723_1781257158009_video.MP4","candidate_rating":3,"expected_rating":3,"delta":0,"gap":0,"expected_action":"review","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在峡谷河道中体验漂流","summary":"画面展示了游客们身穿救生衣在峡谷河道中乘坐充气橡皮艇漂流的场景。镜头伴随水流有轻微起伏，虽然镜头两侧有明显水渍遮挡，但整体展现了漂流活动的现场氛围，可作为景区活动介绍的B-roll素材。","tags":["峡谷漂流","户外运动","橡皮艇","游客","水上娱乐","自然景区"],"clip_suggestions":[{"in":"00:01","out":"00:07","role":"活动展示","subject_type":"activity","shot_scale":"wide","rating":3,"reason":"该片段较为完整地展示了多只漂流船在峡谷中漂浮的场景，画面虽有水渍，但能体现漂流活动的现场氛围。","audio_strategy":"保留现场环境音","tags":["漂流活动","峡谷风光","水上娱乐"]}]},{"batch":"calibration-30","asset_id":"asset_de4c87c97932","relative_path":"Action6/DJI_20260613144503_0109_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613144503_0109_D.MP4","candidate_rating":3,"expected_rating":1,"delta":2,"gap":2,"expected_action":"discard","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在五彩灯光照亮的溶洞中游览","summary":"视频展示了被红、绿、蓝等五彩灯光照亮的溶洞景观，随后镜头转向一名男士游客。前半段溶洞色彩鲜艳，可作为景区游览的B-roll使用，但后半段人物面部光线较暗，建议仅截取前半段溶洞空镜头。","tags":["溶洞","彩色灯光","景区游览","地下奇观","游客","B-roll"],"clip_suggestions":[{"in":"00:00","out":"00:03","role":"过场","subject_type":"landscape","shot_scale":"wide","rating":3,"reason":"前半段较好地展示了溶洞内奇特的色彩与岩石质感，没有人物遮挡，适合作为展现景区环境的过渡镜头。","audio_strategy":"保留环境音","tags":["溶洞景观","五彩灯光","奇特地貌","环境空镜"]}]},{"batch":"calibration-30","asset_id":"asset_9aecc49cacb4","relative_path":"Robert-iPhone/IMG_4343.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4343.MOV","candidate_rating":2,"expected_rating":1,"delta":1,"gap":1,"expected_action":"discard","whole_asset_or_clip":"clip_only","notes":"","content_title":"依山而建的度假别墅群远景","summary":"画面展示了依山而建的度假别墅与周边绿化，右侧有中式凉亭柱子作为前景遮挡。整体画面较为静态，天气阴沉，可作为环境交代的低优先级备用素材。","tags":["别墅","度假村","建筑","绿植","空镜头","阴天"],"clip_suggestions":[{"in":"00:00","out":"00:01.8","role":"环境交代","subject_type":"building","shot_scale":"wide","rating":2,"reason":"作为度假村或别墅区环境的远景交代，但由于时长较短且天气阴沉，仅作备用。","audio_strategy":"保留环境音","tags":["别墅","远景","空镜头"]}]},{"batch":"calibration-30","asset_id":"asset_73db1344d9d0","relative_path":"Robert-iPhone/IMG_4281.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4281.MOV","candidate_rating":2,"expected_rating":4,"delta":-2,"gap":2,"expected_action":"likely_use","whole_asset_or_clip":"whole_asset","notes":"","content_title":"雨天游客身穿一次性雨衣在景区行进","summary":"画面记录了雨天里身穿五彩一次性雨衣的游客在景区步道行进的背影。镜头采用跟随视角，展现了雨中出游的真实场景，可作为旅途花絮或雨天氛围过渡镜头。","tags":["雨天","雨衣","游客","景区","行进","背影","氛围"],"clip_suggestions":[{"in":"00:01","out":"00:05","role":"花絮","subject_type":"people","shot_scale":"medium","rating":2,"reason":"展现雨天出游的真实花絮，五彩雨衣具有一定的色彩点缀作用。","audio_strategy":"保留环境音","tags":["雨天","雨衣","游客","背影"]}]},{"batch":"calibration-30","asset_id":"asset_50fc29c93238","relative_path":"Robert-iPhone/IMG_4291.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4291.MOV","candidate_rating":2,"expected_rating":2,"delta":0,"gap":0,"expected_action":"discard","whole_asset_or_clip":"clip_only","notes":"","content_title":"男子在户外夜市聚会中手持麦克风唱歌","summary":"画面记录了一名身穿红色运动服的男子在夜间户外聚会中手持麦克风唱歌或发言。背景可见烧烤架及聚会人群，镜头中段有较明显的晃动和下摇，整体画面较为生活化，可作为聚会花絮片段使用。","tags":["户外聚会","唱歌","麦克风","夜景","烧烤派对","人物花絮"],"clip_suggestions":[{"in":"00:00","out":"00:02","role":"活动花絮","subject_type":"people","shot_scale":"medium","rating":2,"reason":"男子手持麦克风互动的正面中景镜头，画面相对稳定，可用于表现聚会活跃气氛。","audio_strategy":"保留现场人声","tags":["男子唱歌","聚会氛围","中景"]}]},{"batch":"calibration-30","asset_id":"asset_f47b58e38c53","relative_path":"Action6/DJI_20260613102503_0054_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613102503_0054_D.MP4","candidate_rating":3,"expected_rating":4,"delta":-1,"gap":1,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"蓝天白云下的绿色峡谷与河流远景","summary":"画面展示了晴空下的绿色峡谷与底部河流，构图开阔。视频后半段左下角有杂物闯入，建议截取前半段干净画面作为自然风光的环境交代镜头。","tags":["峡谷","河流","蓝天白云","自然风光","空镜头"],"clip_suggestions":[{"in":"00:00","out":"00:03","role":"环境交代","subject_type":"landscape","shot_scale":"wide","rating":3,"reason":"避开了后半段左下角手部和手机闯入的画面，保留了干净稳定的峡谷风光。","audio_strategy":"建议添加环境音效","tags":["峡谷","自然风光","空镜头"]}]},{"batch":"calibration-30","asset_id":"asset_36065cea16d5","relative_path":"Action6/DJI_20260613143925_0104_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613143925_0104_D.MP4","candidate_rating":4,"expected_rating":4,"delta":0,"gap":0,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"五彩灯光照亮的溶洞深处与游览步道","summary":"视频展示了在红、绿、蓝、黄等五彩灯光照射下的溶洞内部奇观。镜头沿着陡峭的游览步道向下俯瞰，展现出溶洞深邃的空间感与奇特的岩壁纹理，适合作为展现神秘自然奇观或景区游览的B-roll素材。","tags":["溶洞","地下奇观","彩色灯光","步道","景区游览","神秘氛围","钟乳石"],"clip_suggestions":[{"in":"00:01","out":"00:08","role":"过场","subject_type":"landscape","shot_scale":"wide","rating":4,"reason":"镜头平稳向下移动并环顾，完整展现了溶洞的纵深感与五彩斑斓的钟乳石景观，视觉冲击力较强。","audio_strategy":"建议静音并搭配神秘或空灵的背景音乐","tags":["溶洞深处","五彩光影","空间纵深","钟乳石"]}]},{"batch":"calibration-30","asset_id":"asset_588339a6dd99","relative_path":"Robert-iPhone/IMG_4289.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4289.MOV","candidate_rating":4,"expected_rating":5,"delta":-1,"gap":1,"expected_action":"highlight","whole_asset_or_clip":"whole_asset","notes":"","content_title":"众人围在蛋糕旁鼓掌庆祝","summary":"画面展示了一群人在户外围绕着写有字样的大蛋糕进行庆祝。红衣男子在中心发言并挥手，身旁的朋友们微笑并热烈鼓掌，现场洋溢着欢快轻松的聚会氛围，适合用于活动记录或Vlog转场。","tags":["切蛋糕","团队聚会","户外活动","欢呼鼓掌","人物纪实","温馨氛围"],"clip_suggestions":[{"in":"00:02","out":"00:14","role":"活动高光","subject_type":"activity","shot_scale":"medium","rating":4,"reason":"红衣男子挥手致意，周围人群热情鼓掌互动，人物状态自然，庆祝氛围达到高潮。","audio_strategy":"保留现场掌声与欢呼声","tags":["鼓掌欢呼","团队互动","聚会高光","欢快"]}]},{"batch":"calibration-30","asset_id":"asset_6ad9a06742ae","relative_path":"Robert-iPhone/IMG_4307.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4307.MOV","candidate_rating":4,"expected_rating":3,"delta":1,"gap":1,"expected_action":"review","whole_asset_or_clip":"clip_only","notes":"","content_title":"多人徒步在山谷道路上行走","summary":"画面展现了一群游客在山谷间的泥泞道路上迎面走来，其中有人撑伞，有人微笑面对镜头。该镜头人物状态自然，适合作为户外旅行、团队建设或徒步活动的过渡或花絮片段。","tags":["徒步","团队建设","山谷","户外出行","行走","群像"],"clip_suggestions":[{"in":"00:00","out":"00:05","role":"过场B-roll","subject_type":"people_landscape","shot_scale":"full","rating":4,"reason":"画面中人物状态自然，迎面走来的动态感强，且左侧男子有正对镜头的微笑互动，适合展现团队出游的欢快氛围。","audio_strategy":"保留环境音","tags":["团队出行","自然微笑","户外徒步"]}]},{"batch":"calibration-30","asset_id":"asset_f9b03c8bf769","relative_path":"jixin-Nano/dji_mimo_20260613_102348_20260613102348_1781320061900_video.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260613_102348_20260613102348_1781320061900_video.MP4","candidate_rating":4,"expected_rating":3,"delta":1,"gap":1,"expected_action":"review","whole_asset_or_clip":"clip_only","notes":"","content_title":"第一人称视角驾驶全地形越野车在峡谷山路穿行","summary":"第一人称视角记录驾驶全地形越野车（ATV）在峡谷碎石山路上穿行的过程。画面中前方有数辆同行的越野车，两旁是茂密的绿色植被与高耸的峡谷峭壁，具有较强的户外探险现场感，适合作为户外运动或旅拍的B-roll素材。","tags":["全地形车","越野车","第一人称视角","峡谷","山路","户外探险","旅拍B-roll"],"clip_suggestions":[{"in":"00:00","out":"00:10","role":"活动展示","subject_type":"activity","shot_scale":"wide","rating":4,"reason":"开局通过石桥涵洞，画面空间感较好，前方车队清晰，适合展现越野车骑行活动的开始。","audio_strategy":"保留引擎声与环境音","tags":["第一人称","越野骑行","峡谷风光","车队同行"]},{"in":"00:11","out":"00:20","role":"过场镜头","subject_type":"activity","shot_scale":"wide","rating":4,"reason":"穿行于茂密植被与峡谷峭壁之间，绿意盎然，视觉纵深感强。","audio_strategy":"保留引擎声与环境音","tags":["峡谷穿行","第一人称","绿色植被","户外探险"]}]},{"batch":"calibration-30","asset_id":"asset_1c5fed861a8e","relative_path":"Action6/DJI_20260613145058_0115_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613145058_0115_D.MP4","candidate_rating":4,"expected_rating":5,"delta":-1,"gap":1,"expected_action":"highlight","whole_asset_or_clip":"whole_asset","notes":"","content_title":"五彩灯光照亮的溶洞钟乳石景观","summary":"视频展示了溶洞内部奇特的钟乳石景观，在五彩斑斓的霓虹灯光照射下呈现出梦幻神秘的视觉效果。镜头通过仰摄和推移，清晰呈现了岩壁纹理与悬挂的钟乳石，适合作为旅游或探险主题的转场或背景B-roll。","tags":["溶洞","钟乳石","彩色灯光","地质奇观","神秘氛围","空镜头"],"clip_suggestions":[{"in":"00:00","out":"00:15","role":"过场B-roll","subject_type":"landscape","shot_scale":"wide","rating":4,"reason":"整段镜头运镜平稳，完整展现了溶洞顶部密集的钟乳石在粉红与蓝色灯光下的奇幻色彩，视觉冲击力强，无明显抖动。","audio_strategy":"静音或保留微弱环境音","tags":["钟乳石","奇幻灯光","溶洞景观","仰摄镜头"]}]},{"batch":"calibration-30","asset_id":"asset_377fc3f9400a","relative_path":"Robert-iPhone/IMG_4347.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4347.MOV","candidate_rating":4,"expected_rating":4,"delta":0,"gap":0,"expected_action":"likely_use","whole_asset_or_clip":"whole_asset","notes":"","content_title":"傍晚高架桥车辆行驶与城市晚霞","summary":"本视频展示了傍晚时分在城市高架路上驾车前行的画面。天空中呈现出迷人的晚霞与暗云，左侧矗立着独特的现代高楼，车流在暖色路灯与尾灯的映衬下缓缓前行，非常适合用作城市旅行或通勤主题的过渡与氛围镜头。","tags":["晚霞","城市街景","高架路","驾车视角","傍晚","车流","转场"],"clip_suggestions":[{"in":"00:00","out":"00:10","role":"过场画面","subject_type":"landscape","shot_scale":"wide","rating":4,"reason":"整段画面运镜平稳，晚霞色彩与城市灯光交相辉映，非常适合作为旅途行进或一天结束的过渡镜头。","audio_strategy":"保留微弱环境音或静音","tags":["晚霞","驾车视角","城市夜幕","过渡镜头"]}]},{"batch":"calibration-30","asset_id":"asset_35c7b26bc726","relative_path":"Robert-iPhone/IMG_4278.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4278.MOV","candidate_rating":5,"expected_rating":4,"delta":1,"gap":1,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"两名男生在食堂餐桌旁说笑互动","summary":"画面展现了两名年轻男生在食堂餐桌旁轻松说笑、互动的场景。两人神情自然、笑容真挚，展现出极佳的朋友默契与现场感，非常适合作为旅拍或青春Vlog中的人物互动高光片段。","tags":["男生","朋友互动","说笑","食堂","青春","真实状态","欢笑"],"clip_suggestions":[{"in":"00:06","out":"00:18","role":"高光片段","subject_type":"people","shot_scale":"medium","rating":5,"reason":"两名男生真挚大笑、互动自然的黄金片段，情绪饱满，极具感染力。","audio_strategy":"保留说笑声与环境音","tags":["真挚笑容","朋友默契","情绪高潮","自然互动"]}]},{"batch":"calibration-30","asset_id":"asset_3c58cc80f7b5","relative_path":"QiWei-Action/dji_mimo_20230108_014246_20230107174246_1783443331727_video(1).mp4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/QiWei-Action/dji_mimo_20230108_014246_20230107174246_1783443331727_video%281%29.mp4","candidate_rating":4,"expected_rating":4,"delta":0,"gap":0,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客驾驶全地形越野车在峡谷碎石路段穿行","summary":"视频记录了游客驾驶全地形越野车（ATV）在山谷中穿行的第一人称视角画面。前半段在泥土山路上行驶，后半段过渡到开阔的碎石河滩，背景有壮丽的岩壁。画面具有较强的沉浸感和户外运动氛围，适合作为户外探险或旅拍的动作与场景过渡素材。","tags":["全地形车","越野","户外探险","峡谷","第一人称视角","碎石路","山野旅拍"],"clip_suggestions":[{"in":"00:31","out":"00:51","role":"高光动作","subject_type":"activity","shot_scale":"wide","rating":4,"reason":"越野车从泥土路驶入颠簸的碎石河滩，画面颠簸感增强，背景出现高耸的岩壁，视觉冲击力和运动感较强。","audio_strategy":"保留引擎声与碎石碰撞声","tags":["碎石路段","越野穿行","山谷岩壁","第一人称"]},{"in":"01:10","out":"01:22","role":"人物互动","subject_type":"people_landscape","shot_scale":"medium","rating":4,"reason":"镜头拉近，前方红头盔骑手回头与镜头互动，展现了真实的旅途人物状态与轻松氛围。","audio_strategy":"保留现场人声与风噪","tags":["回头互动","人物神态","越野骑行","旅途氛围"]}]},{"batch":"calibration-30","asset_id":"asset_49ba9c5ba398","relative_path":"Robert-iPhone/IMG_4283.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4283.MOV","candidate_rating":4,"expected_rating":2,"delta":2,"gap":2,"expected_action":"fallback","whole_asset_or_clip":"clip_only","notes":"","content_title":"酒店房间推向阳台窗外山景","summary":"镜头从酒店客房内部平缓向前推进，穿过玻璃门聚焦于阳台外的绿色山峦。画面清晰展示了房间的采光与窗外景观，适合作为旅宿介绍的空镜头或过渡画面。","tags":["酒店客房","阳台景观","推镜头","山景","民宿推荐","空镜头"],"clip_suggestions":[{"in":"00:01","out":"00:04","role":"过场镜头","subject_type":"building","shot_scale":"medium","rating":4,"reason":"镜头平稳向前推进，从室内自然过渡到窗外的绿色山景，空间感和透视感良好，适合展现酒店环境。","audio_strategy":"静音，后期添加环境音效或音乐","tags":["推镜头","窗外风景","空间过渡"]}]},{"batch":"calibration-30","asset_id":"asset_19c9d3250a4a","relative_path":"Baymax-Phone/448c94fb03a77fe3591be85d5d9bcb6d_raw.mp4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Baymax-Phone/448c94fb03a77fe3591be85d5d9bcb6d_raw.mp4","candidate_rating":4,"expected_rating":5,"delta":-1,"gap":1,"expected_action":"highlight","whole_asset_or_clip":"whole_asset","notes":"","content_title":"游客在漂流终点手持相机整理装备","summary":"画面展现了游客在漂流活动后浑身湿透的真实状态，主角身穿救生衣、头戴安全帽，手持运动相机。该素材非常适合作为漂流或户外水上活动的趣味花絮与真实反应镜头。","tags":["漂流","户外运动","游客","真实反应","运动相机","水上娱乐","景区"],"clip_suggestions":[{"in":"00:02","out":"00:08","role":"花絮与真实反应","subject_type":"people","shot_scale":"medium","rating":4,"reason":"画面清晰展现了游客漂流后浑身湿透、手持运动相机的真实状态，背景中漂流河道与彩色皮划艇增添了活动氛围，适合作为漂流体验的趣味花絮或真实反应镜头。","audio_strategy":"保留现场环境音（水流声、人声），可适当降低杂音。","tags":["漂流体验","湿身挑战","真实反应","户外运动","旅行花絮"]}]},{"batch":"calibration-30","asset_id":"asset_db7ca8e21e85","relative_path":"Robert-iPhone/copy_8D60C065-B0E7-4821-964F-D77B058248C6.mov","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/copy_8D60C065-B0E7-4821-964F-D77B058248C6.mov","candidate_rating":4,"expected_rating":5,"delta":-1,"gap":1,"expected_action":"highlight","whole_asset_or_clip":"clip_only","notes":"","content_title":"傍晚时分车辆在城市高架路上行驶","summary":"本视频为车载视角拍摄的城市高架路行驶画面。正值黄昏日落，天边呈现出美丽的粉橙色晚霞与层叠的乌云，高架桥上的路灯已亮起并产生温暖的光晕，车流缓缓前行，极具旅途氛围感。","tags":["晚霞","公路旅行","城市车流","日落黄昏","车载POV","北京街景"],"clip_suggestions":[{"in":"00:01","out":"00:10","role":"旅途过场","subject_type":"landscape","shot_scale":"wide","rating":4,"reason":"该片段画面构图稳定，晚霞色彩丰富，路灯光晕与车流尾灯交相辉映，完美呈现了城市傍晚的公路旅行氛围，适合作为转场或情绪铺垫。","audio_strategy":"建议淡入淡出，搭配温和的BGM，弱化环境噪音。","tags":["晚霞","公路旅行","城市车流","日落黄昏"]}]},{"batch":"calibration-30","asset_id":"asset_7d780ff509fe","relative_path":"Robert-iPhone/IMG_4288.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4288.MOV","candidate_rating":4,"expected_rating":4,"delta":0,"gap":0,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"男子在户外夜市手持麦克风讲话","summary":"画面记录了一名年轻男子在户外夜市大排档手持麦克风和礼品袋进行发言的场景。镜头平稳移动，展现了旁听的群众以及市井气息浓厚的夜市环境，整体氛围轻松真实，适合作为生活Vlog或聚会纪实的B-roll素材。","tags":["夜市","聚会","发言","麦克风","大排档","纪实","人物"],"clip_suggestions":[{"in":"00:12","out":"00:36","role":"活动纪实","subject_type":"people","shot_scale":"medium","rating":4,"reason":"该片段完整展现了发言者与观众的互动，镜头平稳，且在结尾处捕捉到了发言者自然的笑容，人物状态极佳。","audio_strategy":"保留现场发言人声及观众反应声","tags":["互动","笑容","聚会纪实","夜市大排档"]}]},{"batch":"calibration-30","asset_id":"asset_0536b39c93fa","relative_path":"Action6/DJI_20260613112538_0090_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613112538_0090_D.MP4","candidate_rating":4,"expected_rating":4,"delta":0,"gap":0,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"男子骑全地形越野车在山间河谷穿行","summary":"视频记录了男子骑乘全地形越野车在山间碎石路和河谷穿行的场景。开篇有乘员面对镜头微笑挥手的生动画面，随后展现了越野车涉水过河及在山路行驶的远景，适合作为户外探险或旅拍的活力片段。","tags":["全地形车","越野","山谷","涉水","户外探险","人物互动","欢笑"],"clip_suggestions":[{"in":"00:00","out":"00:05","role":"高光画面","subject_type":"people","shot_scale":"medium","rating":4,"reason":"两名男子在越野车上对着镜头微笑、挥手，人物状态非常自然、兴奋，极具现场感染力，适合作为情绪高点或开场。","audio_strategy":"保留人声欢呼与引擎声","tags":["人物特写","微笑","挥手","越野车","欢快氛围"]},{"in":"00:20","out":"00:28","role":"过场","subject_type":"people_landscape","shot_scale":"wide","rating":3,"reason":"越野车从河谷涉水后迎面驶向镜头，展现了户外越野的动态过程，画面平稳，适合展现旅途行进感。","audio_strategy":"保留引擎声与涉水声","tags":["越野车","涉水","山路行驶","行进感"]}]},{"batch":"calibration-30","asset_id":"asset_8e9bddf980e5","relative_path":"jixin-Nano/dji_mimo_20260613_103226_20260613103227_1781320043386_video.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260613_103226_20260613103227_1781320043386_video.MP4","candidate_rating":3,"expected_rating":1,"delta":2,"gap":2,"expected_action":"discard","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在山谷乱石滩驾驶全地形越野车","summary":"画面展示了一群游客在群山环抱的乱石滩中驾驶全地形越野车（ATV）前行。镜头以远景展现了开阔的山谷地貌与户外越野的冒险氛围，适合作为旅拍中展现户外体验活动的B-roll素材。","tags":["全地形车","山谷越野","户外运动","乱石滩","群山","冒险体验"],"clip_suggestions":[{"in":"00:00","out":"00:03","role":"活动过场","subject_type":"activity","shot_scale":"wide","rating":3,"reason":"完整记录了越野车队在石子路上行驶的画面，构图开阔，适合作为展现户外项目的过渡镜头。","audio_strategy":"保留引擎轰鸣声作为环境音效","tags":["全地形车","山谷越野","户外冒险"]}]},{"batch":"calibration-30","asset_id":"asset_b9d7cb9dd0a1","relative_path":"Robert-iPhone/IMG_4338.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4338.MOV","candidate_rating":4,"expected_rating":3,"delta":1,"gap":1,"expected_action":"review","whole_asset_or_clip":"whole_asset","notes":"","content_title":"游客在溶洞内观看并指点展示牌","summary":"画面展示了游客在五彩灯光照亮的溶洞内，沿着台阶拾级而上，并驻足观看、指点玻璃展示牌的场景。溶洞内钟乳石景观奇特，色彩斑斓，具有较好的旅游纪实和场景交代价值。","tags":["溶洞","钟乳石","游客","观光","彩色灯光","景区步道"],"clip_suggestions":[{"in":"00:00","out":"00:07","role":"景区游览纪实","subject_type":"people_landscape","shot_scale":"medium","rating":4,"reason":"画面完整记录了游客在溶洞内驻足观看并指点展示牌的过程，配合斑斓的钟乳石背景，展现了真实的旅游体验，镜头平稳，色彩丰富。","audio_strategy":"保留环境音","tags":["溶洞观光","钟乳石","游客互动","彩色光影"]}]},{"batch":"calibration-30","asset_id":"asset_2dc71a50d977","relative_path":"Robert-iPhone/IMG_4345.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4345.MOV","candidate_rating":4,"expected_rating":2,"delta":2,"gap":2,"expected_action":"fallback","whole_asset_or_clip":"whole_asset","notes":"","content_title":"镜头摇过木质凉亭展现远山峡谷风光","summary":"视频采用摇镜头，从地面的石阶和木质凉亭内部，逐渐展开视野，展现出远处的群山与河谷。画面构图利用凉亭柱子进行框架式构图，适合作为旅拍或民宿宣传片的开场与环境交代镜头。","tags":["木质凉亭","远山","峡谷","空镜","框架构图","自然风光","民宿环境"],"clip_suggestions":[{"in":"00:02","out":"00:10","role":"环境交代","subject_type":"landscape","shot_scale":"wide","rating":4,"reason":"镜头从凉亭内部平稳摇向外侧，利用凉亭结构作为前景，完美展现了开阔的远山与峡谷风光，空间层次感强。","audio_strategy":"保留自然环境音","tags":["凉亭视角","群山风光","摇镜头","环境空镜"]}]},{"batch":"calibration-30","asset_id":"asset_c054fc048448","relative_path":"Robert-iPhone/IMG_4301.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4301.MOV","candidate_rating":5,"expected_rating":5,"delta":0,"gap":0,"expected_action":"highlight","whole_asset_or_clip":"clip_only","notes":"","content_title":"朋友们在餐馆聚餐举杯共饮","summary":"本视频记录了一群年轻朋友在夜市大排档聚餐的欢乐场景。画面中大家围站在一起，吃着烧烤、聊天说笑、举杯共饮，展现了极其浓厚且真挚的朋友聚会氛围，非常适合作为青春、友情或美食生活类Vlog的高光片段。","tags":["朋友聚餐","举杯共饮","大排档","欢声笑语","友情","生活Vlog","烧烤美食"],"clip_suggestions":[{"in":"01:40","out":"02:10","role":"高潮镜头","subject_type":"people","shot_scale":"wide","rating":5,"reason":"大家围在桌前举杯共饮、欢笑互动的画面，情绪饱满，是聚会的高光时刻。","audio_strategy":"保留现场欢笑声与碰杯声","tags":["举杯共饮","聚会高潮","欢声笑语","友情时刻"]},{"in":"01:05","out":"01:35","role":"细节高光","subject_type":"people","shot_scale":"medium","rating":5,"reason":"记录了朋友间勾肩搭背、开怀大笑和真诚握手的瞬间，人物状态极其自然真实，极具感染力。","audio_strategy":"保留环境音","tags":["真挚笑容","朋友互动","温馨瞬间"]},{"in":"02:15","out":"02:30","role":"收尾镜头","subject_type":"food","shot_scale":"medium","rating":4,"reason":"俯拍满桌的美食与周围朋友的笑脸，非常适合作为聚餐Vlog的温馨结尾。","audio_strategy":"保留环境音","tags":["满桌美食","聚餐收尾","开心笑脸"]}]},{"batch":"calibration-30","asset_id":"asset_3dbefc668b8b","relative_path":"jixin-Nano/dji_mimo_20260612_153416_20260612153417_1781257191686_video.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260612_153416_20260612153417_1781257191686_video.MP4","candidate_rating":5,"expected_rating":5,"delta":0,"gap":0,"expected_action":"highlight","whole_asset_or_clip":"whole_asset","notes":"","content_title":"游客在峡谷中乘皮划艇漂流冲过急流","summary":"本视频采用第一人称视角真实记录了游客在峡谷中进行激流漂流的刺激过程。画面包含多艇互动泼水以及顺流而下的高光瞬间，人物面部表情兴奋、水花四溅，非常适合作为夏日户外旅游宣传片的高潮剪辑素材。","tags":["峡谷漂流","第一人称视角","激流勇进","水花四溅","夏日避暑","户外运动","真实反应"],"clip_suggestions":[{"in":"00:12","out":"00:24","role":"高潮高光","subject_type":"activity","shot_scale":"medium","rating":5,"reason":"第一人称视角记录游客乘皮划艇冲下急流的刺激瞬间，水花直接拍打镜头，人物面部表情兴奋真实，极具视觉冲击力和现场感，适合配合重拍音乐做慢动作处理。","audio_strategy":"保留水流冲击声与人物兴奋的呐喊声。","tags":["激流勇进","第一人称视角","水花四溅","真实反应","刺激体验"]},{"in":"00:02","out":"00:08","role":"场景过渡","subject_type":"activity","shot_scale":"wide","rating":4,"reason":"展示多艘皮划艇在峡谷中漂流、互相泼水嬉戏的场景，展现热闹的游玩氛围，适合作为漂流活动的趣味花絮。","audio_strategy":"保留泼水声与欢笑声。","tags":["峡谷漂流","泼水嬉戏","团队活动","夏日消暑"]}]},{"batch":"calibration-30","asset_id":"asset_7a799c8168cd","relative_path":"Robert-iPhone/IMG_4292.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4292.MOV","candidate_rating":4,"expected_rating":5,"delta":-1,"gap":1,"expected_action":"likely_use","whole_asset_or_clip":"whole_asset","notes":"","content_title":"身穿球衣的男子在聚会现场手持麦克风唱歌","summary":"画面展现了一名脸涂彩绘、身穿红色球衣的男子在聚会现场手持麦克风投入唱歌的生动瞬间。前半段人物神态自然、情绪饱满，后半段镜头扫过围观群众，适合作为活动记录或Vlog的高光素材。","tags":["唱歌","球迷","聚会","麦克风","拜仁慕尼黑","现场氛围","人物神态"],"clip_suggestions":[{"in":"00:03","out":"00:23","role":"活动高光","subject_type":"people","shot_scale":"medium","rating":4,"reason":"男子唱歌神情投入，面部表情丰富，身穿球衣与脸部彩绘极具现场角色感，画面稳定且主体突出。","audio_strategy":"保留原声歌声","tags":["唱歌","生动表情","球迷聚会","现场高光"]}]},{"batch":"calibration-30","asset_id":"asset_164c5788ff39","relative_path":"Robert-iPhone/IMG_4308.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4308.MOV","candidate_rating":4,"expected_rating":3,"delta":1,"gap":1,"expected_action":"review","whole_asset_or_clip":"clip_only","notes":"","content_title":"多人在山间泥路上徒步前行","summary":"视频记录了一群年轻人在山间泥路上徒步的场景。前半段为正面跟拍，大家面对镜头微笑互动，展现出轻松愉快的团队氛围；后半段转为第一人称俯拍脚步的特写，适合作为旅拍Vlog的过渡或花絮片段。","tags":["徒步","户外出行","朋友聚会","山路","欢笑","特写","第一人称"],"clip_suggestions":[{"in":"00:00","out":"00:06","role":"花絮片段","subject_type":"people","shot_scale":"medium","rating":4,"reason":"正面跟拍人群徒步，大家面对镜头互动、微笑并比耶，展现了真实、欢快的团队出行氛围，人物状态自然。","audio_strategy":"保留现场人声与环境音","tags":["朋友互动","开心微笑","团队徒步","正面跟拍"]}]},{"batch":"validation-15","asset_id":"asset_96340366d4ce","relative_path":"Action6/DJI_20260613111512_0076_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613111512_0076_D.MP4","candidate_rating":4,"expected_rating":4,"delta":0,"gap":0,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在山谷泥地上驾驶全地形越野车","summary":"多辆全地形越野车（ATV）依次在山谷泥路中行驶，背景为绿意盎然的山峦与晴朗天空。镜头记录了车辆驶过的动态过程，适合作为户外冒险或旅拍的活动展示B-roll。视频后段有手指遮挡镜头的穿帮画面，需在剪辑时予以截除。","tags":["全地形车","越野车","山谷","户外运动","骑行","冒险","旅拍B-roll"],"clip_suggestions":[{"in":"00:00","out":"00:18","role":"活动展示","subject_type":"activity","shot_scale":"wide","rating":4,"reason":"多辆越野车依次驶过镜头，画面构图稳定，主体动作清晰，展现了充满活力的户外运动场景，且避开了片尾的手指遮挡穿帮。","audio_strategy":"保留引擎声作为环境音效","tags":["越野车","户外冒险","山谷骑行","动态过场"]}]},{"batch":"validation-15","asset_id":"asset_0b644710c4ca","relative_path":"Action6/DJI_20260612161515_0038_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260612161515_0038_D.MP4","candidate_rating":4,"expected_rating":3,"delta":1,"gap":1,"expected_action":"review","whole_asset_or_clip":"clip_only","notes":"","content_title":"漂流起点博主与游客互动合影","summary":"视频前半段记录了博主身穿救生衣在漂流景区与几位撑伞的游客互动，随后女生拿出手机合影，画面生动自然；后半段镜头滑落并出现严重倾斜与面部特写，属于无效画面。建议截取前半段互动合影作为花絮或趣味片段。","tags":["漂流景区","游客互动","合影留念","雨天旅途","现场花絮","真实记录"],"clip_suggestions":[{"in":"00:00","out":"00:27","role":"花絮","subject_type":"people","shot_scale":"medium","rating":4,"reason":"博主与游客在雨中漂流点趣味互动，女生拿出手机自拍合影，人物状态真实自然，适合作为游记的趣味花絮。","audio_strategy":"保留现场对话人声","tags":["现场互动","合影自拍","真实状态","雨中漂流"]}]},{"batch":"validation-15","asset_id":"asset_3056452450fb","relative_path":"Robert-iPhone/IMG_4333.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4333.MOV","candidate_rating":3,"expected_rating":4,"delta":-1,"gap":1,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在彩色灯光溶洞中持手机微笑","summary":"视频记录了两位游客在彩色灯光渲染的溶洞内游览的画面，其中一人手持手机微笑面对镜头。后半段镜头出现剧烈晃动和遮挡，仅前半段约2秒画面可用作花絮或路人反应镜头。","tags":["溶洞","游客","微笑","手机","彩色灯光","纪实"],"clip_suggestions":[{"in":"00:00","out":"00:02","role":"花絮","subject_type":"people_landscape","shot_scale":"medium","rating":3,"reason":"前半段游客表情自然，溶洞背景色彩丰富，可作为游玩纪实花絮；后半段镜头严重晃动且有遮挡需裁切。","audio_strategy":"保留现场环境音","tags":["游客","微笑","溶洞","纪实"]}]},{"batch":"validation-15","asset_id":"asset_6db010837f51","relative_path":"Robert-iPhone/IMG_4346.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4346.MOV","candidate_rating":3,"expected_rating":4,"delta":-1,"gap":1,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"傍晚车流穿行城市道路","summary":"视频为车载视角拍摄的傍晚城市道路。画面中可见落日余晖下的粉橙色天空、前方行驶的车流以及路牌，因挡风玻璃有雨水，路灯光线形成强烈的斜向拉丝光斑。可作为城市旅拍的过渡或行进感B-roll使用。","tags":["城市","行车视角","黄昏","车流","路牌","晚霞","光斑"],"clip_suggestions":[{"in":"00:01","out":"00:04","role":"过场","subject_type":"landscape","shot_scale":"wide","rating":3,"reason":"该时段内晚霞色彩较为明显，车流与城市建筑构图相对稳定，适合作为行进感过渡镜头。","audio_strategy":"保留环境音","tags":["晚霞","行车","城市街景","过渡镜头"]}]},{"batch":"validation-15","asset_id":"asset_030e3aca65aa","relative_path":"Action6/DJI_20260613111723_0079_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613111723_0079_D.MP4","candidate_rating":3,"expected_rating":2,"delta":1,"gap":1,"expected_action":"fallback","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在碎石河滩骑行全地形越野车","summary":"视频记录了一群游客在山谷碎石河滩上骑行全地形越野车的场景。镜头存在手持晃动，且中间有拍向地面的废镜头，前景有人员走动遮挡，整体画面较为杂乱，可截取开头或结尾部分作为活动花絮备用。","tags":["全地形车","越野车","河滩","山谷","户外运动","游客","花絮"],"clip_suggestions":[{"in":"00:00","out":"00:04","role":"花絮","subject_type":"activity","shot_scale":"wide","rating":3,"reason":"车队在河滩集结，画面相对完整，可作为户外越野活动的背景花絮。","audio_strategy":"保留引擎声","tags":["越野车","河滩","集结"]},{"in":"00:10","out":"00:14","role":"花絮","subject_type":"activity","shot_scale":"wide","rating":3,"reason":"镜头重新对准车队，展示游客在山谷河滩中的准备状态。","audio_strategy":"保留环境音","tags":["越野车","山谷","户外"]}]},{"batch":"validation-15","asset_id":"asset_88844cf7f24f","relative_path":"Robert-iPhone/IMG_4282.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4282.MOV","candidate_rating":3,"expected_rating":1,"delta":2,"gap":2,"expected_action":"discard","whole_asset_or_clip":"clip_only","notes":"","content_title":"手持镜头环视酒店双人床房间","summary":"视频以手持移动镜头展示了酒店双人床房的内部环境，画面中可见散落的行李、鞋子以及双人床，并有人员在房间内活动。整体画面较为日常，适合作为旅途入住或整备的Vlog过场素材。","tags":["酒店房间","双人床","房间内景","手持环视","旅途纪实","过场B-roll"],"clip_suggestions":[{"in":"00:03","out":"00:08","role":"空间交代","subject_type":"building","shot_scale":"medium","rating":3,"reason":"展示酒店房间内部布局与双人床，适合作为旅途中入住或整备的过场画面。","audio_strategy":"保留环境音或淡出，搭配Vlog背景音乐","tags":["酒店房间","双人床","房间内景","旅途整备"]}]},{"batch":"validation-15","asset_id":"asset_158895b72f22","relative_path":"Action6/DJI_20260613142807_0099_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613142807_0099_D.MP4","candidate_rating":3,"expected_rating":3,"delta":0,"gap":0,"expected_action":"fallback","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在昏暗溶洞中沿铁梯攀登","summary":"画面展示了数名游客在昏暗的溶洞内部，顺着陡峭的铁制楼梯向上攀登。洞内光线较暗，伴有强烈的黄色手电筒和景观灯光直射镜头产生的炫光，可作为展现洞穴探险或攀爬过程的过渡B-roll使用。","tags":["溶洞","探险","攀登","游客","阶梯","暗光","户外活动"],"clip_suggestions":[{"in":"00:01","out":"00:07","role":"过场","subject_type":"activity","shot_scale":"medium","rating":3,"reason":"该片段中游客攀登动作较为连贯，虽然有手电筒直射的炫光，但较好地还原了溶洞探险的真实环境与攀爬过程。","audio_strategy":"保留现场环境音","tags":["溶洞探险","攀爬阶梯","暗光环境"]}]},{"batch":"validation-15","asset_id":"asset_08c943eb9686","relative_path":"Baymax-Phone/aeba74158f1c4d091f0b02cda1f2ea0a_raw.mp4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Baymax-Phone/aeba74158f1c4d091f0b02cda1f2ea0a_raw.mp4","candidate_rating":4,"expected_rating":1,"delta":3,"gap":3,"expected_action":"discard","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在山谷泥地上骑行全地形越野车","summary":"画面展示了多名游客在群山环抱的泥泞山路上驾驶全地形越野车（ATV）前行的场景。镜头跟随骑行队伍，展现了户外越野的活力与自然风光，适合作为旅拍中展现户外探险或体验活动的B-roll片段。","tags":["越野车","ATV","户外运动","山谷","骑行","探险","山野"],"clip_suggestions":[{"in":"00:01","out":"00:08","role":"活动展示","subject_type":"activity","shot_scale":"wide","rating":4,"reason":"骑手驾驶越野车在山路前行，动作连贯，背景山峦起伏，画面具有较强的动感和户外探险氛围。","audio_strategy":"保留引擎声与环境音","tags":["越野车","山谷骑行","户外探险","动感"]}]},{"batch":"validation-15","asset_id":"asset_953859dca426","relative_path":"Action6/DJI_20260613111546_0077_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260613111546_0077_D.MP4","candidate_rating":4,"expected_rating":2,"delta":2,"gap":2,"expected_action":"fallback","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在山谷骑行全地形越野车","summary":"视频记录了游客在山谷中体验全地形越野车（ATV）的场景。前半段镜头存在严重倾斜，后半段镜头恢复平稳并捕捉到游客在车上微笑互动的画面，适合作为户外探险或旅拍的活动花絮。","tags":["全地形车","越野骑行","山谷探险","户外运动","游客互动","旅拍花絮"],"clip_suggestions":[{"in":"00:22","out":"00:27","role":"活动花絮","subject_type":"activity","shot_scale":"medium","rating":4,"reason":"镜头恢复平稳，清晰展现了多位游客骑乘越野车并面对镜头微笑的自然状态，画面明亮，人物情绪饱满，非常适合作为旅拍成片的活动展示片段。","audio_strategy":"保留现场环境音及游客的欢笑声","tags":["游客微笑","越野车体验","团队合影","户外探险"]}]},{"batch":"validation-15","asset_id":"asset_9c300cf78fc5","relative_path":"Action6/DJI_20260612161430_0037_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260612161430_0037_D.MP4","candidate_rating":4,"expected_rating":4,"delta":0,"gap":0,"expected_action":"likely_use","whole_asset_or_clip":"clip_only","notes":"","content_title":"雨天景区游客在伞下对着镜头欢笑互动","summary":"视频记录了雨天景区内，几位年轻女生在伞下面对镜头互动、欢笑的生动瞬间。画面捕捉到了极其自然、真实的人物状态与富有感染力的笑容，非常适合作为旅拍成片中展现友情、欢快旅途氛围的优质B-roll片段。","tags":["雨天旅行","人物互动","真实笑容","闺蜜出行","欢快氛围","景区打卡"],"clip_suggestions":[{"in":"00:08","out":"00:32","role":"人物互动高光","subject_type":"people","shot_scale":"close_up","rating":4,"reason":"游客在雨中撑伞，面对镜头展现出自然、害羞且欢快的真实笑容与互动，情绪饱满，极具感染力。","audio_strategy":"保留欢笑声与环境音","tags":["真实互动","生动表情","雨中撑伞","欢笑"]}]},{"batch":"validation-15","asset_id":"asset_45ba04150e7e","relative_path":"Robert-iPhone/IMG_4330.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4330.MOV","candidate_rating":4,"expected_rating":3,"delta":1,"gap":1,"expected_action":"likely_use","whole_asset_or_clip":"whole_asset","notes":"","content_title":"五彩灯光照亮的溶洞钟乳石奇观","summary":"画面展示了在五彩灯光照射下的溶洞内部景观。镜头缓慢向上摇移，从近景的石笋过渡到顶部悬挂的钟乳石，色彩丰富且空间层次感强，适合作为旅拍中的风光过渡镜头。","tags":["溶洞","钟乳石","石笋","地质奇观","彩色灯光","大自然"],"clip_suggestions":[{"in":"00:00","out":"00:05","role":"风光过渡","subject_type":"landscape","shot_scale":"wide","rating":4,"reason":"镜头平稳上摇，完整展现了从地面石笋到顶部钟乳石的过渡，色彩对比强烈，视觉效果极佳。","audio_strategy":"保留环境声，建议后期添加空灵音效","tags":["溶洞","钟乳石","彩色灯光","空间纵深"]}]},{"batch":"validation-15","asset_id":"asset_a638791ae696","relative_path":"jixin-Nano/dji_mimo_20260612_162052_20260612162052_1781257151129_video.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260612_162052_20260612162052_1781257151129_video.MP4","candidate_rating":4,"expected_rating":5,"delta":-1,"gap":1,"expected_action":"highlight","whole_asset_or_clip":"whole_asset","notes":"","content_title":"青年游客在景区漂流点戏水互动","summary":"视频记录了一群青年在景区漂流点戏水互动的欢乐场景。画面中游客们身穿救生衣，面对镜头展现出真实灿烂的笑容，并有在水中嬉戏游泳的趣味瞬间，非常适合作为旅拍Vlog中展现青春活力与游玩乐趣的B-roll片段。","tags":["漂流","戏水","青年","欢笑","户外运动","景区游玩","夏日消暑"],"clip_suggestions":[{"in":"00:03","out":"00:15","role":"趣味互动","subject_type":"activity","shot_scale":"medium","rating":4,"reason":"游客面对镜头展现出自然灿烂的笑容，互动感强，展现了漂流活动的欢乐氛围。","audio_strategy":"保留现场人声与欢笑声","tags":["欢笑","镜头互动","漂流准备","青春活力"]},{"in":"00:20","out":"00:30","role":"花絮片段","subject_type":"activity","shot_scale":"medium","rating":4,"reason":"记录了同伴在水中游泳嬉戏的趣味瞬间，真实自然，适合作为趣味花絮剪入。","audio_strategy":"保留水花声与周围人的笑声","tags":["水中嬉戏","趣味花絮","真实记录","夏日玩水"]}]},{"batch":"validation-15","asset_id":"asset_5b691e6d1dbf","relative_path":"Robert-iPhone/IMG_4344.MOV","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Robert-iPhone/IMG_4344.MOV","candidate_rating":4,"expected_rating":2,"delta":2,"gap":2,"expected_action":"fallback","whole_asset_or_clip":"clip_only","notes":"","content_title":"木质凉亭右摇展现山谷河流风光","summary":"视频通过平稳的右摇镜头，以度假区木质凉亭为前景，缓缓揭示出远处的山谷、河流与连绵群山。画面具有较好的空间纵深感，适合用作展现自然环境或度假氛围的开场与过场镜头。","tags":["凉亭","山谷","河流","自然风光","空镜","平移运镜","度假区"],"clip_suggestions":[{"in":"00:02","out":"00:09","role":"环境交代","subject_type":"landscape","shot_scale":"wide","rating":4,"reason":"该片段运镜最为平稳，从凉亭内部自然过渡到开阔的山河远景，前景与后景层次分明，视觉揭示过程完整。","audio_strategy":"保留环境音","tags":["凉亭","山谷","河流","空镜","平移运镜"]}]},{"batch":"validation-15","asset_id":"asset_9196effa5897","relative_path":"Action6/DJI_20260612155517_0029_D.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/Action6/DJI_20260612155517_0029_D.MP4","candidate_rating":5,"expected_rating":5,"delta":0,"gap":0,"expected_action":"highlight","whole_asset_or_clip":"clip_only","notes":"","content_title":"游客在峡谷河道中体验激情漂流","summary":"视频记录了游客在峡谷景区进行漂流活动的欢乐场景。画面中游客们身穿救生衣、头戴安全帽，在湍急的溪流中互相泼水嬉戏，展现了极具现场感和感染力的湿身大战与欢笑瞬间，非常适合作为户外旅游或夏季消暑主题宣传片的高光片段。","tags":["峡谷漂流","泼水嬉戏","户外运动","夏日消暑","欢声笑语","乐谷银滩"],"clip_suggestions":[{"in":"01:32","out":"01:45","role":"高潮泼水大战","subject_type":"activity","shot_scale":"medium","rating":5,"reason":"画面中水花四溅，游客在激烈的泼水互动中展现出极其真实、兴奋的表情，视觉冲击力强，现场感十足。","audio_strategy":"保留现场激烈的泼水声与欢呼声","tags":["泼水大战","湿身狂欢","欢笑瞬间","激情漂流"]},{"in":"02:12","out":"02:30","role":"第一人称趣味纪实","subject_type":"people","shot_scale":"close_up","rating":4,"reason":"第一人称视角近距离记录游客戴着护目镜、手拿水瓢的特写，神情真实逗趣，极具代入感。","audio_strategy":"保留近距离喘息与水流声","tags":["第一人称视角","特写镜头","趣味纪实","漂流装备"]}]},{"batch":"validation-15","asset_id":"asset_3df6a158ee7d","relative_path":"jixin-Nano/dji_mimo_20260613_103420_20260613103421_1781320040416_video.MP4","media_uri":"file:///Users/bytedance/Documents/mydoc/pic/26%E5%8D%81%E6%B8%A1/jixin-Nano/dji_mimo_20260613_103420_20260613103421_1781320040416_video.MP4","candidate_rating":5,"expected_rating":5,"delta":0,"gap":0,"expected_action":"highlight","whole_asset_or_clip":"whole_asset","notes":"","content_title":"游客在峡谷中骑行越野车合影欢呼","summary":"视频展现了一群游客在壮丽的峡谷溪谷中骑行全地形越野车并集体向镜头挥手欢呼的场景。画面从近景人物过渡到大远景的团队合影，展现了极佳的团队活力与户外探险氛围，非常适合作为旅拍成片的高潮或结尾高光镜头。","tags":["全地形越野车","团队合影","欢呼挥手","峡谷风光","户外探险","青春活力","群像"],"clip_suggestions":[{"in":"00:02","out":"00:06","role":"高光高潮","subject_type":"people_landscape","shot_scale":"wide","rating":5,"reason":"镜头展现大群游客在峡谷中骑行越野车并集体挥手欢呼，画面开阔，人物状态极佳，极具感染力。","audio_strategy":"保留现场欢呼声","tags":["团队合影","欢呼挥手","峡谷风光","越野车"]}]}];
+    const ACTIONS = {
+      discard: "舍弃",
+      fallback: "低优先级备用",
+      review: "人工复核",
+      likely_use: "大概率入片",
+      highlight: "重点高光"
+    };
+    const SCOPE = { whole_asset: "整段可用", clip_only: "仅局部片段" };
+    const ERROR_TYPES = [
+      ["", "请选择错误类型"],
+      ["overrated_ordinary", "普通素材被高估"],
+      ["underrated_highlight", "局部高光被低估"],
+      ["ignored_technical", "忽视技术问题"],
+      ["invented_evidence", "虚构或夸大可见事件"],
+      ["misjudged_editing_value", "误判剪辑价值"],
+      ["timecode_issue", "片段时间范围不准确"],
+      ["rating_boundary", "星级门槛理解错误"],
+      ["none", "评分合理 / 无错误"],
+      ["other", "其他"],
+    ];
+    const STORAGE_PREFIX = "tripclipper:rating-review:26shidu:run-002:";
+    let activeFilter = "severe";
+
+    function esc(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function parseTime(value) {
+      const parts = String(value || "0").split(":").map(Number);
+      if (parts.some(Number.isNaN)) return 0;
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return parts[0] || 0;
+    }
+
+    function stars(score, kind) {
+      return Array.from({length: 5}, (_, i) =>
+        '<span class="' + (i < score ? "on " + kind : "") + '">★</span>'
+      ).join("");
+    }
+
+    function deltaClass(item) {
+      if (item.delta > 0) return "over";
+      if (item.delta < 0) return "under";
+      return "exact";
+    }
+
+    function deltaText(item) {
+      if (item.delta > 0) return "高估 +" + item.delta + " 星";
+      if (item.delta < 0) return "低估 " + item.delta + " 星";
+      return "评分一致";
+    }
+
+    function matches(item) {
+      if (activeFilter === "all") return true;
+      if (activeFilter === "exact") return item.gap === 0;
+      if (activeFilter === "one") return item.gap === 1;
+      return item.gap >= 2;
+    }
+
+    function sorted(items) {
+      const mode = document.getElementById("sortSelect").value;
+      return [...items].sort((a, b) => {
+        if (mode === "human-desc") return b.expected_rating - a.expected_rating || b.gap - a.gap;
+        if (mode === "model-desc") return b.candidate_rating - a.candidate_rating || b.gap - a.gap;
+        if (mode === "path") return a.relative_path.localeCompare(b.relative_path, "zh-CN");
+        return b.gap - a.gap || b.delta - a.delta;
+      });
+    }
+
+    function clipsMarkup(item, cardIndex) {
+      if (!item.clip_suggestions.length) return '<div class="manual-note">模型未给出推荐片段</div>';
+      return '<div class="clips">' + item.clip_suggestions.map((clip, clipIndex) =>
+        '<div class="clip">' +
+          '<button class="seek" data-card="' + cardIndex + '" data-time="' + parseTime(clip.in) + '">' +
+            esc(clip.in) + ' → ' + esc(clip.out) +
+          '</button>' +
+          '<div><div class="clip-title">' + esc(clip.role || "推荐片段") + ' · ' + esc(clip.rating) + ' 星</div>' +
+          '<div class="clip-reason">' + esc(clip.reason || "") + '</div></div>' +
+        '</div>'
+      ).join("") + '</div>';
+    }
+
+    function errorOptions() {
+      return ERROR_TYPES.map(entry =>
+        '<option value="' + esc(entry[0]) + '">' + esc(entry[1]) + '</option>'
+      ).join("");
+    }
+
+    function annotationMarkup(item) {
+      return '<section class="annotation-panel" data-asset-id="' + esc(item.asset_id) + '">' +
+        '<div class="annotation-head"><span class="annotation-title">人工错误归因</span><span class="save-status">尚未填写</span></div>' +
+        '<div class="annotation-grid">' +
+          '<div class="annotation-field"><label>模型错误类型</label><select class="annotation-error-type">' + errorOptions() + '</select></div>' +
+          '<div class="annotation-field"><label>人工认定的最佳片段</label><div class="time-grid">' +
+            '<input class="annotation-clip-in" type="text" inputmode="numeric" placeholder="起点，如 00:03">' +
+            '<input class="annotation-clip-out" type="text" inputmode="numeric" placeholder="终点，如 00:08">' +
+          '</div></div>' +
+          '<div class="annotation-field wide"><label>人工评分理由</label>' +
+            '<textarea class="annotation-reason" placeholder="写出可观察事实、决定星级的门槛，以及模型具体错在哪里。"></textarea>' +
+          '</div>' +
+        '</div>' +
+        '<div class="annotation-hint">输入内容只保存在当前浏览器 localStorage；完成后请导出 CSV 留档。</div>' +
+      '</section>';
+    }
+
+    function cardMarkup(item, index) {
+      const signal = deltaClass(item);
+      const note = item.notes || "未填写额外备注";
+      return '<article class="review-card ' + signal + '" style="animation-delay:' + Math.min(index * 45, 360) + 'ms">' +
+        '<div class="media-side">' +
+          '<span class="asset-index">#' + String(index + 1).padStart(2, "0") + '</span>' +
+          '<video id="video-' + index + '" controls preload="metadata" src="' + esc(item.media_uri) + '">' +
+            '浏览器无法播放此本地视频：' + esc(item.relative_path) +
+          '</video>' +
+        '</div>' +
+        '<div class="details">' +
+          '<div class="topline"><div><p class="path">' + esc(item.relative_path) + '</p><h2>' + esc(item.content_title) + '</h2></div>' +
+          '<span class="gap-chip ' + signal + '">' + deltaText(item) + '</span></div>' +
+          '<div class="score-row">' +
+            '<div class="score-box"><span class="score-number">' + item.expected_rating + '</span><div class="score-label">人工评分</div><div class="score-stars">' + stars(item.expected_rating, "human") + '</div></div>' +
+            '<div class="score-box"><span class="score-number">' + item.candidate_rating + '</span><div class="score-label">Prompt评分</div><div class="score-stars">' + stars(item.candidate_rating, "model") + '</div></div>' +
+          '</div>' +
+          '<div class="meta-row"><span class="meta-pill">' + esc(ACTIONS[item.expected_action] || item.expected_action || "未标注处理") + '</span>' +
+          '<span class="meta-pill">' + esc(SCOPE[item.whole_asset_or_clip] || item.whole_asset_or_clip || "未标注范围") + '</span>' +
+          '<span class="meta-pill">' + esc(item.batch === "calibration-30" ? "调优集 30" : "验证集 15") + '</span>' +
+          '<span class="meta-pill">' + esc(item.asset_id) + '</span></div>' +
+          '<div class="section-label">人工备注</div><p class="summary manual-note">' + esc(note) + '</p>' +
+          '<div class="section-label">模型摘要</div><p class="summary">' + esc(item.summary) + '</p>' +
+          '<div class="section-label">模型推荐片段</div>' + clipsMarkup(item, index) +
+          annotationMarkup(item) +
+        '</div>' +
+      '</article>';
+    }
+
+    function storageKey(assetId) {
+      return STORAGE_PREFIX + assetId;
+    }
+
+    function readAnnotation(assetId) {
+      try {
+        return JSON.parse(localStorage.getItem(storageKey(assetId)) || "{}") || {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function writeAnnotation(assetId, annotation) {
+      const payload = { ...annotation, updatedAt: new Date().toISOString() };
+      localStorage.setItem(storageKey(assetId), JSON.stringify(payload));
+      return payload;
+    }
+
+    function formatSavedAt(value) {
+      if (!value) return "尚未填写";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "已自动保存" : "已保存 " + date.toLocaleTimeString("zh-CN", {hour: "2-digit", minute: "2-digit"});
+    }
+
+    function updateAnnotationProgress() {
+      const completed = DATA.filter(item => (readAnnotation(item.asset_id).reason || "").trim()).length;
+      document.getElementById("annotationProgress").textContent = "已写理由 " + completed + " / " + DATA.length;
+    }
+
+    function bindAnnotations() {
+      document.querySelectorAll(".annotation-panel").forEach(panel => {
+        const assetId = panel.dataset.assetId;
+        const reason = panel.querySelector(".annotation-reason");
+        const errorType = panel.querySelector(".annotation-error-type");
+        const clipIn = panel.querySelector(".annotation-clip-in");
+        const clipOut = panel.querySelector(".annotation-clip-out");
+        const status = panel.querySelector(".save-status");
+        const saved = readAnnotation(assetId);
+        reason.value = saved.reason || "";
+        errorType.value = saved.errorType || "";
+        clipIn.value = saved.clipIn || "";
+        clipOut.value = saved.clipOut || "";
+        status.textContent = formatSavedAt(saved.updatedAt);
+
+        const persist = () => {
+          const next = writeAnnotation(assetId, {
+            reason: reason.value,
+            errorType: errorType.value,
+            clipIn: clipIn.value,
+            clipOut: clipOut.value,
+          });
+          status.textContent = formatSavedAt(next.updatedAt);
+          updateAnnotationProgress();
+        };
+        [reason, errorType, clipIn, clipOut].forEach(control => control.addEventListener("input", persist));
+      });
+      updateAnnotationProgress();
+    }
+
+    function csvCell(value) {
+      const text = String(value ?? "");
+      return /[",\r\n]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text;
+    }
+
+    function exportAnnotations() {
+      const fields = [
+        "batch", "asset_id", "relative_path", "expected_rating", "candidate_rating", "rating_delta",
+        "expected_action", "whole_asset_or_clip", "human_rating_reason", "model_error_type",
+        "best_clip_in", "best_clip_out", "annotation_updated_at"
+      ];
+      const rows = DATA.map(item => {
+        const saved = readAnnotation(item.asset_id);
+        return [
+          item.batch, item.asset_id, item.relative_path, item.expected_rating, item.candidate_rating, item.delta,
+          item.expected_action, item.whole_asset_or_clip, saved.reason || "", saved.errorType || "",
+          saved.clipIn || "", saved.clipOut || "", saved.updatedAt || ""
+        ];
+      });
+      const csv = "\ufeff" + [fields, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+      const url = URL.createObjectURL(new Blob([csv], {type: "text/csv;charset=utf-8"}));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "rating-review-45-annotations.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function render() {
+      const items = sorted(DATA.filter(matches));
+      const root = document.getElementById("cards");
+      document.getElementById("visibleCount").textContent = "显示 " + items.length + " / " + DATA.length;
+      root.innerHTML = items.length
+        ? items.map(cardMarkup).join("")
+        : '<div class="empty">当前筛选没有素材</div>';
+
+      root.querySelectorAll(".seek").forEach(button => {
+        button.addEventListener("click", () => {
+          const video = document.getElementById("video-" + button.dataset.card);
+          if (!video) return;
+          video.currentTime = Number(button.dataset.time) || 0;
+          video.play().catch(() => {});
+          video.scrollIntoView({behavior: "smooth", block: "center"});
+        });
+      });
+      bindAnnotations();
+    }
+
+    document.querySelectorAll(".filter-btn").forEach(button => {
+      button.addEventListener("click", () => {
+        activeFilter = button.dataset.filter;
+        document.querySelectorAll(".filter-btn").forEach(item => item.classList.remove("active"));
+        button.classList.add("active");
+        render();
+      });
+    });
+    document.getElementById("sortSelect").addEventListener("change", render);
+    document.getElementById("exportAnnotations").addEventListener("click", exportAnnotations);
+    render();
+  </script>
+</body>
+</html>

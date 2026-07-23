@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "project_slug": "26shidu",
+  "project_fingerprint": "2da7af09478da503f6f7b761ba2f73e0e64fb59b86251a059bd8999fcc3366af",
+  "seed": 20260722,
+  "rating_quotas": {
+    "1": 0,
+    "2": 0,
+    "3": 7,
+    "4": 6,
+    "5": 2
+  },
+  "actual_rating_counts": {
+    "3": 7,
+    "4": 6,
+    "5": 2
+  },
+  "assets": [
+    {
+      "asset_id": "asset_96340366d4ce",
+      "relative_path": "Action6/DJI_20260613111512_0076_D.MP4",
+      "baseline_rating": 3,
+      "type": "video",
+      "session_id": "session_05",
+      "subject_type": "activity",
+      "shot_scale": "wide"
+    },
+    {
+      "asset_id": "asset_0b644710c4ca",
+      "relative_path": "Action6/DJI_20260612161515_0038_D.MP4",
+      "baseline_rating": 3,
+      "type": "video",
+      "session_id": "session_01",
+      "subject_type": "people_landscape",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_3056452450fb",
+      "relative_path": "Robert-iPhone/IMG_4333.MOV",
+      "baseline_rating": 3,
+      "type": "video",
+      "session_id": "session_06",
+      "subject_type": "people",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_6db010837f51",
+      "relative_path": "Robert-iPhone/IMG_4346.MOV",
+      "baseline_rating": 3,
+      "type": "video",
+      "session_id": "session_07",
+      "subject_type": "landscape",
+      "shot_scale": "wide"
+    },
+    {
+      "asset_id": "asset_030e3aca65aa",
+      "relative_path": "Action6/DJI_20260613111723_0079_D.MP4",
+      "baseline_rating": 3,
+      "type": "video",
+      "session_id": "session_05",
+      "subject_type": "activity",
+      "shot_scale": "wide"
+    },
+    {
+      "asset_id": "asset_88844cf7f24f",
+      "relative_path": "Robert-iPhone/IMG_4282.MOV",
+      "baseline_rating": 3,
+      "type": "video",
+      "session_id": "session_01",
+      "subject_type": "building",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_158895b72f22",
+      "relative_path": "Action6/DJI_20260613142807_0099_D.MP4",
+      "baseline_rating": 3,
+      "type": "video",
+      "session_id": "session_06",
+      "subject_type": "people_landscape",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_08c943eb9686",
+      "relative_path": "Baymax-Phone/aeba74158f1c4d091f0b02cda1f2ea0a_raw.mp4",
+      "baseline_rating": 4,
+      "type": "video",
+      "session_id": "session_10",
+      "subject_type": "activity",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_953859dca426",
+      "relative_path": "Action6/DJI_20260613111546_0077_D.MP4",
+      "baseline_rating": 4,
+      "type": "video",
+      "session_id": "session_05",
+      "subject_type": "people_landscape",
+      "shot_scale": "wide"
+    },
+    {
+      "asset_id": "asset_9c300cf78fc5",
+      "relative_path": "Action6/DJI_20260612161430_0037_D.MP4",
+      "baseline_rating": 4,
+      "type": "video",
+      "session_id": "session_01",
+      "subject_type": "people",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_45ba04150e7e",
+      "relative_path": "Robert-iPhone/IMG_4330.MOV",
+      "baseline_rating": 4,
+      "type": "video",
+      "session_id": "session_06",
+      "subject_type": "landscape",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_a638791ae696",
+      "relative_path": "jixin-Nano/dji_mimo_20260612_162052_20260612162052_1781257151129_video.MP4",
+      "baseline_rating": 4,
+      "type": "video",
+      "session_id": "session_13",
+      "subject_type": "activity",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_5b691e6d1dbf",
+      "relative_path": "Robert-iPhone/IMG_4344.MOV",
+      "baseline_rating": 4,
+      "type": "video",
+      "session_id": "session_07",
+      "subject_type": "landscape",
+      "shot_scale": "wide"
+    },
+    {
+      "asset_id": "asset_9196effa5897",
+      "relative_path": "Action6/DJI_20260612155517_0029_D.MP4",
+      "baseline_rating": 5,
+      "type": "video",
+      "session_id": "session_01",
+      "subject_type": "activity",
+      "shot_scale": "medium"
+    },
+    {
+      "asset_id": "asset_3df6a158ee7d",
+      "relative_path": "jixin-Nano/dji_mimo_20260613_103420_20260613103421_1781320040416_video.MP4",
+      "baseline_rating": 5,
+      "type": "video",
+      "session_id": "session_13",
+      "subject_type": "activity",
+      "shot_scale": "wide"
+    }
+  ],
+  "asset_types": [
+    "video"
+  ],
+  "excluded_asset_count": 30
+}
