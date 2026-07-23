@@ -83,8 +83,41 @@ def write_manual_review_html(
     with path.open("x", encoding="utf-8") as handle:
         handle.write(rendered)
 
+
+def _safe_json(value: object) -> str:
+    return (
+        json.dumps(value, ensure_ascii=False)
+        .replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
+
+
+def write_variant_review_html(
+    path: Path,
+    comparison: Mapping[str, object],
+    source_folder: str,
+) -> None:
+    """生成三版候选结果并排复核页面。"""
+    source_root = Path(source_folder).expanduser().resolve(strict=False)
+    payload = json.loads(json.dumps(comparison, ensure_ascii=False))
+    for row in payload["assets"]:
+        media_path = (source_root / row["relative_path"]).resolve(strict=False)
+        row["media_uri"] = (
+            media_path.as_uri() if media_path.is_relative_to(source_root) else ""
+        )
+    template_path = Path(__file__).parent / "templates" / "variant_review.html.tmpl"
+    rendered = template_path.read_text(encoding="utf-8").replace(
+        "__VARIANT_REVIEW_DATA__", _safe_json(payload)
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8") as handle:
+        handle.write(rendered)
+
+
 __all__ = [
     "write_manifest",
     "write_manual_labels",
     "write_manual_review_html",
+    "write_variant_review_html",
 ]

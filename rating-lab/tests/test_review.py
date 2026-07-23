@@ -168,3 +168,59 @@ def test_v5_recall_accepts_one_strong_visible_highlight() -> None:
     assert "一个足够强且清楚可见的趣味细节" in prompt
     assert "局部高光不因占素材比例小而降级" in prompt
     assert "不放宽事实依据和时间范围要求" in prompt
+
+
+def test_write_variant_review_html_contains_variants_and_key_filter(
+    tmp_path: Path,
+) -> None:
+    from rating_lab.review import write_variant_review_html
+
+    comparison = {
+        "variants": {
+            "v5-balanced": {"metrics": {"sample_count": 1}},
+            "v5-conservative": {"metrics": {"sample_count": 1}},
+            "v5-recall": {"metrics": {"sample_count": 1}},
+        },
+        "key_asset_ids": ["asset-1"],
+        "assets": [
+            {
+                "asset_id": "asset-1",
+                "relative_path": "day/a.mp4",
+                "expected_rating": 4,
+                "original_expected_rating": 2,
+                "human_rating_reason": "人工意见",
+                "model_error_type": "none",
+                "is_key_review": True,
+                "variant_results": {
+                    "v5-balanced": {
+                        "candidate_rating": 4,
+                        "summary": "平衡",
+                        "clip_suggestions": [],
+                    },
+                    "v5-conservative": {
+                        "candidate_rating": 3,
+                        "summary": "保守",
+                        "clip_suggestions": [],
+                    },
+                    "v5-recall": {
+                        "candidate_rating": 5,
+                        "summary": "召回",
+                        "clip_suggestions": [],
+                    },
+                },
+            }
+        ],
+    }
+    output = tmp_path / "review.html"
+
+    write_variant_review_html(output, comparison, str(tmp_path))
+
+    html = output.read_text(encoding="utf-8")
+    assert "v5-balanced" in html
+    assert "v5-conservative" in html
+    assert "v5-recall" in html
+    assert "关键复核" in html
+    assert "偏好版本" in html
+    assert "localStorage" in html
+    assert "导出 CSV" in html
+    assert "asset-1" in html

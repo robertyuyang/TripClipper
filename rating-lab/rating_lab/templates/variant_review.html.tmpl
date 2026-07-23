@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>v5 三版评分复核</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0d12; --panel: #121821; --panel2: #18212d;
+      --line: #2a3747; --text: #eef4fb; --muted: #91a0b4;
+      --accent: #68d5b5; --warn: #ffca6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      position: sticky; top: 0; z-index: 5; padding: 18px 24px;
+      background: rgba(10,13,18,.95); border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .subtle { color: var(--muted); }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px;
+      align-items: center;
+    }
+    button, select {
+      border: 1px solid var(--line); border-radius: 8px;
+      background: var(--panel2); color: var(--text); padding: 8px 12px;
+    }
+    button { cursor: pointer; }
+    button.primary { background: #1d725e; border-color: #29977d; }
+    main { max-width: 1600px; margin: 0 auto; padding: 22px; }
+    .metrics {
+      display: grid; grid-template-columns: repeat(3,minmax(0,1fr));
+      gap: 12px; margin-bottom: 20px;
+    }
+    .metric-card, .asset {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .metric-card { padding: 14px; }
+    .metric-card h2 { margin: 0 0 8px; font-size: 15px; }
+    .metric-grid {
+      display: grid; grid-template-columns: repeat(2,minmax(0,1fr));
+      gap: 4px 12px; color: var(--muted);
+    }
+    .asset { margin-bottom: 18px; overflow: hidden; }
+    .asset-head {
+      display: flex; justify-content: space-between; gap: 12px;
+      padding: 14px 16px; border-bottom: 1px solid var(--line);
+    }
+    .path { font-weight: 650; overflow-wrap: anywhere; }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .badge {
+      border-radius: 999px; padding: 2px 8px;
+      background: var(--panel2); color: var(--muted);
+    }
+    .badge.key { background: #5d4621; color: var(--warn); }
+    .asset-body {
+      display: grid; grid-template-columns: minmax(260px,34%) minmax(0,1fr);
+      gap: 16px; padding: 16px;
+    }
+    video {
+      width: 100%; max-height: 420px; border-radius: 9px; background: #000;
+    }
+    .human {
+      margin-top: 10px; padding: 11px; border-radius: 9px;
+      background: var(--panel2);
+    }
+    .human strong { color: var(--accent); }
+    .variants {
+      display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px;
+    }
+    .variant {
+      min-width: 0; padding: 12px; border: 1px solid var(--line);
+      border-radius: 9px; background: var(--panel2);
+    }
+    .variant h3 { margin: 0 0 6px; font-size: 14px; }
+    .stars { color: var(--warn); font-size: 18px; }
+    .summary { margin-top: 8px; white-space: pre-wrap; }
+    .clip {
+      margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line);
+      color: var(--muted);
+    }
+    .decision {
+      margin-top: 12px; padding: 12px; border-radius: 9px;
+      background: #0e141c;
+    }
+    .choices { display: flex; flex-wrap: wrap; gap: 12px; }
+    textarea {
+      width: 100%; min-height: 64px; margin-top: 10px; padding: 9px;
+      border: 1px solid var(--line); border-radius: 8px;
+      background: var(--panel2); color: var(--text); resize: vertical;
+    }
+    .empty { padding: 48px; text-align: center; color: var(--muted); }
+    @media (max-width: 1000px) {
+      .metrics, .variants { grid-template-columns: 1fr; }
+      .asset-body { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>v5 三版评分复核</h1>
+    <div class="subtle">默认显示关键复核素材；人工文字评语优先于数值指标。</div>
+    <div class="toolbar">
+      <select id="filter">
+        <option value="key">关键复核</option>
+        <option value="all">全部 45 条</option>
+        <option value="annotated">仅有人工评语</option>
+      </select>
+      <span id="count" class="subtle"></span>
+      <button id="export" class="primary">导出 CSV</button>
+    </div>
+  </header>
+  <main>
+    <section id="metrics" class="metrics"></section>
+    <section id="assets"></section>
+  </main>
+  <script>
+    const DATA = __VARIANT_REVIEW_DATA__;
+    const variantNames = Object.keys(DATA.variants);
+    const storageKey = `rating-lab:v5-variant-review:${variantNames.join("|")}`;
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+    const filter = document.getElementById("filter");
+    const assetsRoot = document.getElementById("assets");
+    const count = document.getElementById("count");
+    const escapeHtml = (value) => String(value ?? "")
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+    const percentage = (value) =>
+      value === null || value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
+
+    function renderMetrics() {
+      document.getElementById("metrics").innerHTML = variantNames.map((name) => {
+        const m = DATA.variants[name].metrics;
+        return `<article class="metric-card">
+          <h2>${escapeHtml(name)}</h2>
+          <div class="metric-grid">
+            <span>完全一致</span><strong>${percentage(m.exact_match_rate)}</strong>
+            <span>平均误差</span><strong>${m.mean_absolute_error ?? "—"}</strong>
+            <span>严重偏差</span><strong>${m.severe_mismatch_count ?? "—"}</strong>
+            <span>高分误判</span><strong>${percentage(m.high_rating_false_positive_rate)}</strong>
+            <span>高分召回</span><strong>${percentage(m.high_rating_recall)}</strong>
+            <span>成功评分</span><strong>${m.scored_count ?? m.sample_count}</strong>
+          </div>
+        </article>`;
+      }).join("");
+    }
+    function clipText(result) {
+      const clip = (result.clip_suggestions || [])[0];
+      if (!clip) return "无推荐片段";
+      return `${clip.in || "—"} – ${clip.out || "—"}｜${clip.reason || "无片段理由"}`;
+    }
+    function stars(value) {
+      const rating = Number(value || 0);
+      return `${"★".repeat(rating)}${"☆".repeat(Math.max(0,5-rating))}`;
+    }
+    function saveDecision(assetId, field, value) {
+      saved[assetId] = saved[assetId] || {};
+      saved[assetId][field] = value;
+      localStorage.setItem(storageKey, JSON.stringify(saved));
+    }
+    function assetHtml(row) {
+      const decision = saved[row.asset_id] || {};
+      const cards = variantNames.map((name) => {
+        const result = row.variant_results[name];
+        return `<article class="variant">
+          <h3>${escapeHtml(name)}</h3>
+          <div class="stars">${stars(result.candidate_rating)}</div>
+          <div class="summary">${escapeHtml(result.summary || "无摘要")}</div>
+          <div class="clip">${escapeHtml(clipText(result))}</div>
+        </article>`;
+      }).join("");
+      const choices = [...variantNames,"none"].map((name) => {
+        const label = name === "none" ? "都不满意" : name;
+        const checked = decision.preferred_variant === name ? " checked" : "";
+        return `<label><input type="radio" name="preferred-${escapeHtml(row.asset_id)}"
+          data-id="${escapeHtml(row.asset_id)}" value="${escapeHtml(name)}"${checked}>
+          ${escapeHtml(label)}</label>`;
+      }).join("");
+      return `<article class="asset">
+        <div class="asset-head">
+          <div><div class="path">${escapeHtml(row.relative_path)}</div>
+          <div class="subtle">${escapeHtml(row.asset_id)}</div></div>
+          <div class="badges">
+            ${row.is_key_review ? '<span class="badge key">关键复核</span>' : ""}
+            <span class="badge">当前 ${row.expected_rating} 星</span>
+            <span class="badge">原始 ${row.original_expected_rating ?? "—"} 星</span>
+            <span class="badge">版本分差 ${row.variant_spread ?? 0}</span>
+          </div>
+        </div>
+        <div class="asset-body">
+          <div>
+            <video controls preload="metadata" src="${escapeHtml(row.media_uri)}"></video>
+            <div class="human"><strong>人工评语</strong>
+              <div>${escapeHtml(row.human_rating_reason || "无文字评语")}</div>
+              <div class="subtle">错误类型：${escapeHtml(row.model_error_type || "无")}</div>
+            </div>
+          </div>
+          <div><div class="variants">${cards}</div>
+            <div class="decision"><strong>偏好版本</strong>
+              <div class="choices">${choices}</div>
+              <textarea data-note="${escapeHtml(row.asset_id)}"
+                placeholder="补充判断理由">${escapeHtml(decision.review_note || "")}</textarea>
+            </div>
+          </div>
+        </div>
+      </article>`;
+    }
+    function visibleRows() {
+      if (filter.value === "key") return DATA.assets.filter((row) => row.is_key_review);
+      if (filter.value === "annotated") {
+        return DATA.assets.filter((row) => row.has_human_reason);
+      }
+      return DATA.assets;
+    }
+    function bindInputs() {
+      document.querySelectorAll('input[type="radio"][data-id]').forEach((input) => {
+        input.addEventListener("change", () =>
+          saveDecision(input.dataset.id, "preferred_variant", input.value));
+      });
+      document.querySelectorAll("textarea[data-note]").forEach((textarea) => {
+        textarea.addEventListener("input", () =>
+          saveDecision(textarea.dataset.note, "review_note", textarea.value));
+      });
+    }
+    function renderAssets() {
+      const rows = visibleRows();
+      count.textContent = `显示 ${rows.length} / ${DATA.assets.length}`;
+      assetsRoot.innerHTML = rows.length
+        ? rows.map(assetHtml).join("")
+        : '<div class="empty">当前筛选没有素材</div>';
+      bindInputs();
+    }
+    function csvCell(value) {
+      const text = String(value ?? "");
+      return `"${text.replaceAll('"','""')}"`;
+    }
+    function exportCsv() {
+      const header = [
+        "asset_id","relative_path","expected_rating","human_rating_reason",
+        "balanced_rating","conservative_rating","recall_rating",
+        "preferred_variant","review_note"
+      ];
+      const lines = [header.map(csvCell).join(",")];
+      for (const row of DATA.assets) {
+        const decision = saved[row.asset_id] || {};
+        const ratings = variantNames.map(
+          (name) => row.variant_results[name].candidate_rating
+        );
+        lines.push([
+          row.asset_id,row.relative_path,row.expected_rating,row.human_rating_reason,
+          ...ratings,decision.preferred_variant || "",decision.review_note || ""
+        ].map(csvCell).join(","));
+      }
+      const blob = new Blob(["\ufeff",lines.join("\r\n")], {
+        type: "text/csv;charset=utf-8"
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "v5-variant-review.csv";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+    filter.addEventListener("change",renderAssets);
+    document.getElementById("export").addEventListener("click",exportCsv);
+    renderMetrics();
+    renderAssets();
+  </script>
+</body>
+</html>
