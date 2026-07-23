@@ -1,0 +1,586 @@
+[
+  {
+    "asset_id": "asset_96340366d4ce",
+    "relative_path": "Action6/DJI_20260613111512_0076_D.MP4",
+    "baseline_rating": 3,
+    "candidate_rating": 3,
+    "content_title": "游客驾驶全地形越野车在山间土路上行驶",
+    "summary": "视频记录了多名游客在山谷间驾驶全地形越野车（ATV）穿梭的场景。前半段多辆越野车依次驶过镜头，画面展现了户外运动的活力，可作为旅途冒险的B-roll；后半段镜头被手指遮挡，属于无效画面。",
+    "tags": [
+      "全地形车",
+      "越野车",
+      "户外运动",
+      "山谷",
+      "骑行",
+      "冒险体验",
+      "泥泞道路"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:00",
+        "out": "00:18",
+        "role": "活动展示",
+        "subject_type": "activity",
+        "shot_scale": "wide",
+        "rating": 3,
+        "reason": "多辆越野车依次驶过镜头，画面主体清晰，展现了户外越野的动感与趣味，且避开了后半段手指遮挡的瑕疵。",
+        "audio_strategy": "保留引擎声与环境音",
+        "tags": [
+          "越野车",
+          "户外骑行",
+          "山间小路",
+          "动感画面"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_0b644710c4ca",
+    "relative_path": "Action6/DJI_20260612161515_0038_D.MP4",
+    "baseline_rating": 3,
+    "candidate_rating": 3,
+    "content_title": "游客在雨中漂流景区合影自拍",
+    "summary": "视频前半段展示了一群游客在雨中的漂流景区入口交流，随后女生们撑伞用手机进行合影自拍，展现了轻松真实的旅途互动；后半段镜头出现严重倾斜、对地及面部超近景等无法使用的技术瑕疵。建议截取前半段自拍互动作为旅游Vlog的趣味花絮。",
+    "tags": [
+      "漂流景区",
+      "雨中撑伞",
+      "朋友自拍",
+      "人物互动",
+      "旅行花絮",
+      "生活记录"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:18",
+        "out": "00:28",
+        "role": "趣味互动",
+        "subject_type": "people",
+        "shot_scale": "medium",
+        "rating": 3,
+        "reason": "女生们在雨中撑伞用手机合影自拍，展现旅途中朋友间的亲密互动与欢乐氛围，画面主体清晰，动作自然。",
+        "audio_strategy": "保留现场环境音与欢笑声",
+        "tags": [
+          "自拍",
+          "朋友合影",
+          "雨中",
+          "漂流景区",
+          "欢笑"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_3056452450fb",
+    "relative_path": "Robert-iPhone/IMG_4333.MOV",
+    "baseline_rating": 3,
+    "candidate_rating": 3,
+    "content_title": "男子在彩色溶洞中手持手机录像",
+    "summary": "视频前半段展示了两位男子在蓝色灯光渲染的溶洞中面对镜头微笑互动的画面，人物状态自然；后半段镜头发生剧烈旋转和倾斜，导致画面不可用。建议仅截取前2秒作为Vlog日常记录片段。",
+    "tags": [
+      "溶洞",
+      "游客",
+      "自拍",
+      "人物纪实",
+      "彩色灯光",
+      "朋友同行"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:00",
+        "out": "00:02",
+        "role": "人物出镜",
+        "subject_type": "people_landscape",
+        "shot_scale": "medium",
+        "rating": 3,
+        "reason": "前两秒人物表情自然，背景为色彩斑斓的溶洞景观，适合作为Vlog日常记录；两秒后镜头出现剧烈晃动和倾斜，不可用。",
+        "audio_strategy": "保留现场人声",
+        "tags": [
+          "溶洞",
+          "自拍",
+          "人物互动"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_6db010837f51",
+    "relative_path": "Robert-iPhone/IMG_4346.MOV",
+    "baseline_rating": 3,
+    "candidate_rating": 2,
+    "content_title": "傍晚时分车流在城市道路上行驶",
+    "summary": "视频为第一人称乘车视角拍摄的傍晚城市道路。画面中可见远处的晚霞与前方的车流，但由于挡风玻璃或镜头的折射，画面中存在非常严重的对角线强光拉丝（眩光），严重影响了整体视觉观感，仅可作为低优先级备用过渡素材。",
+    "tags": [
+      "城市道路",
+      "晚霞",
+      "行车记录",
+      "车流",
+      "黄昏",
+      "过渡镜头"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:00",
+        "out": "00:05",
+        "role": "过渡镜头",
+        "subject_type": "landscape",
+        "shot_scale": "wide",
+        "rating": 2,
+        "reason": "虽然存在严重的眩光干扰，但整体行车画面完整，展现了黄昏时分的城市车流，勉强可用作氛围过渡。",
+        "audio_strategy": "保留车内环境音",
+        "tags": [
+          "行车视角",
+          "黄昏车流",
+          "城市街景"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_030e3aca65aa",
+    "relative_path": "Action6/DJI_20260613111723_0079_D.MP4",
+    "baseline_rating": 3,
+    "candidate_rating": 2,
+    "content_title": "游客在河滩上骑全地形越野车",
+    "summary": "画面记录了一群游客在乱石河滩上骑全地形车聚集的场景。由于前景频繁有路人走过干扰构图，且镜头存在手持晃动，整体视觉效果较为杂乱，仅能作为低优先级的活动记录素材备用。",
+    "tags": [
+      "全地形车",
+      "越野车",
+      "河滩",
+      "户外运动",
+      "游客",
+      "山谷"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:03",
+        "out": "00:07",
+        "role": "过场",
+        "subject_type": "activity",
+        "shot_scale": "wide",
+        "rating": 2,
+        "reason": "此片段中越野车群相对完整呈现，前景路人干扰相对较少，可作为活动场景的交代。",
+        "audio_strategy": "保留环境音",
+        "tags": [
+          "全地形车",
+          "户外运动",
+          "河滩"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_88844cf7f24f",
+    "relative_path": "Robert-iPhone/IMG_4282.MOV",
+    "baseline_rating": 3,
+    "candidate_rating": 2,
+    "content_title": "酒店双人房内部环境手持环视",
+    "summary": "手持环视拍摄了酒店双人房的内部环境，包含挂衣钩、床铺、行李和窗外景色。画面存在较明显的晃动与杂乱感，技术质量一般，适合作为低优先级的旅行记录素材。",
+    "tags": [
+      "酒店客房",
+      "房间内景",
+      "手持拍摄",
+      "旅行纪实",
+      "双人床"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:02",
+        "out": "00:07",
+        "role": "环境交代",
+        "subject_type": "building",
+        "shot_scale": "wide",
+        "rating": 2,
+        "reason": "该片段较为连贯地展示了房间的内部布局与采光，虽有晃动，但勉强可用作住宿环境的纪实交代。",
+        "audio_strategy": "静音",
+        "tags": [
+          "房间布局",
+          "客房内景",
+          "纪实"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_158895b72f22",
+    "relative_path": "Action6/DJI_20260613142807_0099_D.MP4",
+    "baseline_rating": 3,
+    "candidate_rating": 3,
+    "content_title": "游客在灯光昏暗的溶洞中攀爬陡峭铁梯",
+    "summary": "画面记录了数名游客在昏暗的溶洞内部，顺着陡峭的红色铁质楼梯向上攀爬的场景。洞壁由黄色灯光打亮，伴有较强的镜头眩光，适合作为展现洞穴探险或景区游览过程的过渡B-roll。",
+    "tags": [
+      "溶洞",
+      "洞穴探险",
+      "爬楼梯",
+      "游客",
+      "地下景观",
+      "探秘"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:01",
+        "out": "00:07",
+        "role": "过场",
+        "subject_type": "people_landscape",
+        "shot_scale": "medium",
+        "rating": 3,
+        "reason": "该段攀爬动作连贯，镜头跟随感较强，较好地展现了溶洞探险的陡峭与神秘感。",
+        "audio_strategy": "保留现场环境音",
+        "tags": [
+          "溶洞攀登",
+          "探险过场",
+          "神秘氛围"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_08c943eb9686",
+    "relative_path": "Baymax-Phone/aeba74158f1c4d091f0b02cda1f2ea0a_raw.mp4",
+    "baseline_rating": 4,
+    "candidate_rating": 3,
+    "content_title": "游客在山谷泥地上驾驶越野沙滩车",
+    "summary": "画面展示了游客在群山环抱的绿色山谷中驾驶越野沙滩车（ATV）的场景。镜头从后方跟随，记录了骑手准备并向前行驶的过程，适合作为户外冒险或旅拍的活动花絮及过场B-roll。",
+    "tags": [
+      "越野沙滩车",
+      "户外冒险",
+      "山谷",
+      "骑行",
+      "旅拍B-roll",
+      "全地形车"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:01",
+        "out": "00:09",
+        "role": "活动花絮",
+        "subject_type": "activity",
+        "shot_scale": "medium",
+        "rating": 3,
+        "reason": "骑手驾驶越野车在山谷泥路上前行，画面具有动感和户外探险氛围，适合作为旅拍成片的过场或活动展示。",
+        "audio_strategy": "保留引擎声和风声",
+        "tags": [
+          "越野车",
+          "山谷骑行",
+          "户外运动"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_953859dca426",
+    "relative_path": "Action6/DJI_20260613111546_0077_D.MP4",
+    "baseline_rating": 4,
+    "candidate_rating": 3,
+    "content_title": "游客在峡谷砂石路体验全地形越野车",
+    "summary": "视频记录了游客在峡谷景区驾驶全地形越野车（ATV）的体验。前半段镜头存在严重的画面倾斜与晃动，后半段展示了游客在车上合影的画面，但结尾处有手指遮挡镜头的技术瑕疵。建议截取越野车合影片段作为活动记录使用。",
+    "tags": [
+      "全地形车",
+      "越野体验",
+      "峡谷景区",
+      "团队合影",
+      "户外冒险",
+      "游客"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:23",
+        "out": "00:28",
+        "role": "活动记录",
+        "subject_type": "activity",
+        "shot_scale": "medium",
+        "rating": 3,
+        "reason": "游客在越野车上合影，神态自然，画面相对稳定，展现了团队出游的欢乐氛围。",
+        "audio_strategy": "保留环境音",
+        "tags": [
+          "越野车合影",
+          "团队游客",
+          "户外活动"
+        ]
+      },
+      {
+        "in": "00:00",
+        "out": "00:04",
+        "role": "环境交代",
+        "subject_type": "landscape",
+        "shot_scale": "wide",
+        "rating": 3,
+        "reason": "开场展示了峡谷与蓝天白云的空旷全景，可作为环境交代镜头。",
+        "audio_strategy": "保留环境音",
+        "tags": [
+          "峡谷全景",
+          "蓝天白云",
+          "空镜头"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_9c300cf78fc5",
+    "relative_path": "Action6/DJI_20260612161430_0037_D.MP4",
+    "baseline_rating": 4,
+    "candidate_rating": 4,
+    "content_title": "雨中景区撑伞互动的女生们",
+    "summary": "画面记录了四位女生在雨中的景区码头撑伞互动的场景。镜头拉近后，女生们面对镜头展现出害羞、欢笑等非常自然且富有感染力的真实情绪，非常适合作为旅拍Vlog中表现友情与欢乐旅途的趣味B-roll。",
+    "tags": [
+      "女生",
+      "雨天",
+      "撑伞",
+      "欢笑",
+      "互动",
+      "景区",
+      "真实反应",
+      "旅途记录"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:04",
+        "out": "00:32",
+        "role": "人物趣味互动",
+        "subject_type": "people",
+        "shot_scale": "close_up",
+        "rating": 4,
+        "reason": "女生们面对镜头从害羞到大笑的连续真实反应，情绪极具感染力，画面构图稳定，主体突出。",
+        "audio_strategy": "保留现场欢笑声与环境音",
+        "tags": [
+          "欢笑瞬间",
+          "真实情绪",
+          "雨中互动",
+          "闺蜜"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_45ba04150e7e",
+    "relative_path": "Robert-iPhone/IMG_4330.MOV",
+    "baseline_rating": 4,
+    "candidate_rating": 4,
+    "content_title": "五彩灯光照亮的溶洞钟乳石向上摇移",
+    "summary": "画面展示了在五彩灯光照射下的溶洞景观，镜头缓慢向上摇移，展现了形态各异的钟乳石与石笋，色彩斑斓，空间层次感较强，适合作为旅拍中溶洞景区的空镜头或过场。",
+    "tags": [
+      "溶洞",
+      "钟乳石",
+      "石笋",
+      "五彩灯光",
+      "景区观光",
+      "空镜头"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:00",
+        "out": "00:05",
+        "role": "过场镜头",
+        "subject_type": "landscape",
+        "shot_scale": "medium",
+        "rating": 4,
+        "reason": "镜头向上摇移过程平稳，完整展现了从地面石笋到顶部钟乳石的过渡，色彩丰富且细节清晰。",
+        "audio_strategy": "保留环境音",
+        "tags": [
+          "溶洞",
+          "钟乳石",
+          "摇镜头",
+          "色彩斑斓"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_a638791ae696",
+    "relative_path": "jixin-Nano/dji_mimo_20260612_162052_20260612162052_1781257151129_video.MP4",
+    "baseline_rating": 4,
+    "candidate_rating": 4,
+    "content_title": "朋友们在漂流戏水区欢笑互动",
+    "summary": "视频记录了一群年轻人在景区戏水区玩耍的欢乐场景。前半段大家对着镜头欢笑互动，展现出真实的出行喜悦；后半段记录了朋友在水中嬉戏漂浮的趣味瞬间。画面虽有镜头水渍，但氛围轻松真实，适合作为青春旅拍或户外Vlog的趣味花絮。",
+    "tags": [
+      "漂流",
+      "戏水",
+      "朋友聚会",
+      "欢笑",
+      "户外运动",
+      "夏日避暑",
+      "Vlog素材"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:00",
+        "out": "00:15",
+        "role": "趣味互动",
+        "subject_type": "people",
+        "shot_scale": "medium",
+        "rating": 4,
+        "reason": "朋友们对着镜头欢笑、打闹，表情自然真实，展现了极佳的团队出行氛围，适合作为Vlog中展现友谊和欢乐的高光片段。",
+        "audio_strategy": "保留现场欢笑声与水流声",
+        "tags": [
+          "欢笑",
+          "朋友",
+          "特写互动",
+          "团队氛围"
+        ]
+      },
+      {
+        "in": "00:20",
+        "out": "00:30",
+        "role": "趣味花絮",
+        "subject_type": "activity",
+        "shot_scale": "wide",
+        "rating": 3,
+        "reason": "记录了朋友在水中漂浮嬉戏的搞笑瞬间，增添了旅途的趣味性与真实感。",
+        "audio_strategy": "保留现场环境音",
+        "tags": [
+          "水中嬉戏",
+          "趣味瞬间",
+          "花絮"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_5b691e6d1dbf",
+    "relative_path": "Robert-iPhone/IMG_4344.MOV",
+    "baseline_rating": 4,
+    "candidate_rating": 3,
+    "content_title": "凉亭视角俯瞰山河风光",
+    "summary": "镜头从度假区木质凉亭内向右平摇，缓缓展现出开阔的河谷与远处的群山，画面构图具有空间延伸感，适合作为旅拍或度假风光的转场与环境交代镜头。",
+    "tags": [
+      "凉亭",
+      "平摇镜头",
+      "山河风光",
+      "度假区",
+      "自然风光",
+      "空镜"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:02",
+        "out": "00:09",
+        "role": "环境交代",
+        "subject_type": "landscape",
+        "shot_scale": "wide",
+        "rating": 3,
+        "reason": "该片段平摇过程平稳，完整展现了从凉亭内部到开阔山河的视觉延伸，构图层次丰富。",
+        "audio_strategy": "保留自然环境音",
+        "tags": [
+          "平摇运镜",
+          "山川河流",
+          "空间延伸"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_9196effa5897",
+    "relative_path": "Action6/DJI_20260612155517_0029_D.MP4",
+    "baseline_rating": 5,
+    "candidate_rating": 4,
+    "content_title": "游客在峡谷河道中进行漂流戏水大战",
+    "summary": "该视频记录了游客在峡谷景区进行漂流和激烈水战的欢乐场景。画面包含多段近景人物开心大笑、互相泼水的生动瞬间，镜头具有极强的临场感和感染力，非常适合作为户外旅拍或夏日游玩宣传片的高光片段。",
+    "tags": [
+      "漂流",
+      "水战",
+      "峡谷景区",
+      "夏日避暑",
+      "户外运动",
+      "欢笑瞬间",
+      "第一人称视角"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "01:32",
+        "out": "01:45",
+        "role": "高光动作",
+        "subject_type": "activity",
+        "shot_scale": "medium",
+        "rating": 4,
+        "reason": "激烈的泼水大战瞬间，红盔游客迎面遭遇水花泼洒并露出开心笑容，画面动感十足，极具视觉冲击力。",
+        "audio_strategy": "保留泼水声与现场欢呼声",
+        "tags": [
+          "水花四溅",
+          "激烈水战",
+          "开心大笑",
+          "红安全帽"
+        ]
+      },
+      {
+        "in": "00:20",
+        "out": "00:28",
+        "role": "人物特写",
+        "subject_type": "people",
+        "shot_scale": "close_up",
+        "rating": 4,
+        "reason": "近距离捕捉到戴眼镜游客在漂流过程中的灿烂笑容，情绪饱满真实，极具感染力。",
+        "audio_strategy": "保留欢笑声",
+        "tags": [
+          "人物特写",
+          "灿烂笑容",
+          "情绪高光"
+        ]
+      },
+      {
+        "in": "02:15",
+        "out": "02:32",
+        "role": "第一人称互动",
+        "subject_type": "people_landscape",
+        "shot_scale": "close_up",
+        "rating": 4,
+        "reason": "第一人称视角下，戴护目镜的游客手持水瓢在水中前行，临场感极强，适合作为结尾或互动感镜头。",
+        "audio_strategy": "保留水流声与喘息声",
+        "tags": [
+          "第一人称",
+          "护目镜",
+          "水瓢",
+          "沉浸式体验"
+        ]
+      }
+    ],
+    "error": null
+  },
+  {
+    "asset_id": "asset_3df6a158ee7d",
+    "relative_path": "jixin-Nano/dji_mimo_20260613_103420_20260613103421_1781320040416_video.MP4",
+    "baseline_rating": 5,
+    "candidate_rating": 4,
+    "content_title": "游客在峡谷中驾驶越野车合影欢呼",
+    "summary": "视频展示了一群游客在壮丽的绿色峡谷中驾驶全地形越野车（ATV）。镜头从前排游客拉开，展现出整支车队在溪谷碎石滩上排开、向镜头挥手欢呼的场景，展现了极佳的团队活力与户外冒险氛围。",
+    "tags": [
+      "全地形车",
+      "越野车队",
+      "峡谷",
+      "团队出游",
+      "欢呼",
+      "户外运动",
+      "大合影"
+    ],
+    "clip_suggestions": [
+      {
+        "in": "00:03",
+        "out": "00:06",
+        "role": "高潮高光",
+        "subject_type": "people_landscape",
+        "shot_scale": "wide",
+        "rating": 4,
+        "reason": "镜头完全拉开，展现全体成员在峡谷背景下挥手欢呼的画面，情绪饱满，构图开阔，是极佳的团队旅拍高光镜头。",
+        "audio_strategy": "保留现场欢呼声，融入背景音乐重拍",
+        "tags": [
+          "团队合影",
+          "欢呼",
+          "峡谷风光",
+          "越野车队"
+        ]
+      }
+    ],
+    "error": null
+  }
+]

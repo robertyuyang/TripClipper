@@ -1,0 +1,50 @@
+{
+  "sample_count": 45,
+  "scored_count": 45,
+  "failed_count": 0,
+  "exact_match_count": 20,
+  "exact_match_rate": 0.4444444444444444,
+  "mean_absolute_error": 0.6666666666666666,
+  "within_one_rate": 0.8888888888888888,
+  "severe_mismatch_count": 5,
+  "high_rating_precision": 0.85,
+  "high_rating_false_positive_rate": 0.15000000000000002,
+  "high_rating_recall": 0.6296296296296297,
+  "confusion_matrix": {
+    "1": {
+      "1": 1,
+      "2": 2,
+      "3": 1,
+      "4": 0,
+      "5": 0
+    },
+    "2": {
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "5": 0
+    },
+    "3": {
+      "1": 0,
+      "2": 1,
+      "3": 7,
+      "4": 2,
+      "5": 0
+    },
+    "4": {
+      "1": 0,
+      "2": 2,
+      "3": 7,
+      "4": 7,
+      "5": 1
+    },
+    "5": {
+      "1": 0,
+      "2": 0,
+      "3": 1,
+      "4": 5,
+      "5": 4
+    }
+  }
+}
