@@ -86,6 +86,25 @@ rating-lab/
 
 结果包含完全一致率、平均绝对误差、相差至少两星的数量、4/5 星精确率与误判率、4/5 星召回率和混淆矩阵。
 
+### 比较三个候选版本
+
+每个候选版本目录包含 `initial-30/results.json` 和
+`extension-15/results.json` 后，可以一次性合并 45 条结果、计算三版指标并生成并排
+复核页：
+
+```bash
+.venv/bin/python rating-lab/cli.py compare-variants \
+  --variant v5-balanced=rating-lab/runs/development-v1/candidates/v5-balanced \
+  --variant v5-conservative=rating-lab/runs/development-v1/candidates/v5-conservative \
+  --variant v5-recall=rating-lab/runs/development-v1/candidates/v5-recall \
+  --labels rating-lab/datasets/development-v1/human-labels.csv \
+  --annotations rating-lab/datasets/development-v1/annotations.csv \
+  --source-folder "/素材根目录" \
+  --output-dir rating-lab/reports/development-v1/v5-variants
+```
+
+命令要求每版恰好 45 条且没有失败记录，并拒绝覆盖已有的合并结果、指标或报告。
+
 ### 运行测试
 
 ```bash

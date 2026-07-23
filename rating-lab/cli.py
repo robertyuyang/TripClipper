@@ -27,12 +27,19 @@ from rating_lab.review import (
     write_manual_labels,
     write_manual_review_html,
     write_manifest,
+    write_variant_review_html,
 )
 from rating_lab.runner import reserve_run_dir, run_calibration, write_results
 from rating_lab.sampling import (
     DEFAULT_RATING_QUOTAS,
     build_manifest,
     project_fingerprint,
+)
+from rating_lab.variants import (
+    build_variant_comparison,
+    load_annotations,
+    load_labels,
+    load_variant_results,
 )
 
 
@@ -64,6 +71,22 @@ def _parse_asset_types(value: str) -> set[str]:
     if not asset_types or not asset_types.issubset({"video", "image"}):
         raise argparse.ArgumentTypeError("素材类型只支持 video 或 video,image")
     return asset_types
+
+
+def _parse_variant(value: str) -> tuple[str, Path]:
+    try:
+        name, raw_path = value.split("=", 1)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("候选版本格式应为 NAME=DIR") from exc
+    if not name or not raw_path:
+        raise argparse.ArgumentTypeError("候选版本格式应为 NAME=DIR")
+    return name, Path(raw_path)
+
+
+def _write_json_exclusive(path: Path, value: object) -> None:
+    with path.open("x", encoding="utf-8") as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -103,6 +126,22 @@ def _build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--results", type=Path, required=True)
     compare.add_argument("--labels", type=Path, required=True)
     compare.add_argument("--output", type=Path, required=True)
+
+    compare_variants = subparsers.add_parser(
+        "compare-variants",
+        help="合并三个候选版本的两批结果并生成复核页面",
+    )
+    compare_variants.add_argument(
+        "--variant",
+        type=_parse_variant,
+        action="append",
+        required=True,
+        help="候选版本及目录，格式 NAME=DIR，必须提供三次",
+    )
+    compare_variants.add_argument("--labels", type=Path, required=True)
+    compare_variants.add_argument("--annotations", type=Path, required=True)
+    compare_variants.add_argument("--source-folder", type=Path, required=True)
+    compare_variants.add_argument("--output-dir", type=Path, required=True)
     return parser
 
 
@@ -193,6 +232,68 @@ def main(argv: list[str] | None = None) -> int:
             f"{percentage(metrics['high_rating_false_positive_rate'])}"
         )
         print(f"4/5 星召回率：{percentage(metrics['high_rating_recall'])}")
+        return 0
+    if args.command == "compare-variants":
+        if len(args.variant) != 3:
+            raise SystemExit("--variant 必须恰好提供三次")
+        variant_dirs = dict(args.variant)
+        if len(variant_dirs) != 3:
+            raise SystemExit("三个候选版本名称必须唯一")
+        variant_results = {
+            name: load_variant_results(path) for name, path in variant_dirs.items()
+        }
+        for name, records in variant_results.items():
+            if len(records) != 45:
+                raise SystemExit(f"候选版本 {name} 不是 45 条结果")
+            failures = [record for record in records if record.get("error")]
+            if failures:
+                raise SystemExit(f"候选版本 {name} 存在 {len(failures)} 条失败结果")
+
+        labels = load_labels(args.labels)
+        annotations = load_annotations(args.annotations)
+        try:
+            comparison = build_variant_comparison(
+                variant_results,
+                labels,
+                annotations,
+            )
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+
+        output_json = args.output_dir / "comparison.json"
+        output_html = args.output_dir / "v5-variant-review.html"
+        target_paths = [output_json, output_html]
+        for name, variant_dir in variant_dirs.items():
+            target_paths.extend(
+                [
+                    variant_dir / "combined-results.json",
+                    variant_dir / "metrics.json",
+                ]
+            )
+        existing = [path for path in target_paths if path.exists()]
+        if args.output_dir.exists() or existing:
+            joined = "、".join(str(path) for path in existing or [args.output_dir])
+            raise SystemExit(f"输出已存在，不会覆盖：{joined}")
+
+        args.output_dir.mkdir(parents=True, exist_ok=False)
+        for name, variant_dir in variant_dirs.items():
+            _write_json_exclusive(
+                variant_dir / "combined-results.json",
+                variant_results[name],
+            )
+            _write_json_exclusive(
+                variant_dir / "metrics.json",
+                comparison["variants"][name]["metrics"],
+            )
+        _write_json_exclusive(output_json, comparison)
+        write_variant_review_html(
+            output_html,
+            comparison,
+            str(args.source_folder),
+        )
+        print(f"三版比较结果：{output_json}")
+        print(f"三版复核页面：{output_html}")
+        print(f"关键复核素材：{len(comparison['key_asset_ids'])}")
         return 0
     if args.command == "run":
         if args.concurrency < 1:

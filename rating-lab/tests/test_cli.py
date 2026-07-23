@@ -356,3 +356,90 @@ def test_run_script_rejects_same_slug_with_different_source_folder(tmp_path: Pat
     assert completed.returncode != 0
     assert "项目指纹不匹配" in completed.stderr
     assert not output_dir.exists()
+
+
+def test_compare_variants_writes_combined_metrics_and_review(tmp_path: Path) -> None:
+    variant_dirs: dict[str, Path] = {}
+    ratings = {
+        "v5-balanced": 4,
+        "v5-conservative": 3,
+        "v5-recall": 5,
+    }
+    for name, rating in ratings.items():
+        variant_dir = tmp_path / name
+        variant_dirs[name] = variant_dir
+        records = [
+            {
+                "asset_id": f"asset-{index:02d}",
+                "relative_path": f"day/asset-{index:02d}.mp4",
+                "candidate_rating": rating,
+                "summary": f"{name} 摘要",
+                "clip_suggestions": [],
+                "error": None,
+            }
+            for index in range(45)
+        ]
+        for batch, batch_records in (
+            ("initial-30", records[:30]),
+            ("extension-15", records[30:]),
+        ):
+            batch_dir = variant_dir / batch
+            batch_dir.mkdir(parents=True)
+            (batch_dir / "results.json").write_text(
+                json.dumps(batch_records), encoding="utf-8"
+            )
+
+    labels_path = tmp_path / "human-labels.csv"
+    labels_path.write_text(
+        "asset_id,relative_path,expected_rating\n"
+        + "\n".join(
+            f"asset-{index:02d},day/asset-{index:02d}.mp4,4"
+            for index in range(45)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    annotations_path = tmp_path / "annotations.csv"
+    annotations_path.write_text(
+        "asset_id,expected_rating,human_rating_reason,model_error_type\n"
+        + "\n".join(
+            f"asset-{index:02d},4,,none" for index in range(45)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "comparison"
+    command = [
+        sys.executable,
+        "rating-lab/cli.py",
+        "compare-variants",
+    ]
+    for name, variant_dir in variant_dirs.items():
+        command.extend(["--variant", f"{name}={variant_dir}"])
+    command.extend(
+        [
+            "--labels",
+            str(labels_path),
+            "--annotations",
+            str(annotations_path),
+            "--source-folder",
+            str(tmp_path),
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    completed = subprocess.run(
+        command,
+        cwd=Path(__file__).parents[2],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert (output_dir / "comparison.json").exists()
+    assert (output_dir / "v5-variant-review.html").exists()
+    for variant_dir in variant_dirs.values():
+        assert (variant_dir / "combined-results.json").exists()
+        assert (variant_dir / "metrics.json").exists()
