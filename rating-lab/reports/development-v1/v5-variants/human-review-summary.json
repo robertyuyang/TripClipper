@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "reviewed_asset_count": 31,
+  "non_key_unreviewed_asset_count": 14,
+  "preference_counts": {
+    "v5-balanced": 4,
+    "v5-conservative": 4,
+    "v5-recall": 22,
+    "none": 1
+  },
+  "variant_choice_count": 30,
+  "variant_choice_rates": {
+    "v5-balanced": 0.13333333333333333,
+    "v5-conservative": 0.13333333333333333,
+    "v5-recall": 0.7333333333333333
+  },
+  "rejected_assets": [
+    {
+      "asset_id": "asset_73db1344d9d0",
+      "expected_rating": 4,
+      "review_note": "有一个雨衣破碎漏出后脑，有一定的趣味性"
+    }
+  ],
+  "recommendation": {
+    "next_default_candidate": "v5-recall",
+    "production_default_changed": false,
+    "reason": "在30条明确选择某个版本的关键素材中，召回版获选22条，占73.33%。"
+  }
+}
