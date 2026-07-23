@@ -163,6 +163,13 @@ tripclipper analyze <slug> --stage cluster
 tripclipper export <slug>
 ```
 
+### 评分 Prompt 调优实验室
+
+评分标准的抽样、人工标注、候选 Prompt 运行和比较统一位于
+[`rating-lab/`](rating-lab/README.md)。实验室可以把项目 `cut_index.json`
+作为只读素材来源，但实验数据不属于任何正式项目，也不会自动写回 TripClipper
+的生产产物。
+
 常用选项：
 
 ```bash
