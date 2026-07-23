@@ -170,6 +170,12 @@ tripclipper export <slug>
 作为只读素材来源，但实验数据不属于任何正式项目，也不会自动写回 TripClipper
 的生产产物。
 
+### 正式评分规则
+
+TripClipper 正式视觉分析固定使用代码中的 V5 召回版评分规则，不提供运行时
+Prompt 选择参数。`rating-lab/prompts/` 保存历史版和候选版，实验运行可通过
+`rating-lab/cli.py run --rating-guide` 显式选择，但不会自动影响正式流程。
+
 常用选项：
 
 ```bash
