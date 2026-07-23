@@ -62,3 +62,38 @@ def test_old_project_owned_lab_directories_are_removed() -> None:
 
     assert not (repo_root / "projects/26shidu/rating-calibration").exists()
     assert not (repo_root / "projects/26shidu/rating-validation").exists()
+
+
+def test_authoritative_labels_apply_exactly_five_adjudications() -> None:
+    expected_changes = {
+        "asset_49ba9c5ba398": ("2", "4"),
+        "asset_2dc71a50d977": ("2", "4"),
+        "asset_88844cf7f24f": ("1", "3"),
+        "asset_08c943eb9686": ("1", "4"),
+        "asset_5b691e6d1dbf": ("2", "4"),
+    }
+    historical: dict[str, str] = {}
+    for batch in ("initial-30", "extension-15"):
+        path = DATASET_ROOT / "batches" / batch / "human-labels.csv"
+        with path.open(encoding="utf-8-sig", newline="") as handle:
+            historical.update(
+                {
+                    row["asset_id"]: row["expected_rating"]
+                    for row in csv.DictReader(handle)
+                }
+            )
+    with (DATASET_ROOT / "human-labels.csv").open(
+        encoding="utf-8-sig", newline=""
+    ) as handle:
+        authoritative = {
+            row["asset_id"]: row["expected_rating"]
+            for row in csv.DictReader(handle)
+        }
+
+    changes = {
+        asset_id: (historical[asset_id], rating)
+        for asset_id, rating in authoritative.items()
+        if historical[asset_id] != rating
+    }
+
+    assert changes == expected_changes
