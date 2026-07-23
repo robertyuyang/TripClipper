@@ -46,6 +46,7 @@ from .models import (
     SubjectType,
     WarningItem,
 )
+from .rating_guide import PRODUCTION_RATING_GUIDE
 
 # ---------------------------------------------------------------------------
 # Module-level constants
@@ -55,7 +56,6 @@ _DEFAULT_TIMEOUT_S = 60.0
 _MAX_RETRIES = 2  # 共 3 次尝试
 _RETRY_BACKOFFS = (1.0, 4.0)  # 重试前等待 1s、4s（再 + 随机 0~1s 抖动）
 _TRANSIENT_HTTP = {429, 500, 502, 503, 504}
-
 
 _SYSTEM_PROMPT_TEMPLATE = """你是一名严谨的旅拍素材剪辑助理，负责对单个素材做画面层面的结构化判读。
 
@@ -109,11 +109,7 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一名严谨的旅拍素材剪辑助理，负
 {editing_intent_block}
 ## 评分参考
 
-- 5：构图佳、叙事价值高、可作为成片主轴或高光。
-- 4：画面合格，有明确剪辑用途。
-- 3：素材可用但不出彩。
-- 2：画面瑕疵明显（抖动、过曝、对焦失误）或重复性高。
-- 1：废片，仅建议舍弃。
+{rating_guide}
 
 再次强调：只输出 JSON 对象本身，不要任何其他内容。"""
 
@@ -188,7 +184,13 @@ class Provider:
        :class:`Provider` (Q8).
     """
 
-    def __init__(self, config: ModelConfig, editing_intent: EditingIntent) -> None:
+    def __init__(
+        self,
+        config: ModelConfig,
+        editing_intent: EditingIntent,
+        *,
+        rating_guide: Optional[str] = None,
+    ) -> None:
         if not config.is_usable():
             raise ProviderError(
                 "ModelConfig 不可用：provider/base_url/api_key_env/vision_model 必须齐全",
@@ -207,7 +209,10 @@ class Provider:
         self._api_key = api_key
         self._base_url = (config.base_url or "").rstrip("/")
         self._vision_model = config.vision_model
-        self._system_prompt = self._render_system_prompt(editing_intent)
+        self._system_prompt = self._render_system_prompt(
+            editing_intent,
+            rating_guide=rating_guide,
+        )
         # httpx.Client 非线程安全；analyzer 为每个 worker 线程单独构造一个 Provider。
         self._client = httpx.Client(timeout=_DEFAULT_TIMEOUT_S)
 
@@ -324,7 +329,11 @@ class Provider:
     # ----------------------------------------------------------------- helpers
 
     @staticmethod
-    def _render_system_prompt(editing_intent: EditingIntent) -> str:
+    def _render_system_prompt(
+        editing_intent: EditingIntent,
+        *,
+        rating_guide: Optional[str] = None,
+    ) -> str:
         """Render ``_SYSTEM_PROMPT_TEMPLATE`` with the editing_intent block.
 
         Q19: only non-None fields are rendered; when all five fields are None
@@ -332,7 +341,10 @@ class Provider:
         lines).
         """
         block = _render_editing_intent_block(editing_intent)
-        return _SYSTEM_PROMPT_TEMPLATE.format(editing_intent_block=block)
+        return _SYSTEM_PROMPT_TEMPLATE.format(
+            editing_intent_block=block,
+            rating_guide=rating_guide or PRODUCTION_RATING_GUIDE,
+        )
 
 
 # ---------------------------------------------------------------------------

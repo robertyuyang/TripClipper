@@ -19,7 +19,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from tripclipper.config import EditingIntent
+from tripclipper.config import EditingIntent, ModelConfig
 from tripclipper.models import (
     AnalysisStatus,
     Asset,
@@ -41,6 +41,7 @@ from tripclipper.provider import (
     _should_retry,
     apply_analysis,
 )
+from tripclipper.rating_guide import PRODUCTION_RATING_GUIDE
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +440,58 @@ def test_render_system_prompt_all_fields_rendered():
     assert "audience: 家人朋友" in prompt
     assert "people_focus: 家庭聚焦" in prompt
     assert "audio_priority: 环境声优先" in prompt
+
+
+def test_production_rating_guide_is_v5_recall() -> None:
+    assert "v5-recall：优先避免遗漏真实高光" in PRODUCTION_RATING_GUIDE
+    assert "素材总评分必须等于最佳片段的评分" in PRODUCTION_RATING_GUIDE
+    assert "局部高光不因占素材比例小而降级" in PRODUCTION_RATING_GUIDE
+    assert "主体过小、处于边缘或构图意图不清时，最高 3 星" in (
+        PRODUCTION_RATING_GUIDE
+    )
+    assert "持续且非叙事性的倾斜导致观看明显不自然时，最高 2 星" in (
+        PRODUCTION_RATING_GUIDE
+    )
+    assert "一个足够强且清楚可见的趣味细节" in PRODUCTION_RATING_GUIDE
+    assert "不得编造关键帧没有提供的动作" in PRODUCTION_RATING_GUIDE
+
+
+def test_render_system_prompt_uses_production_rating_guide_by_default() -> None:
+    prompt = Provider._render_system_prompt(EditingIntent())
+
+    assert PRODUCTION_RATING_GUIDE in prompt
+    assert "构图佳、叙事价值高、可作为成片主轴或高光" not in prompt
+
+
+def test_render_system_prompt_accepts_calibration_rating_guide():
+    guide = "- 5：仅限特别高光。\n- 4：大概率进入成片。"
+
+    prompt = Provider._render_system_prompt(EditingIntent(), rating_guide=guide)
+
+    assert guide in prompt
+    assert "构图佳、叙事价值高" not in prompt
+    assert "JSON 对象" in prompt
+
+
+def test_provider_constructor_accepts_calibration_rating_guide(monkeypatch):
+    monkeypatch.setenv("TEST_RATING_CALIBRATION_KEY", "secret")
+    config = ModelConfig(
+        provider="openai_compatible",
+        base_url="https://example.invalid/v1",
+        api_key_env="TEST_RATING_CALIBRATION_KEY",
+        vision_model="vision-model",
+    )
+
+    provider = Provider(
+        config,
+        EditingIntent(),
+        rating_guide="- 5：仅限特别高光。",
+    )
+    try:
+        assert "仅限特别高光" in provider._system_prompt
+        assert "构图佳、叙事价值高" not in provider._system_prompt
+    finally:
+        provider._client.close()
 
 
 # ---------------------------------------------------------------------------
