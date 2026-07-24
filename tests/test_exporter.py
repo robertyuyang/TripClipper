@@ -26,6 +26,7 @@ from tripclipper.exporter import (
     _format_candidate_cell,
     _format_clip_suggestions,
     _format_duration,
+    _format_modified_time,
     _format_rating,
     _format_row_class,
     _format_session_cell,
@@ -1516,8 +1517,16 @@ def test_render_review_html_with_sessions_end_to_end(tmp_path: Path) -> None:
     assert 'id="filter-session"' in text
     assert "formatSessionOptionLabel" in text
     assert "sessionLabelsById" in text
+    assert "Asia/Shanghai" in text
     assert "2026-07-02T09:00:00" in text
     assert "toggleAttribute('open'" not in text
+
+
+def test_format_modified_time_converts_utc_to_shanghai() -> None:
+    assert (
+        _format_modified_time("2026-06-13T06:17:04Z")
+        == "2026-06-13 14:17"
+    )
 
 
 def test_render_review_html_no_sessions_collapses_view(tmp_path: Path) -> None:

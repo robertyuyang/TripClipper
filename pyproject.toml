@@ -13,6 +13,7 @@ dependencies = [
     "pyyaml",
     "click",
     "httpx",
+    "pillow",
     "python-dotenv",
     "pyjianyingdraft>=0.3.0",
 ]

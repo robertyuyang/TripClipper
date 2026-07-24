@@ -7,9 +7,8 @@ adjacent assets is at least :data:`SESSION_GAP_HOURS` hours.
 
 Design decisions (session-splitting spec, grilling Q1/Q7/Q9):
 
-* Time source is ``Asset.modified_time`` (Q7=B), an ISO 8601 string written by
-  the scan stage. Assets missing it are collected into ``session_00_unknown``
-  (Q9=A) instead of being dropped.
+* 时间源优先使用 ``Asset.metadata['captured_at']``，缺失时回退
+  ``Asset.modified_time``；两者都缺失的素材归入 ``session_00_unknown``。
 * The gap threshold is a module constant, never a CLI flag (Q6/Q8).
 * Numbered sessions are ``session_01``, ``session_02``, ... ; the unknown
   bucket is only emitted when at least one asset lacks a time.
@@ -30,11 +29,12 @@ UNKNOWN_SESSION_ID = "session_00_unknown"
 
 
 def _parse_time(value: str | None) -> datetime | None:
-    """Parse an ISO 8601 ``modified_time`` string, tolerating junk."""
+    """解析 ISO 8601 时间字符串；空值或非法值返回 ``None``。"""
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
+        return parsed if parsed.tzinfo is not None else parsed.astimezone()
     except (ValueError, TypeError):
         return None
 
@@ -50,7 +50,9 @@ def split_sessions(
     timed: list[tuple[datetime, Asset]] = []
     unknown: list[Asset] = []
     for asset in assets:
-        parsed = _parse_time(asset.modified_time)
+        parsed = _parse_time(asset.metadata.get("captured_at"))
+        if parsed is None:
+            parsed = _parse_time(asset.modified_time)
         if parsed is None:
             unknown.append(asset)
         else:

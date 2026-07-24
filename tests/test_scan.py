@@ -20,7 +20,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from PIL import Image
 
+import tripclipper.scan as scan_module
 from tripclipper.cli import main
 from tripclipper.cut_index import read_cut_index, write_cut_index
 from tripclipper.models import AnalysisStatus, AssetType
@@ -34,6 +36,7 @@ from tripclipper.scan import (
     build_asset,
     classify_file,
     detect_capabilities,
+    probe_media,
     scan_project,
 )
 
@@ -293,6 +296,40 @@ def test_metadata_matches_probe_truth(real_scan) -> None:
     assert dji_2688["width"] == 2688
     assert dji_2688["height"] == 1512
     assert dji_2688["fps"] == 59.94
+
+
+def test_probe_media_prefers_real_dji_filename_time() -> None:
+    video = VIDEOS_DIR / "mydji" / "DJI_20260612134026_0001_D.MP4"
+
+    metadata = probe_media(video, detect_capabilities())
+
+    assert metadata["captured_at"] == "2026-06-12T05:40:26+00:00"
+
+
+def test_dji_mimo_filename_time_overrides_transcoded_creation_time() -> None:
+    path = Path(
+        "dji_mimo_20260613_102250_20260613102250_1781320067255_video.MOV"
+    )
+
+    captured_at = scan_module._extract_dji_filename_captured_at(path)
+
+    assert captured_at == "2026-06-13T02:22:50+00:00"
+
+
+def test_scan_extracts_image_datetime_original(tmp_path: Path) -> None:
+    source = tmp_path / "src"
+    source.mkdir()
+    image_path = source / "photo.jpg"
+    exif = Image.Exif()
+    exif[36867] = "2026:06:13 09:30:09"
+    exif[36881] = "+08:00"
+    Image.new("RGB", (2, 2)).save(image_path, exif=exif)
+    _config, base = _setup_project(tmp_path, source)
+
+    scan_project(SLUG, base_dir=base, extract_media=True)
+    cut = read_cut_index(cut_index_path(SLUG, base_dir=base))
+
+    assert cut.assets[0].metadata["captured_at"] == "2026-06-13T01:30:09+00:00"
 
 
 def test_thumbnails_and_frames_extracted(real_scan) -> None:

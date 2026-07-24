@@ -37,6 +37,16 @@ def test_all_within_gap_yields_single_session() -> None:
     assert sessions[0].ended_at == BASE + timedelta(minutes=28)
 
 
+def test_captured_at_takes_precedence_over_modified_time() -> None:
+    asset = _asset(1, BASE + timedelta(days=30))
+    asset.metadata["captured_at"] = BASE.isoformat()
+
+    sessions = split_sessions([asset])
+
+    assert sessions[0].started_at == BASE
+    assert sessions[0].ended_at == BASE
+
+
 def test_each_two_hours_apart_yields_one_session_each() -> None:
     assets = [_asset(i, BASE + timedelta(hours=2 * i)) for i in range(5)]
     sessions = split_sessions(assets)

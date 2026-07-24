@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Union
 
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 
 from .cut_index import generate_asset_id, read_cut_index, write_cut_index
@@ -221,6 +223,68 @@ def _select_primary_video_stream(streams: list[dict]) -> Optional[dict]:
     return max(video_streams, key=area)
 
 
+def _normalize_captured_at(value: object) -> Optional[str]:
+    """把带或不带时区的拍摄时间归一化为 UTC ISO 8601。"""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.astimezone()
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _extract_image_captured_at(path: _PathLike) -> Optional[str]:
+    """读取图片 EXIF ``DateTimeOriginal``；无有效值时返回 ``None``。"""
+    try:
+        with Image.open(path) as image:
+            exif = image.getexif()
+            original = exif.get(36867)
+            offset = exif.get(36881)
+            if original is None:
+                exif_ifd = exif.get_ifd(34665)
+                original = exif_ifd.get(36867)
+                offset = exif_ifd.get(36881)
+    except (OSError, UnidentifiedImageError, ValueError):
+        return None
+
+    if not isinstance(original, str):
+        return None
+    try:
+        parsed = datetime.strptime(original.strip(), "%Y:%m:%d %H:%M:%S")
+        if isinstance(offset, str) and offset.strip():
+            parsed = datetime.strptime(
+                f"{original.strip()}{offset.strip()}",
+                "%Y:%m:%d %H:%M:%S%z",
+            )
+        else:
+            parsed = parsed.astimezone()
+    except ValueError:
+        return None
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _extract_dji_filename_captured_at(path: _PathLike) -> Optional[str]:
+    """从 DJI 文件名读取中国本地拍摄时间，并归一化为 UTC。"""
+    filename = Path(path).name
+    match = re.match(
+        r"^dji_mimo_(\d{8})_(\d{6})_|^DJI_(\d{14})_",
+        filename,
+        re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    raw = "".join(match.group(1, 2)) if match.group(1) else match.group(3)
+    try:
+        parsed = datetime.strptime(raw, "%Y%m%d%H%M%S")
+    except ValueError:
+        return None
+    china_timezone = timezone(timedelta(hours=8))
+    return parsed.replace(tzinfo=china_timezone).astimezone(timezone.utc).isoformat()
+
+
 def _run_ffprobe(path: _PathLike) -> dict:
     """调用 ffprobe 解析媒体信息，返回统一 dict。
 
@@ -230,6 +294,8 @@ def _run_ffprobe(path: _PathLike) -> dict:
     - ``fps`` 把 ``avg_frame_rate`` 的分数求值为浮点（den=0 记为缺省）；
     - ``has_audio`` 以是否存在 audio 流判定；
     - ``duration`` 取 ``format.duration``（秒，浮点）。
+    - ``captured_at`` 对 DJI 素材优先取文件名时间；其他素材优先取容器、其次取流
+      的 ``creation_time``，并归一化为 UTC。
 
     失败（工具缺失、非零退出、超时、JSON 解析失败、无视频流）抛 :class:`_ToolError`。
     """
@@ -290,6 +356,19 @@ def _run_ffprobe(path: _PathLike) -> dict:
         "fps": _eval_frame_rate(primary.get("avg_frame_rate")),
         "has_audio": has_audio,
     }
+    format_tags = fmt.get("tags") or {}
+    captured_at = _extract_dji_filename_captured_at(path)
+    if captured_at is None:
+        captured_at = _normalize_captured_at(format_tags.get("creation_time"))
+    if captured_at is None:
+        for stream in streams:
+            captured_at = _normalize_captured_at(
+                (stream.get("tags") or {}).get("creation_time")
+            )
+            if captured_at is not None:
+                break
+    if captured_at is not None:
+        metadata["captured_at"] = captured_at
     return metadata
 
 
@@ -609,6 +688,11 @@ def scan_project(
                         occurred_at=datetime.now(timezone.utc).isoformat(),
                     ).model_dump()
                 )
+
+        if extract_media and asset_type == AssetType.image:
+            captured_at = _extract_image_captured_at(file_path)
+            if captured_at is not None:
+                fresh.metadata["captured_at"] = captured_at
 
         # 缩略图/关键帧抽取（失败隔离到该 asset）。
         if extract_media:

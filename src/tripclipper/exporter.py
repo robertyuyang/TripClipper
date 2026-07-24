@@ -34,8 +34,10 @@ import html
 import csv
 import json
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from .cut_index import read_cut_index
 from .eagle_sync import eagle_item_name
@@ -71,6 +73,7 @@ _THUMB_GRID_VISIBLE = 9
 _KIB = 1024
 _MIB = _KIB * 1024
 _GIB = _MIB * 1024
+_REVIEW_TIME_ZONE = ZoneInfo("Asia/Shanghai")
 
 
 class ExportError(Exception):
@@ -302,12 +305,17 @@ def _format_size(size: Optional[int]) -> str:
 
 
 def _format_modified_time(ts: Optional[str]) -> str:
-    """Trim an ISO-8601 timestamp to ``YYYY-MM-DD HH:MM`` for display."""
+    """将 ISO-8601 时间转换为 review 使用的北京时间。"""
     if not ts:
         return ""
-    s = str(ts).replace("T", " ")
-    # strip seconds + timezone if present (keep first 16 chars: "YYYY-MM-DD HH:MM")
-    return s[:16]
+    value = str(ts)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value.replace("T", " ")[:16]
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_REVIEW_TIME_ZONE)
+    return parsed.astimezone(_REVIEW_TIME_ZONE).strftime("%Y-%m-%d %H:%M")
 
 
 def _format_media_info(asset: Asset) -> str:
