@@ -293,13 +293,22 @@ __SESSIONS_HTML__
     });
     sessionCards.forEach(function(card){
       var cardRows = Array.prototype.slice.call(card.querySelectorAll('tr.asset-row'));
-      var hasVisible = cardRows.some(function(r){ return r.style.display !== 'none'; });
-      card.style.display = hasVisible ? '' : 'none';
+      var visibleInCard = cardRows.filter(function(r){ return r.style.display !== 'none'; }).length;
+      var summary = card.querySelector('.session-card-summary');
+      if (summary){
+        var baseText = summary.getAttribute('data-base-text');
+        if (!baseText){
+          baseText = summary.textContent.replace(/ · \d+ 张$/, '');
+          summary.setAttribute('data-base-text', baseText);
+        }
+        summary.textContent = baseText + ' · ' + visibleInCard + ' / ' + cardRows.length + ' 张';
+      }
+      card.style.display = visibleInCard ? '' : 'none';
     });
     document.getElementById('row-count').textContent = '显示 ' + visible + ' / ' + rows.length;
   }
 
-  ['search', 'filter-rating', 'filter-subject-type', 'filter-shot-scale', 'filter-status', 'filter-similar', 'filter-candidate', 'filter-session'].forEach(function(id){
+  ['search', 'filter-rating', 'filter-subject-type', 'filter-shot-scale', 'filter-status', 'filter-speech-quality', 'filter-similar', 'filter-candidate', 'filter-session'].forEach(function(id){
     var el = document.getElementById(id);
     if (!el) return;
     el.addEventListener(id === 'search' ? 'input' : 'change', applyFilters);

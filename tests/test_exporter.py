@@ -1527,6 +1527,9 @@ def test_render_review_html_with_sessions_end_to_end(tmp_path: Path) -> None:
     assert "r.getAttribute('data-rating') || ''" in text
     assert "f.frating === 'unrated' ? rating !== '' : rating !== f.frating" in text
     assert "'filter-rating'" in text
+    assert "var visibleInCard = cardRows.filter" in text
+    assert "visibleInCard + ' / ' + cardRows.length + ' 张'" in text
+    assert "'filter-speech-quality'" in text
 
 
 def test_format_modified_time_converts_utc_to_shanghai() -> None:
