@@ -1520,6 +1520,13 @@ def test_render_review_html_with_sessions_end_to_end(tmp_path: Path) -> None:
     assert "Asia/Shanghai" in text
     assert "2026-07-02T09:00:00" in text
     assert "toggleAttribute('open'" not in text
+    assert 'id="filter-rating"' in text
+    assert '<option value="5">5 星</option>' in text
+    assert '<option value="unrated">未评分</option>' in text
+    assert "frating: document.getElementById('filter-rating').value" in text
+    assert "r.getAttribute('data-rating') || ''" in text
+    assert "f.frating === 'unrated' ? rating !== '' : rating !== f.frating" in text
+    assert "'filter-rating'" in text
 
 
 def test_format_modified_time_converts_utc_to_shanghai() -> None:

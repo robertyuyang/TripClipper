@@ -127,6 +127,15 @@ __SIMILAR_GROUPS_HTML__
 
 <div class="controls">
   <input id="search" type="text" placeholder="搜索 filename / summary / tags ...">
+  <select id="filter-rating">
+    <option value="">星级：全部</option>
+    <option value="5">5 星</option>
+    <option value="4">4 星</option>
+    <option value="3">3 星</option>
+    <option value="2">2 星</option>
+    <option value="1">1 星</option>
+    <option value="unrated">未评分</option>
+  </select>
   <select id="filter-subject-type"><option value="">subject_type: 全部</option></select>
   <select id="filter-shot-scale"><option value="">shot_scale: 全部</option></select>
   <select id="filter-status"><option value="">analysis_status: 全部</option></select>
@@ -234,6 +243,7 @@ __SESSIONS_HTML__
   function currentFilters(){
     return {
       q: (document.getElementById('search').value || '').toLowerCase().trim(),
+      frating: document.getElementById('filter-rating').value,
       fst: document.getElementById('filter-subject-type').value,
       fss: document.getElementById('filter-shot-scale').value,
       fst2: document.getElementById('filter-status').value,
@@ -248,6 +258,10 @@ __SESSIONS_HTML__
     if (f.q){
       var hay = ((r.getAttribute('data-search') || '') + '').toLowerCase();
       if (hay.indexOf(f.q) === -1) return false;
+    }
+    if (f.frating){
+      var rating = r.getAttribute('data-rating') || '';
+      if (f.frating === 'unrated' ? rating !== '' : rating !== f.frating) return false;
     }
     if (f.fst && r.getAttribute('data-subject-type') !== f.fst) return false;
     if (f.fss && r.getAttribute('data-shot-scale') !== f.fss) return false;
@@ -285,7 +299,7 @@ __SESSIONS_HTML__
     document.getElementById('row-count').textContent = '显示 ' + visible + ' / ' + rows.length;
   }
 
-  ['search', 'filter-subject-type', 'filter-shot-scale', 'filter-status', 'filter-similar', 'filter-candidate', 'filter-session'].forEach(function(id){
+  ['search', 'filter-rating', 'filter-subject-type', 'filter-shot-scale', 'filter-status', 'filter-similar', 'filter-candidate', 'filter-session'].forEach(function(id){
     var el = document.getElementById(id);
     if (!el) return;
     el.addEventListener(id === 'search' ? 'input' : 'change', applyFilters);
