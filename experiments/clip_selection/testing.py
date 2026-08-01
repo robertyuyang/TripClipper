@@ -26,6 +26,7 @@ class ScriptedAgent:
 class FakeModelClient:
     def __init__(self, decisions: list[AgentDecision]) -> None:
         self.agent = ScriptedAgent(decisions)
+        self.image_batches: list[list[Path]] = []
 
     def decide(
         self,
@@ -33,6 +34,7 @@ class FakeModelClient:
         context: dict[str, Any],
         images: list[Path] | None = None,
     ) -> AgentDecision:
+        self.image_batches.append(list(images or []))
         return self.agent.decide(context)
 
 
@@ -48,4 +50,3 @@ class FakeFrameSource:
             end_sec=end_sec,
             description=f"已查看 {asset_id} 的 {start_sec:g}-{end_sec:g} 秒",
         )
-

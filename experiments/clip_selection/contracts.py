@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
+from hashlib import sha256
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -40,7 +41,7 @@ class CandidateClip(StrictModel):
     asset_id: str = Field(min_length=1)
     start_sec: float = Field(ge=0)
     end_sec: float = Field(gt=0)
-    source: str
+    source: Literal["cut_index", "selection_agent"]
     status: ClipStatus
     evidence: str = ""
     project_role: str = ""
@@ -88,6 +89,8 @@ class SelectionRun(StrictModel):
     frame_requests: int = 0
     rejected_actions: int = 0
     checkpoint_count: int = 0
+    latest_frame_paths: list[str] = Field(default_factory=list)
+    last_finish_fingerprint: str | None = None
 
 
 class RunBudget(StrictModel):
@@ -107,12 +110,76 @@ class AssetSnapshot(StrictModel):
     frame_timestamps: list[float] = Field(default_factory=list)
 
 
+class ProjectSnapshot(StrictModel):
+    project_slug: str
+    cut_index_path: Path
+    sha256: str
+    source_folder: str | None = None
+    assets: list[AssetSnapshot] = Field(default_factory=list)
+
+    @classmethod
+    def from_cut_index(cls, path: str | Path) -> "ProjectSnapshot":
+        from tripclipper.cut_index import read_cut_index
+
+        source = Path(path)
+        raw = source.read_bytes()
+        cut = read_cut_index(source)
+        assets: list[AssetSnapshot] = []
+        for asset in cut.assets:
+            if not asset.asset_id:
+                continue
+            metadata = asset.metadata or {}
+            duration_raw = metadata.get("duration", metadata.get("duration_s"))
+            try:
+                duration = float(duration_raw) if duration_raw is not None else None
+            except (TypeError, ValueError):
+                duration = None
+            assets.append(
+                AssetSnapshot(
+                    asset_id=asset.asset_id,
+                    duration_sec=duration,
+                    path=asset.path,
+                    relative_path=asset.relative_path,
+                    summary=asset.summary,
+                    rating=asset.rating,
+                    clip_suggestions=[
+                        item.model_dump(mode="json", by_alias=True)
+                        for item in asset.clip_suggestions
+                    ],
+                    frame_paths=list(asset.frame_paths),
+                    frame_timestamps=list(asset.frame_timestamps),
+                )
+            )
+        return cls(
+            project_slug=cut.project.project_slug or source.parent.name,
+            cut_index_path=source,
+            sha256=sha256(raw).hexdigest(),
+            source_folder=cut.project.source_folder,
+            assets=assets,
+        )
+
+    def asset(self, asset_id: str) -> AssetSnapshot:
+        for item in self.assets:
+            if item.asset_id == asset_id:
+                return item
+        raise ValueError(f"未知 asset_id: {asset_id}")
+
+
 class FrameObservation(StrictModel):
     asset_id: str
     start_sec: float
     end_sec: float
     frame_paths: list[str] = Field(default_factory=list)
     description: str = ""
+
+
+class SelectionRequest(StrictModel):
+    selection_id: str
+    project_slug: str
+    cut_index_path: Path
+    output_path: Path
+    brief: SelectionBrief
+    budget: RunBudget = Field(default_factory=RunBudget)
 
 
 class ModelClient(Protocol):
@@ -126,4 +193,3 @@ class ModelClient(Protocol):
 
 class FrameSource(Protocol):
     def inspect(self, asset_id: str, start_sec: float, end_sec: float) -> FrameObservation: ...
-

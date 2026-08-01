@@ -12,6 +12,8 @@ from experiments.clip_selection.contracts import (
     SelectionRun,
 )
 from experiments.clip_selection.testing import ScriptedAgent
+from experiments.clip_selection.production_agent_owned.agent import SYSTEM_PROMPT as AGENT_PROMPT
+from experiments.clip_selection.production_policy_guarded.agent import SYSTEM_PROMPT as POLICY_PROMPT
 
 
 def test_contracts_reject_invalid_clip_range_and_unknown_fields() -> None:
@@ -26,6 +28,15 @@ def test_contracts_reject_invalid_clip_range_and_unknown_fields() -> None:
         )
     with pytest.raises(ValidationError):
         SelectionBrief(target_duration_sec=30, style="旅行", max_review_clips=3, extra=1)
+    with pytest.raises(ValidationError):
+        CandidateClip(
+            clip_id="c1",
+            asset_id="a1",
+            start_sec=0,
+            end_sec=1,
+            source="arbitrary",
+            status=ClipStatus.primary,
+        )
 
 
 def test_selection_run_round_trips_as_json() -> None:
@@ -45,3 +56,15 @@ def test_scripted_agent_returns_finish_when_actions_exhausted() -> None:
     assert agent.decide({}).action.name == "list_assets"
     assert agent.decide({}).action.name == "request_finish"
 
+
+def test_production_prompts_publish_same_tool_contract() -> None:
+    tools = {
+        "list_assets",
+        "inspect_range",
+        "upsert_candidate",
+        "set_categories",
+        "request_finish",
+    }
+    for name in tools:
+        assert name in AGENT_PROMPT
+        assert name in POLICY_PROMPT
