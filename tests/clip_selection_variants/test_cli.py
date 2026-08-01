@@ -3,8 +3,6 @@ import os
 import subprocess
 import sys
 
-import pytest
-
 from experiments.clip_selection.compare import summarize
 from experiments.clip_selection.contracts import SelectionBrief, SelectionRun
 
@@ -13,14 +11,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ENV = {**os.environ, "PYTHONPATH": f"{ROOT}/src:{ROOT}"}
 
 
-@pytest.mark.parametrize(
-    "module",
-    [
-        "experiments.clip_selection.minimal_agent_owned",
-        "experiments.clip_selection.minimal_policy_guarded",
-    ],
-)
-def test_minimal_module_runs_offline(module: str) -> None:
+def test_minimal_module_runs_offline() -> None:
+    module = "experiments.clip_selection.minimal_policy_guarded"
     completed = subprocess.run(
         [sys.executable, "-m", module],
         cwd=ROOT,
@@ -33,14 +25,8 @@ def test_minimal_module_runs_offline(module: str) -> None:
     assert json.loads(completed.stdout)["run_status"] == "completed"
 
 
-@pytest.mark.parametrize(
-    "module",
-    [
-        "experiments.clip_selection.production_agent_owned",
-        "experiments.clip_selection.production_policy_guarded",
-    ],
-)
-def test_production_module_has_help(module: str) -> None:
+def test_production_module_has_help() -> None:
+    module = "experiments.clip_selection.production_policy_guarded"
     completed = subprocess.run(
         [sys.executable, "-m", module, "--help"],
         cwd=ROOT,

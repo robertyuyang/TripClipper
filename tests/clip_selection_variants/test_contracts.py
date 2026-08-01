@@ -12,7 +12,6 @@ from experiments.clip_selection.contracts import (
     SelectionRun,
 )
 from experiments.clip_selection.testing import ScriptedAgent
-from experiments.clip_selection.production_agent_owned.agent import SYSTEM_PROMPT as AGENT_PROMPT
 from experiments.clip_selection.production_policy_guarded.agent import SYSTEM_PROMPT as POLICY_PROMPT
 
 
@@ -57,7 +56,7 @@ def test_scripted_agent_returns_finish_when_actions_exhausted() -> None:
     assert agent.decide({}).action.name == "request_finish"
 
 
-def test_production_prompts_publish_same_tool_contract() -> None:
+def test_production_prompt_publishes_tool_contract() -> None:
     tools = {
         "list_assets",
         "inspect_range",
@@ -66,5 +65,4 @@ def test_production_prompts_publish_same_tool_contract() -> None:
         "request_finish",
     }
     for name in tools:
-        assert name in AGENT_PROMPT
         assert name in POLICY_PROMPT

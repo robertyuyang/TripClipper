@@ -1,4 +1,4 @@
-"""四套实现共用的确定性计算，不拥有 Agent 状态。"""
+"""选片 Harness 的确定性计算，不拥有 Agent 状态。"""
 
 from __future__ import annotations
 

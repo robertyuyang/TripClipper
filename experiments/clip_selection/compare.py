@@ -1,4 +1,4 @@
-"""比较四套 Harness 的结构化运行指标。"""
+"""比较多次选片运行的结构化指标。"""
 
 from __future__ import annotations
 

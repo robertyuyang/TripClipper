@@ -309,7 +309,7 @@ LLM 提交结构化参数
 
 工具只能访问当前项目，读取原始素材和 `cut_index`，写入选片 Agent 的结果目录。
 
-## 技术架构与对照实现
+## 技术架构
 
 选片 Agent 使用显式 Harness 循环，不把七步产品流程编码成固定状态机：
 
@@ -329,19 +329,14 @@ Tool 执行查询、范围查看或状态提案
 
 七步是 Agent 的任务目标和结束审计依据，不规定每轮调用顺序。Agent 可以重复查看素材、回到分类、修改候选和重新比较。
 
-为比较状态所有权，保留两种 Harness：
+采用 Policy 保护状态的 Harness。Agent 自主选择 Tool；涉及候选状态的调用先经过 `SelectionPolicy`。Policy 只检查确定性规则，不判断片段是否有趣、稀有或更有价值。检查失败只返回 observation，不改变已保存状态。
 
-- Agent 主导状态：合法状态 Tool 直接提交，结束时统一检查完整业务条件。
-- Policy 保护状态：Agent 提交状态提案，`SelectionPolicy` 在每次变化前检查；失败只返回 observation，不改变已保存状态。
+实现拆分为 `agent.py`、`tools.py`、`harness.py`、`policy.py`、`contracts.py` 和 `store.py`。这些都是 Agent Harness 内部组件，不是额外 Workflow 阶段。
 
-两者都有拆分后的 `agent.py`、`tools.py`、`harness.py`、`models/contracts.py` 和 `store.py`。文件是否拆分不是架构差异；真正差异是状态变化由 Agent 直接决定，还是由 Policy 逐次批准。
-
-当前对照实现位于：
+当前实现位于：
 
 ```text
-experiments/clip_selection/minimal_agent_owned/
 experiments/clip_selection/minimal_policy_guarded/
-experiments/clip_selection/production_agent_owned/
 experiments/clip_selection/production_policy_guarded/
 ```
 

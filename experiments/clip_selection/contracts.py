@@ -1,4 +1,4 @@
-"""四套选片 Harness 共用的数据契约与端口。"""
+"""选片 Harness 的数据契约与端口。"""
 
 from __future__ import annotations
 
