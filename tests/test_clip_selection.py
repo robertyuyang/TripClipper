@@ -1,0 +1,607 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+from click.testing import CliRunner
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+from langchain_core.messages import AIMessage
+from pydantic import PrivateAttr
+import pytest
+
+from tripclipper.clip_selection.agent import (
+    CodexAuthenticationError,
+    ensure_codex_authenticated,
+)
+from tripclipper.clip_selection.asset_tools import AssetBrowser
+from tripclipper.clip_selection.models import (
+    SelectionCandidate,
+    SelectionCategory,
+    SelectionState,
+)
+from tripclipper.clip_selection.runner import run_selection
+from tripclipper.clip_selection.runner import parse_target_duration
+from tripclipper.clip_selection.selection_tools import SelectionTools
+from tripclipper.clip_selection.store import SelectionStore
+from tripclipper.clip_selection.validator import (
+    SelectionValidationError,
+    SelectionValidator,
+)
+from tripclipper.cli import main
+from tripclipper.models import Asset
+
+
+class ScriptedSelectionModel(FakeMessagesListChatModel):
+    """按固定 Tool Call 脚本驱动真实 DeerFlow Harness。"""
+
+    _seen_messages: list[list] = PrivateAttr(default_factory=list)
+
+    def bind_tools(self, tools, **kwargs):  # type: ignore[override]
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        self._seen_messages.append(messages)
+        return super()._generate(messages, stop, run_manager, **kwargs)
+
+
+def _tool_call(name: str, args: dict, call_id: str) -> AIMessage:
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": args, "id": call_id}],
+    )
+
+
+def _write_cut_index(path: Path) -> None:
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "0.4",
+                "project": {
+                    "project_slug": "demo",
+                    "project_name": "演示项目",
+                    "source_folder": str(path.parent / "media"),
+                },
+                "assets": [
+                    {
+                        "asset_id": "asset-people",
+                        "filename": "people.mp4",
+                        "type": "video",
+                        "metadata": {"duration": 20.0},
+                        "analysis_status": "analyzed",
+                        "summary": "朋友们挥手欢呼，情绪高涨。",
+                        "rating": 5,
+                        "subject_type": "people",
+                        "shot_scale": "medium",
+                        "clip_suggestions": [
+                            {
+                                "in": "00:00:00",
+                                "out": "00:00:15",
+                                "reason": "欢呼动作完整",
+                            }
+                        ],
+                    },
+                    {
+                        "asset_id": "asset-landscape",
+                        "filename": "landscape.mp4",
+                        "type": "video",
+                        "metadata": {"duration": 20.0},
+                        "analysis_status": "analyzed",
+                        "summary": "开阔山谷空镜，构图干净。",
+                        "rating": 5,
+                        "subject_type": "landscape",
+                        "shot_scale": "wide",
+                        "clip_suggestions": [
+                            {
+                                "in": "00:00:00",
+                                "out": "00:00:15",
+                                "reason": "环境层次清楚",
+                            }
+                        ],
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_scripted_model_completes_minimal_selection_without_changing_index(
+    tmp_path: Path,
+) -> None:
+    projects_dir = tmp_path / "projects"
+    cut_index_path = projects_dir / "demo" / "cut_index.json"
+    _write_cut_index(cut_index_path)
+    brief_path = tmp_path / "30秒欢快快剪.md"
+    brief_text = "# 30秒欢快快剪\n\n剪一个约 30 秒、特别欢快的旅行快剪。"
+    brief_path.write_text(brief_text, encoding="utf-8")
+    before_hash = hashlib.sha256(cut_index_path.read_bytes()).hexdigest()
+
+    model = ScriptedSelectionModel(
+        responses=[
+            _tool_call("asset_list", {"page": 1}, "call-list-1"),
+            _tool_call("asset_list", {"page": 2}, "call-list-2"),
+            _tool_call(
+                "asset_get", {"asset_id": "asset-people"}, "call-get"
+            ),
+            _tool_call(
+                "selection_categories_save",
+                {
+                    "categories": [
+                        {
+                            "name": "人物高能",
+                            "required": True,
+                            "purpose": "提供感染力强的开头",
+                        },
+                        {
+                            "name": "环境空镜",
+                            "required": True,
+                            "purpose": "补足无人物环境画面",
+                        },
+                    ]
+                },
+                "call-categories",
+            ),
+            _tool_call(
+                "selection_candidate_add",
+                {
+                    "asset_id": "asset-people",
+                    "start_sec": 0.0,
+                    "end_sec": 25.0,
+                    "category_ids": ["category-001"],
+                    "reason": "这条范围越界，应被确定性校验拒绝。",
+                },
+                "call-invalid-candidate",
+            ),
+            _tool_call(
+                "selection_candidate_add",
+                {
+                    "asset_id": "asset-people",
+                    "start_sec": 0.0,
+                    "end_sec": 15.0,
+                    "category_ids": ["category-001"],
+                    "recommended_use": "用于开头",
+                    "reason": "挥手欢呼感染力强，动作完整。",
+                },
+                "call-candidate-1",
+            ),
+            _tool_call(
+                "selection_candidate_add",
+                {
+                    "asset_id": "asset-landscape",
+                    "start_sec": 0.0,
+                    "end_sec": 15.0,
+                    "category_ids": ["category-002"],
+                    "recommended_use": "用于节奏转换",
+                    "reason": "山谷构图干净，与人物中景形成景别变化。",
+                },
+                "call-candidate-2",
+            ),
+            _tool_call("selection_finish_request", {}, "call-finish"),
+            AIMessage(content="选片候选池已完成。"),
+        ]
+    )
+
+    result = run_selection(
+        "demo",
+        brief_path,
+        base_dir=projects_dir,
+        model=model,
+        asset_page_size=1,
+    )
+
+    assert result.state.status == "completed"
+    assert result.state.target_duration_sec == 30.0
+    assert len(result.state.categories) == 2
+    assert len(result.state.candidates) == 2
+    assert [category.category_id for category in result.state.categories] == [
+        "category-001",
+        "category-002",
+    ]
+    assert [candidate.candidate_id for candidate in result.state.candidates] == [
+        "candidate-001",
+        "candidate-002",
+    ]
+    assert result.brief_path.read_text(encoding="utf-8") == brief_text
+    assert any(
+        brief_text in str(message.content)
+        for invocation in model._seen_messages
+        for message in invocation
+    )
+    assert hashlib.sha256(cut_index_path.read_bytes()).hexdigest() == before_hash
+    assert json.loads(result.state_path.read_text(encoding="utf-8"))["status"] == "completed"
+    assert not result.state_path.with_name("state.json.tmp").exists()
+    event_types = [
+        json.loads(line)["event_type"]
+        for line in result.events_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert event_types == [
+        "selection_started",
+        "asset_listed",
+        "asset_listed",
+        "asset_opened",
+        "change_validated",
+        "categories_saved",
+        "change_validated",
+        "change_validated",
+        "candidate_added",
+        "change_validated",
+        "candidate_added",
+        "completion_validated",
+        "selection_completed",
+    ]
+    events = [
+        json.loads(line)
+        for line in result.events_path.read_text(encoding="utf-8").splitlines()
+    ]
+    rejected = next(
+        event
+        for event in events
+        if event["event_type"] == "change_validated"
+        and not event["data"]["accepted"]
+    )
+    assert rejected["data"]["parameters"]["end_sec"] == 25.0
+
+
+def test_select_cli_reports_completed_task(monkeypatch, tmp_path: Path) -> None:
+    brief_path = tmp_path / "brief.md"
+    brief_path.write_text("剪一个 30 秒视频。", encoding="utf-8")
+    task_dir = tmp_path / "projects" / "demo" / "selections" / "brief"
+
+    def fake_run_selection(slug, brief, *, base_dir=None):
+        assert slug == "demo"
+        assert Path(brief) == brief_path
+        assert Path(base_dir) == tmp_path / "projects"
+        return SimpleNamespace(
+            state=SimpleNamespace(status="completed", candidates=[1, 2]),
+            task_dir=task_dir,
+        )
+
+    monkeypatch.setattr("tripclipper.cli.run_selection", fake_run_selection)
+    result = CliRunner().invoke(
+        main,
+        [
+            "select",
+            "demo",
+            str(brief_path),
+            "--base-dir",
+            str(tmp_path / "projects"),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "completed" in result.output
+    assert "候选数" in result.output
+    assert str(task_dir) in result.output
+
+
+@pytest.mark.parametrize(
+    ("candidate", "message"),
+    [
+        (
+            SelectionCandidate(
+                candidate_id="candidate-001",
+                asset_id="missing",
+                start_sec=0,
+                end_sec=5,
+                category_ids=["category-001"],
+                reason="有理由",
+            ),
+            "素材不存在",
+        ),
+        (
+            SelectionCandidate(
+                candidate_id="candidate-001",
+                asset_id="asset-1",
+                start_sec=0,
+                end_sec=5,
+                category_ids=["category-missing"],
+                reason="有理由",
+            ),
+            "分类引用不存在",
+        ),
+        (
+            SelectionCandidate(
+                candidate_id="candidate-001",
+                asset_id="asset-1",
+                start_sec=0,
+                end_sec=5,
+                category_ids=["category-001"],
+                reason=" ",
+            ),
+            "候选理由不能为空",
+        ),
+    ],
+)
+def test_validator_rejects_invalid_candidate_references_and_reason(
+    candidate: SelectionCandidate,
+    message: str,
+) -> None:
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id="category-001",
+                name="人物高能",
+                purpose="用于开头",
+            )
+        ],
+    )
+    validator = SelectionValidator({"asset-1": 20}, total_pages=1)
+
+    with pytest.raises(SelectionValidationError, match=message):
+        validator.validate_candidate(candidate, state)
+
+
+@pytest.mark.parametrize(
+    ("brief", "expected"),
+    [
+        ("剪一个 45 秒视频", 45.0),
+        ("剪一个 1.5 分钟视频", 90.0),
+        ("Make a 30s clip", 30.0),
+        ("做一条轻松旅行视频", 60.0),
+    ],
+)
+def test_target_duration_parser_uses_common_units_or_default(
+    brief: str,
+    expected: float,
+) -> None:
+    assert parse_target_duration(brief) == expected
+
+
+def test_codex_authentication_fails_before_model_start(tmp_path: Path) -> None:
+    with pytest.raises(CodexAuthenticationError, match="请先登录 Codex"):
+        ensure_codex_authenticated(tmp_path / "missing-auth.json")
+
+
+def test_completion_counts_overlapping_primary_ranges_by_union() -> None:
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id="category-001",
+                name="人物高能",
+                purpose="用于开头",
+            )
+        ],
+        candidates=[
+            SelectionCandidate(
+                candidate_id="candidate-001",
+                asset_id="asset-1",
+                start_sec=0,
+                end_sec=20,
+                category_ids=["category-001"],
+                reason="前半段动作完整",
+            ),
+            SelectionCandidate(
+                candidate_id="candidate-002",
+                asset_id="asset-1",
+                start_sec=10,
+                end_sec=30,
+                category_ids=["category-001"],
+                reason="后半段反应自然",
+            ),
+        ],
+    )
+    state.asset_progress.listed_pages = [1]
+
+    SelectionValidator({"asset-1": 40}, total_pages=1).validate_completion(state)
+
+
+def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id="category-001",
+                name="人物高能",
+                purpose="用于开头",
+            )
+        ],
+        candidates=[
+            SelectionCandidate(
+                candidate_id="candidate-001",
+                asset_id="asset-1",
+                start_sec=0,
+                end_sec=40,
+                category_ids=["category-001"],
+                reason="已有 40 秒主选",
+            )
+        ],
+    )
+    extra = SelectionCandidate(
+        candidate_id="candidate-002",
+        asset_id="asset-2",
+        start_sec=0,
+        end_sec=10,
+        category_ids=["category-001"],
+        reason="加入后会超过 45 秒上限",
+    )
+    validator = SelectionValidator(
+        {"asset-1": 60, "asset-2": 20},
+        total_pages=1,
+    )
+
+    with pytest.raises(SelectionValidationError, match="超过主选容量上限"):
+        validator.validate_candidate_add(extra, state)
+
+
+def test_completion_requires_dynamic_categories() -> None:
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        candidates=[
+            SelectionCandidate(
+                candidate_id="candidate-001",
+                asset_id="asset-1",
+                start_sec=0,
+                end_sec=30,
+                category_ids=[],
+                reason="虽然时长达标，但没有分类",
+            )
+        ],
+    )
+    state.asset_progress.listed_pages = [1]
+
+    with pytest.raises(SelectionValidationError, match="尚未建立内容分类"):
+        SelectionValidator({"asset-1": 40}, total_pages=1).validate_completion(
+            state
+        )
+
+
+def test_category_resave_preserves_ids_across_rename_and_reorder(
+    tmp_path: Path,
+) -> None:
+    state = SelectionState(task_name="demo", target_duration_sec=30)
+    store = SelectionStore(tmp_path / "task")
+    browser = AssetBrowser([], state, store)
+    tools = SelectionTools(
+        browser,
+        state,
+        store,
+        SelectionValidator({}, total_pages=1),
+    ).as_langchain_tools()
+    save = next(tool for tool in tools if tool.name == "selection_categories_save")
+
+    first = save.invoke(
+        {
+            "categories": [
+                {"name": "人物高能", "purpose": "用于开头"},
+                {"name": "环境空镜", "purpose": "用于穿插"},
+            ]
+        }
+    )
+    assert [item["category_id"] for item in first["categories"]] == [
+        "category-001",
+        "category-002",
+    ]
+
+    second = save.invoke(
+        {
+            "categories": [
+                {
+                    "category_id": "category-002",
+                    "name": "无人物环境空镜",
+                    "purpose": "用于穿插",
+                },
+                {
+                    "category_id": "category-001",
+                    "name": "开头人物高能",
+                    "purpose": "用于开头",
+                },
+            ]
+        }
+    )
+
+    assert [
+        (item["category_id"], item["name"]) for item in second["categories"]
+    ] == [
+        ("category-002", "无人物环境空镜"),
+        ("category-001", "开头人物高能"),
+    ]
+
+
+def test_category_resave_rejects_omitting_an_existing_category(
+    tmp_path: Path,
+) -> None:
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id="category-001",
+                name="人物高能",
+                purpose="用于开头",
+            ),
+            SelectionCategory(
+                category_id="category-002",
+                name="环境空镜",
+                purpose="用于穿插",
+            ),
+        ],
+        candidates=[
+            SelectionCandidate(
+                candidate_id="candidate-001",
+                asset_id="asset-1",
+                start_sec=0,
+                end_sec=15,
+                category_ids=["category-002"],
+                reason="需要保留环境分类引用",
+            )
+        ],
+    )
+    store = SelectionStore(tmp_path / "task")
+    save = next(
+        tool
+        for tool in SelectionTools(
+            AssetBrowser([], state, store),
+            state,
+            store,
+            SelectionValidator({}, total_pages=1),
+        ).as_langchain_tools()
+        if tool.name == "selection_categories_save"
+    )
+
+    result = save.invoke(
+        {
+            "categories": [
+                {
+                    "category_id": "category-001",
+                    "name": "人物高能",
+                    "purpose": "用于开头",
+                }
+            ]
+        }
+    )
+
+    assert result["accepted"] is False
+    assert "必须提交完整分类列表" in "；".join(result["blockers"])
+    assert [category.category_id for category in state.categories] == [
+        "category-001",
+        "category-002",
+    ]
+
+
+def test_asset_list_returns_compact_suggestion_overview(tmp_path: Path) -> None:
+    asset = Asset.model_validate(
+        {
+            "asset_id": "asset-1",
+            "filename": "demo.mp4",
+            "metadata": {"duration": 20.0},
+            "summary": "朋友们挥手欢呼。",
+            "clip_suggestions": [
+                {
+                    "in": "00:00:01",
+                    "out": "00:00:05",
+                    "role": "highlight",
+                    "rating": 5,
+                    "reason": "动作完整且表情自然",
+                    "audio_strategy": "music_only",
+                    "tags": ["欢快", "人物"],
+                }
+            ],
+        }
+    )
+    state = SelectionState(task_name="demo", target_duration_sec=30)
+    summary = AssetBrowser(
+        [asset],
+        state,
+        SelectionStore(tmp_path / "task"),
+    ).list_page()["assets"][0]
+
+    assert summary["suggestion_count"] == 1
+    assert summary["suggestion_overview"] == [
+        {
+            "in": "00:00:01",
+            "out": "00:00:05",
+            "role": "highlight",
+            "rating": 5,
+        }
+    ]
+    assert "clip_suggestions" not in summary

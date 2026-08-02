@@ -111,6 +111,19 @@ def logs_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
     return project_dir(slug, base_dir) / "logs"
 
 
+def selections_dir(slug: str, base_dir: Optional[_PathLike] = None) -> Path:
+    """返回项目自己的选片任务目录。"""
+    return project_dir(slug, base_dir) / "selections"
+
+
+def selection_task_dir(
+    slug: str,
+    task_name: str,
+    base_dir: Optional[_PathLike] = None,
+) -> Path:
+    return selections_dir(slug, base_dir) / task_name
+
+
 def analyze_log_path(slug: str, ts: str, base_dir: Optional[_PathLike] = None) -> Path:
     """Return the JSONL log file path for an analyze/run invocation.
 
@@ -169,6 +182,8 @@ __all__ = [
     "audio_cache_dir",
     "audio_asset_cache_dir",
     "logs_dir",
+    "selections_dir",
+    "selection_task_dir",
     "analyze_log_path",
     "cluster_log_path",
     "ensure_project_dirs",

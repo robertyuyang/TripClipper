@@ -38,6 +38,8 @@ from .cluster_runner import (
     ClusterRunnerError,
     cluster as runner_cluster,
 )
+from .clip_selection.agent import CodexAuthenticationError
+from .clip_selection.runner import SelectionError, run_selection
 from .config import ConfigError, EagleSync, load_config
 from .cut_index import read_cut_index, write_cut_index
 from .eagle_sync import (
@@ -100,6 +102,23 @@ def _bootstrap_env() -> None:
 def main() -> None:
     """TripClipper — local-first media triage and rough-cut planning tool."""
     _bootstrap_env()
+
+
+@main.command("select")
+@click.argument("slug")
+@click.argument("brief_path", type=click.Path(path_type=Path))
+@click.option("--base-dir", default=None, type=click.Path(path_type=Path), help="项目根目录基准。")
+def select_command(slug: str, brief_path: Path, base_dir: Path | None) -> None:
+    """用真实 Codex Agent 从 Markdown Brief 建立任务级主选候选池。"""
+    try:
+        result = run_selection(slug, brief_path, base_dir=base_dir)
+    except (SelectionError, CodexAuthenticationError, OSError, ValueError) as exc:
+        click.echo(f"选片失败：{exc}", err=True)
+        raise click.exceptions.Exit(1) from exc
+    click.echo("选片完成：")
+    click.echo(f"  状态           : {result.state.status}")
+    click.echo(f"  候选数         : {len(result.state.candidates)}")
+    click.echo(f"  任务目录       : {result.task_dir}")
 
 
 def _print_summary(summary: ProjectSummary) -> None:

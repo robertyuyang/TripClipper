@@ -7,7 +7,7 @@ name = "tripclipper"
 version = "0.1.0"
 description = "TripClipper — local-first media triage and rough-cut planning tool (M0 skeleton & data contract)."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2",
     "pyyaml",
@@ -16,6 +16,7 @@ dependencies = [
     "pillow",
     "python-dotenv",
     "pyjianyingdraft>=0.3.0",
+    "deerflow-harness @ git+https://github.com/bytedance/deer-flow.git@da282811b8a3abc81728b48d9b3308a347d71692#subdirectory=backend/packages/harness",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,8 @@ tripclipper = [
     "templates/*.tmpl",
     "templates/*.yaml",
     "jianying/templates/jianying10_template/**/*",
+    "clip_selection/prompts/*.md",
+    "clip_selection/skills/**/*.md",
 ]
 
 [tool.pytest.ini_options]

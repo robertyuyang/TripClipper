@@ -32,6 +32,7 @@ TripClipper 是一个本地优先的 Python 素材整理与粗剪工具。它可
 
 ### 4. 智能选片
 
+- **Brief 驱动任务选片**：通过本机 Codex 读取 Markdown Brief、浏览完整素材索引并生成任务级主选候选池，结果独立保存在项目的 `selections/` 目录。
 - **雷同素材识别**：自动找出内容相近或重复拍摄的素材。
 - **组内优选**：在相似素材中标记首选、备选和淘汰项，并给出判断理由。
 - **候选池生成**：综合评分和内容分布，生成默认剪辑候选池。
@@ -109,6 +110,7 @@ pip install -e ".[dev]"
 
 素材扫描与完整流程依赖以下本地工具：
 
+- Python 3.12 或更高版本
 - `ffmpeg`
 - `ffprobe`
 
@@ -165,6 +167,14 @@ tripclipper analyze <slug> --stage full
 tripclipper analyze <slug> --stage cluster
 tripclipper export <slug>
 ```
+
+### 使用 Markdown Brief 建立任务级候选池
+
+```bash
+tripclipper select <slug> path/to/选片任务.md
+```
+
+`select` 只读现有 `cut_index.json`，使用本机 Codex 登录信息运行真实选片 Agent；首次运行会在 `projects/<slug>/selections/<任务名>/` 保存 Brief 快照、当前状态和追加式事件。
 
 ### 评分 Prompt 调优实验室
 
