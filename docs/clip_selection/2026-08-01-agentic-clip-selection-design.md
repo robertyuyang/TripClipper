@@ -582,7 +582,7 @@ src/tripclipper/clip_selection/
 - 星级和 `clip_suggestions`；
 - Roughcut。
 
-现有 `experiments/clip_selection/` 只作为参考。新实现完成后删除旧实验 Harness，避免长期维护两套运行框架。
+旧的 `experiments/clip_selection/` 自研 Harness 已移除。新实现直接落在正式 Python 包中，避免长期维护两套运行框架。
 
 ## 实现期测试范围
 
