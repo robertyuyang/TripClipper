@@ -593,7 +593,7 @@ def test_completion_counts_overlapping_primary_ranges_by_union() -> None:
                 candidate_id="candidate-001",
                 asset_id="asset-1",
                 start_sec=0,
-                end_sec=20,
+                end_sec=30,
                 category_ids=["category-001"],
                 reason="前半段动作完整",
             ),
@@ -601,15 +601,215 @@ def test_completion_counts_overlapping_primary_ranges_by_union() -> None:
                 candidate_id="candidate-002",
                 asset_id="asset-1",
                 start_sec=10,
-                end_sec=30,
+                end_sec=50,
                 category_ids=["category-001"],
                 reason="后半段反应自然",
             ),
         ],
     )
     state.asset_progress.listed_pages = [1]
+    state.asset_progress.inspections = [
+        AssetInspection(
+            asset_id=f"asset-{index}",
+            category_ids=["category-001"],
+            shortlist_reason="同类比较",
+        )
+        for index in range(1, 5)
+    ]
 
-    SelectionValidator({"asset-1": 40}, total_pages=1).validate_completion(state)
+    SelectionValidator(
+        {f"asset-{index}": 60 for index in range(1, 5)},
+        total_pages=1,
+    ).validate_completion(state)
+
+
+def _state_with_four_required_categories() -> SelectionState:
+    return SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id=f"category-{index:03d}",
+                name=f"分类 {index}",
+                purpose="比较素材",
+            )
+            for index in range(1, 5)
+        ],
+    )
+
+
+def test_search_depth_requires_52_inspections_for_260_assets() -> None:
+    state = _state_with_four_required_categories()
+    state.asset_progress.inspections = [
+        AssetInspection(
+            asset_id=f"asset-{index}",
+            category_ids=[category.category_id for category in state.categories],
+            shortlist_reason="同类比较",
+        )
+        for index in range(51)
+    ]
+    validator = SelectionValidator(
+        {},
+        asset_ids={f"asset-{index}" for index in range(260)},
+        total_pages=13,
+    )
+
+    with pytest.raises(SelectionValidationError, match="至少需要完整检查 52 个素材"):
+        validator.validate_search_depth(state)
+
+
+def _completed_search_state(
+    duration: float,
+) -> tuple[SelectionState, SelectionValidator]:
+    category = SelectionCategory(
+        category_id="category-001",
+        name="人物高能",
+        purpose="用于开头",
+    )
+    asset_ids = {f"asset-{index}" for index in range(4)}
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[category],
+        candidates=[
+            SelectionCandidate(
+                candidate_id="candidate-001",
+                asset_id="asset-0",
+                start_sec=0,
+                end_sec=duration,
+                category_ids=[category.category_id],
+                reason="比较三个同类素材后保留",
+            )
+        ],
+    )
+    state.asset_progress.listed_pages = [1]
+    state.asset_progress.opened_asset_ids = sorted(asset_ids)
+    state.asset_progress.inspections = [
+        AssetInspection(
+            asset_id=asset_id,
+            category_ids=[category.category_id],
+            shortlist_reason="同类比较",
+        )
+        for asset_id in sorted(asset_ids)
+    ]
+    validator = SelectionValidator(
+        {"asset-0": 100},
+        asset_ids=asset_ids,
+        total_pages=1,
+    )
+    return state, validator
+
+
+@pytest.mark.parametrize(
+    ("duration", "accepted"),
+    [(44.9, False), (45.0, True), (60.0, True), (60.1, False)],
+)
+def test_completion_requires_150_to_200_percent_capacity(
+    duration: float,
+    accepted: bool,
+) -> None:
+    state, validator = _completed_search_state(duration)
+
+    if accepted:
+        validator.validate_completion(state)
+    else:
+        with pytest.raises(SelectionValidationError, match="45～60"):
+            validator.validate_completion(state)
+
+
+def test_candidate_requires_inspection_and_three_same_category_comparisons() -> None:
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id="category-001",
+                name="人物高能",
+                purpose="用于开头",
+            )
+        ],
+    )
+    candidate = SelectionCandidate(
+        candidate_id="candidate-001",
+        asset_id="asset-0",
+        start_sec=0,
+        end_sec=15,
+        category_ids=["category-001"],
+        reason="动作完整",
+    )
+    validator = SelectionValidator(
+        {"asset-0": 20},
+        asset_ids={f"asset-{index}" for index in range(4)},
+        total_pages=1,
+    )
+
+    with pytest.raises(SelectionValidationError, match="尚未完整检查"):
+        validator.validate_candidate(candidate, state)
+
+    state.asset_progress.inspections = [
+        AssetInspection(
+            asset_id="asset-0",
+            category_ids=["category-001"],
+            shortlist_reason="候选素材",
+        ),
+        AssetInspection(
+            asset_id="asset-1",
+            category_ids=["category-001"],
+            shortlist_reason="比较素材 1",
+        ),
+        AssetInspection(
+            asset_id="asset-2",
+            category_ids=["category-001"],
+            shortlist_reason="比较素材 2",
+        ),
+    ]
+
+    with pytest.raises(SelectionValidationError, match="至少需要 3 个其他比较素材"):
+        validator.validate_candidate(candidate, state)
+
+
+def test_candidate_add_requires_completed_search_depth() -> None:
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id="category-001",
+                name="人物高能",
+                purpose="用于开头",
+            )
+        ],
+    )
+    state.asset_progress.inspections = [
+        AssetInspection(
+            asset_id="asset-0",
+            category_ids=["category-001"],
+            shortlist_reason="候选素材",
+        )
+    ] + [
+        AssetInspection(
+            asset_id=f"asset-{index}",
+            category_ids=["category-001"],
+            shortlist_reason="比较素材",
+        )
+        for index in range(1, 4)
+    ]
+    validator = SelectionValidator(
+        {"asset-0": 20},
+        asset_ids={f"asset-{index}" for index in range(30)},
+        total_pages=2,
+    )
+    candidate = SelectionCandidate(
+        candidate_id="candidate-001",
+        asset_id="asset-0",
+        start_sec=0,
+        end_sec=15,
+        category_ids=["category-001"],
+        reason="动作完整",
+    )
+
+    with pytest.raises(SelectionValidationError, match="至少需要完整检查 30 个素材"):
+        validator.validate_candidate_add(candidate, state)
 
 
 def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
@@ -628,9 +828,9 @@ def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
                 candidate_id="candidate-001",
                 asset_id="asset-1",
                 start_sec=0,
-                end_sec=40,
+                end_sec=55,
                 category_ids=["category-001"],
-                reason="已有 40 秒主选",
+                reason="已有 55 秒主选",
             )
         ],
     )
@@ -640,15 +840,52 @@ def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
         start_sec=0,
         end_sec=10,
         category_ids=["category-001"],
-        reason="加入后会超过 45 秒上限",
+        reason="加入后会超过 60 秒上限",
     )
     validator = SelectionValidator(
         {"asset-1": 60, "asset-2": 20},
         total_pages=1,
     )
+    state.asset_progress.inspections = [
+        AssetInspection(
+            asset_id=asset_id,
+            category_ids=["category-001"],
+            shortlist_reason="同类比较",
+        )
+        for asset_id in ("asset-1", "asset-2")
+    ]
+    state.asset_progress.opened_asset_ids = ["asset-1", "asset-2"]
 
     with pytest.raises(SelectionValidationError, match="超过主选容量上限"):
         validator.validate_candidate_add(extra, state)
+
+
+def test_selection_completed_event_records_search_metrics(tmp_path: Path) -> None:
+    state, validator = _completed_search_state(45)
+    store = SelectionStore(tmp_path / "task")
+    finish = next(
+        tool
+        for tool in SelectionTools(
+            AssetBrowser([], state, store),
+            state,
+            store,
+            validator,
+        ).as_langchain_tools()
+        if tool.name == "selection_finish_request"
+    )
+
+    assert finish.invoke({}) == {"accepted": True, "status": "completed"}
+
+    completed = json.loads(
+        store.events_path.read_text(encoding="utf-8").splitlines()[-1]
+    )
+    assert completed["event_type"] == "selection_completed"
+    assert completed["data"] == {
+        "candidate_count": 1,
+        "inspection_count": 4,
+        "required_inspection_count": 4,
+        "primary_union_duration_sec": 45.0,
+    }
 
 
 def test_completion_requires_dynamic_categories() -> None:

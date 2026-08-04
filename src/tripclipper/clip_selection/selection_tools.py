@@ -281,7 +281,21 @@ class SelectionTools:
             self.store.append_event(
                 "selection_completed",
                 tool="selection_finish_request",
-                data={"candidate_count": len(self.state.candidates)},
+                data={
+                    "candidate_count": len(self.state.candidates),
+                    "inspection_count": len(
+                        {
+                            item.asset_id
+                            for item in self.state.asset_progress.inspections
+                        }
+                    ),
+                    "required_inspection_count": (
+                        self.validator.required_inspection_count(self.state)
+                    ),
+                    "primary_union_duration_sec": (
+                        self.validator.primary_union_duration(self.state.candidates)
+                    ),
+                },
             )
             return {"accepted": True, "status": self.state.status}
 

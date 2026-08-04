@@ -101,8 +101,52 @@ class SelectionValidator:
         missing = sorted(set(candidate.category_ids) - category_ids)
         if missing:
             blockers.append(f"分类引用不存在：{', '.join(missing)}")
+        inspections = state.asset_progress.inspections
+        if candidate.asset_id not in {item.asset_id for item in inspections}:
+            blockers.append(f"候选素材尚未完整检查：{candidate.asset_id}")
+        comparison_minimum = min(3, max(0, self.total_assets - 1))
+        for category_id in candidate.category_ids:
+            comparisons = {
+                item.asset_id
+                for item in inspections
+                if (
+                    item.asset_id != candidate.asset_id
+                    and category_id in item.category_ids
+                )
+            }
+            if len(comparisons) < comparison_minimum:
+                blockers.append(
+                    f"候选分类 {category_id} 至少需要 "
+                    f"{comparison_minimum} 个其他比较素材，当前 {len(comparisons)} 个"
+                )
         if not candidate.reason.strip():
             blockers.append("候选理由不能为空")
+        if blockers:
+            raise SelectionValidationError(blockers)
+
+    def validate_search_depth(self, state: SelectionState) -> None:
+        blockers: list[str] = []
+        inspections = state.asset_progress.inspections
+        inspected_ids = {item.asset_id for item in inspections}
+        required_count = self.required_inspection_count(state)
+        if len(inspected_ids) < required_count:
+            blockers.append(
+                f"至少需要完整检查 {required_count} 个素材，当前 {len(inspected_ids)} 个"
+            )
+        category_minimum = min(8, self.total_assets)
+        for category in state.categories:
+            if not category.required:
+                continue
+            compared_assets = {
+                item.asset_id
+                for item in inspections
+                if category.category_id in item.category_ids
+            }
+            if len(compared_assets) < category_minimum:
+                blockers.append(
+                    f"必要分类 {category.name} 至少需要 "
+                    f"{category_minimum} 个比较素材，当前 {len(compared_assets)} 个"
+                )
         if blockers:
             raise SelectionValidationError(blockers)
 
@@ -139,11 +183,12 @@ class SelectionValidator:
         state: SelectionState,
     ) -> None:
         """校验新增候选，并阻止不可修订的最小候选池越过容量上限。"""
+        self.validate_search_depth(state)
         self.validate_candidate(candidate, state)
-        projected_duration = self._primary_union_duration(
+        projected_duration = self.primary_union_duration(
             [*state.candidates, candidate]
         )
-        maximum = state.target_duration_sec * 1.5
+        maximum = state.target_duration_sec * 2.0
         if projected_duration > maximum:
             raise SelectionValidationError(
                 [
@@ -162,6 +207,10 @@ class SelectionValidator:
             blockers.append(
                 "尚未浏览全部素材分页：" + ", ".join(map(str, missing_pages))
             )
+        try:
+            self.validate_search_depth(state)
+        except SelectionValidationError as exc:
+            blockers.extend(exc.blockers)
 
         primary_categories = {
             category_id
@@ -185,9 +234,9 @@ class SelectionValidator:
                     for blocker in exc.blockers
                 )
 
-        primary_duration = self._primary_union_duration(state.candidates)
-        minimum = state.target_duration_sec
-        maximum = minimum * 1.5
+        primary_duration = self.primary_union_duration(state.candidates)
+        minimum = state.target_duration_sec * 1.5
+        maximum = state.target_duration_sec * 2.0
         if not minimum <= primary_duration <= maximum:
             blockers.append(
                 f"主选总时长 {primary_duration:g} 秒不在 {minimum:g}～{maximum:g} 秒范围内"
@@ -198,7 +247,7 @@ class SelectionValidator:
             raise SelectionValidationError(blockers)
 
     @staticmethod
-    def _primary_union_duration(candidates: list[SelectionCandidate]) -> float:
+    def primary_union_duration(candidates: list[SelectionCandidate]) -> float:
         by_asset: dict[str, list[tuple[float, float]]] = defaultdict(list)
         for candidate in candidates:
             by_asset[candidate.asset_id].append(
