@@ -128,14 +128,15 @@ class SelectionTools:
                         "shortlist_reason": saved_inspection.shortlist_reason,
                     },
                 )
-            self.store.append_event(
-                "asset_batch_opened",
-                tool=tool_name,
-                data={
-                    "asset_ids": [item.asset_id for item in inspections],
-                    "count": len(inspections),
-                },
-            )
+            if tool_name == "asset_get_batch":
+                self.store.append_event(
+                    "asset_batch_opened",
+                    tool=tool_name,
+                    data={
+                        "asset_ids": [item.asset_id for item in inspections],
+                        "count": len(inspections),
+                    },
+                )
             return {
                 "accepted": True,
                 "assets": details,

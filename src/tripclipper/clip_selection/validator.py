@@ -51,9 +51,11 @@ class SelectionValidator:
         if not categories:
             blockers.append("至少需要一个内容分类")
         names: set[str] = set()
-        existing_ids = {
-            category.category_id for category in (existing_categories or [])
+        existing_by_id = {
+            category.category_id: category
+            for category in (existing_categories or [])
         }
+        existing_ids = set(existing_by_id)
         submitted_ids: set[str] = set()
         for category in categories:
             name = category.name.strip()
@@ -73,6 +75,13 @@ class SelectionValidator:
                     blockers.append(f"分类 ID 重复：{category.category_id}")
                 else:
                     submitted_ids.add(category.category_id)
+                    if (
+                        existing_by_id[category.category_id].required
+                        and not category.required
+                    ):
+                        blockers.append(
+                            f"不得将必要分类降级：{category.category_id}"
+                        )
             elif category.category_id is not None:
                 blockers.append("首次保存分类时不得自行提供分类 ID")
         missing_ids = sorted(existing_ids - submitted_ids)

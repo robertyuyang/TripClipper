@@ -399,14 +399,32 @@ def test_validator_rejects_invalid_candidate_references_and_reason(
         validator.validate_candidate(candidate, state)
 
 
-def test_required_inspection_count_scales_with_assets_and_categories() -> None:
+@pytest.mark.parametrize(
+    ("asset_count", "required_category_count", "expected"),
+    [
+        (1, 0, 1),
+        (2, 0, 2),
+        (3, 0, 3),
+        (4, 0, 4),
+        (20, 1, 20),
+        (100, 1, 30),
+        (100, 10, 80),
+        (260, 4, 52),
+        (500, 4, 100),
+    ],
+)
+def test_required_inspection_count_covers_scale_boundaries(
+    asset_count: int,
+    required_category_count: int,
+    expected: int,
+) -> None:
     categories = [
         SelectionCategory(
             category_id=f"category-{index:03d}",
             name=f"分类 {index}",
             purpose="比较素材",
         )
-        for index in range(1, 5)
+        for index in range(1, required_category_count + 1)
     ]
     state = SelectionState(
         task_name="demo",
@@ -415,11 +433,11 @@ def test_required_inspection_count_scales_with_assets_and_categories() -> None:
     )
     validator = SelectionValidator(
         {},
-        asset_ids={f"asset-{index}" for index in range(260)},
+        asset_ids={f"asset-{index}" for index in range(asset_count)},
         total_pages=13,
     )
 
-    assert validator.required_inspection_count(state) == 52
+    assert validator.required_inspection_count(state) == expected
 
 
 def test_old_state_defaults_to_empty_inspections() -> None:
@@ -432,10 +450,11 @@ def test_old_state_defaults_to_empty_inspections() -> None:
 
 def _build_inspection_batch_tool(
     tmp_path: Path,
+    asset_count: int = 4,
 ) -> tuple[SelectionState, StructuredTool]:
     assets = [
         Asset(asset_id=f"asset-{index}", metadata={"duration": 20})
-        for index in range(1, 5)
+        for index in range(1, asset_count + 1)
     ]
     state = SelectionState(
         task_name="demo",
@@ -574,6 +593,62 @@ def test_asset_get_batch_rejects_whole_batch_on_invalid_category(
     )
 
 
+@pytest.mark.parametrize(
+    ("asset_count", "inspections"),
+    [
+        (4, []),
+        (
+            11,
+            [
+                {
+                    "asset_id": f"asset-{index}",
+                    "category_ids": ["category-001"],
+                    "shortlist_reason": "超过批量上限",
+                }
+                for index in range(1, 12)
+            ],
+        ),
+        (
+            4,
+            [
+                {
+                    "asset_id": "asset-1",
+                    "category_ids": ["category-001"],
+                    "shortlist_reason": "重复素材",
+                },
+                {
+                    "asset_id": "asset-1",
+                    "category_ids": ["category-001"],
+                    "shortlist_reason": "重复素材",
+                },
+            ],
+        ),
+        (
+            4,
+            [
+                {
+                    "asset_id": "asset-missing",
+                    "category_ids": ["category-001"],
+                    "shortlist_reason": "不存在的素材",
+                }
+            ],
+        ),
+    ],
+)
+def test_asset_get_batch_rejects_invalid_batch_without_state_change(
+    tmp_path: Path,
+    asset_count: int,
+    inspections: list[dict[str, object]],
+) -> None:
+    state, batch = _build_inspection_batch_tool(tmp_path, asset_count)
+
+    result = batch.invoke({"inspections": inspections})
+
+    assert result["accepted"] is False
+    assert state.asset_progress.inspections == []
+    assert state.asset_progress.opened_asset_ids == []
+
+
 def test_asset_get_batch_merges_categories_and_latest_reason(tmp_path: Path) -> None:
     state, batch = _build_inspection_batch_tool(tmp_path)
     first = {
@@ -644,6 +719,14 @@ def test_asset_get_records_single_inspection(tmp_path: Path) -> None:
             shortlist_reason="单条比较",
         )
     ]
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "single" / "events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert any(event["event_type"] == "asset_opened" for event in events)
+    assert not any(event["event_type"] == "asset_batch_opened" for event in events)
 
 
 @pytest.mark.parametrize(
@@ -1103,6 +1186,14 @@ def test_completion_requires_dynamic_categories() -> None:
         )
 
 
+def test_old_state_without_inspections_cannot_complete() -> None:
+    state, validator = _completed_search_state(45)
+    state.asset_progress.inspections = []
+
+    with pytest.raises(SelectionValidationError, match="至少需要完整检查 4 个素材"):
+        validator.validate_completion(state)
+
+
 def test_category_resave_preserves_ids_across_rename_and_reorder(
     tmp_path: Path,
 ) -> None:
@@ -1229,6 +1320,56 @@ def test_category_resave_rejects_omitting_an_existing_category(
         "category-001",
         "category-002",
     ]
+
+
+def test_category_resave_cannot_downgrade_required_categories_and_reduce_k(
+    tmp_path: Path,
+) -> None:
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id=f"category-{index:03d}",
+                name=f"分类 {index}",
+                purpose="完整比较",
+            )
+            for index in range(1, 11)
+        ],
+    )
+    validator = SelectionValidator(
+        {},
+        asset_ids={f"asset-{index}" for index in range(100)},
+        total_pages=1,
+    )
+    store = SelectionStore(tmp_path / "task")
+    save = next(
+        tool
+        for tool in SelectionTools(
+            AssetBrowser([], state, store), state, store, validator
+        ).as_langchain_tools()
+        if tool.name == "selection_categories_save"
+    )
+
+    assert validator.required_inspection_count(state) == 80
+    result = save.invoke(
+        {
+            "categories": [
+                {
+                    "category_id": category.category_id,
+                    "name": category.name,
+                    "purpose": category.purpose,
+                    "required": False,
+                }
+                for category in state.categories
+            ]
+        }
+    )
+
+    assert result["accepted"] is False
+    assert "不得将必要分类降级" in "；".join(result["blockers"])
+    assert all(category.required for category in state.categories)
+    assert validator.required_inspection_count(state) == 80
 
 
 def test_asset_list_returns_compact_suggestion_overview(tmp_path: Path) -> None:
