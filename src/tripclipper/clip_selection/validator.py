@@ -97,6 +97,7 @@ class SelectionValidator:
         self,
         candidate: SelectionCandidate,
         state: SelectionState,
+        candidate_pool: list[SelectionCandidate] | None = None,
     ) -> None:
         blockers: list[str] = []
         duration = self.asset_durations.get(candidate.asset_id)
@@ -130,6 +131,37 @@ class SelectionValidator:
                 )
         if not candidate.reason.strip():
             blockers.append("候选理由不能为空")
+        if candidate.status == "needs_review":
+            if not (candidate.review_reason or "").strip():
+                blockers.append("待人工复核理由不能为空")
+        elif candidate.review_reason is not None:
+            blockers.append("只有 needs_review 候选可以填写待人工复核理由")
+
+        pool = candidate_pool if candidate_pool is not None else state.candidates
+        by_id = {item.candidate_id: item for item in pool}
+        missing_alternatives = sorted(
+            set(candidate.alternative_to_ids) - set(by_id)
+        )
+        if missing_alternatives:
+            blockers.append(
+                "替代关系引用不存在：" + ", ".join(missing_alternatives)
+            )
+        if candidate.candidate_id in candidate.alternative_to_ids:
+            blockers.append("候选不能替代自身")
+        if candidate.status != "alternate" and candidate.alternative_to_ids:
+            blockers.append("只有备选候选可以设置替代关系")
+        if candidate.status == "alternate" and not candidate.alternative_to_ids:
+            blockers.append("备选候选必须引用至少一个主选")
+        if candidate.status == "alternate":
+            non_primary = [
+                candidate_id
+                for candidate_id in candidate.alternative_to_ids
+                if candidate_id in by_id and by_id[candidate_id].status != "primary"
+            ]
+            if non_primary:
+                blockers.append(
+                    "备选只能引用主选：" + ", ".join(sorted(non_primary))
+                )
         if blockers:
             raise SelectionValidationError(blockers)
 
@@ -208,11 +240,18 @@ class SelectionValidator:
     ) -> None:
         """校验新增候选，并阻止不可修订的最小候选池越过容量上限。"""
         self.validate_search_depth(state)
-        self.validate_candidate(candidate, state)
+        if candidate.candidate_id in {
+            existing.candidate_id for existing in state.candidates
+        }:
+            raise SelectionValidationError(
+                [f"候选 ID 已存在：{candidate.candidate_id}"]
+            )
+        projected = [*state.candidates, candidate]
+        self.validate_candidate(candidate, state, projected)
         projected_duration = self.primary_union_duration(
-            [*state.candidates, candidate]
+            projected
         )
-        maximum = state.target_duration_sec * 2.0
+        maximum = state.target_duration_sec * 1.5
         if projected_duration > maximum:
             raise SelectionValidationError(
                 [
@@ -220,6 +259,44 @@ class SelectionValidator:
                     f"超过主选容量上限 {maximum:g} 秒"
                 ]
             )
+
+    def validate_candidate_update(
+        self,
+        candidate: SelectionCandidate,
+        state: SelectionState,
+    ) -> None:
+        self.validate_search_depth(state)
+        existing_by_id = {
+            existing.candidate_id: existing for existing in state.candidates
+        }
+        existing_candidate = existing_by_id.get(candidate.candidate_id)
+        if existing_candidate is None:
+            raise SelectionValidationError(
+                [f"候选不存在：{candidate.candidate_id}"]
+            )
+        if candidate.asset_id != existing_candidate.asset_id:
+            raise SelectionValidationError(["候选更新不能更换素材"])
+        projected = [
+            candidate if existing.candidate_id == candidate.candidate_id else existing
+            for existing in state.candidates
+        ]
+        blockers: list[str] = []
+        for item in projected:
+            try:
+                self.validate_candidate(item, state, projected)
+            except SelectionValidationError as exc:
+                blockers.extend(
+                    f"{item.candidate_id}: {blocker}" for blocker in exc.blockers
+                )
+        maximum = state.target_duration_sec * 1.5
+        projected_duration = self.primary_union_duration(projected)
+        if projected_duration > maximum:
+            blockers.append(
+                f"更新后主选总时长为 {projected_duration:g} 秒，"
+                f"超过主选容量上限 {maximum:g} 秒"
+            )
+        if blockers:
+            raise SelectionValidationError(blockers)
 
     def validate_completion(self, state: SelectionState) -> None:
         blockers: list[str] = []
@@ -239,6 +316,7 @@ class SelectionValidator:
         primary_categories = {
             category_id
             for candidate in state.candidates
+            if candidate.status == "primary"
             for category_id in candidate.category_ids
         }
         for category in state.categories:
@@ -249,9 +327,12 @@ class SelectionValidator:
             ):
                 blockers.append(f"必要分类缺少主选：{category.name}")
 
+        candidate_ids = [candidate.candidate_id for candidate in state.candidates]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            blockers.append("候选 ID 不得重复")
         for candidate in state.candidates:
             try:
-                self.validate_candidate(candidate, state)
+                self.validate_candidate(candidate, state, state.candidates)
             except SelectionValidationError as exc:
                 blockers.extend(
                     f"{candidate.candidate_id}: {blocker}"
@@ -259,13 +340,17 @@ class SelectionValidator:
                 )
 
         primary_duration = self.primary_union_duration(state.candidates)
-        minimum = state.target_duration_sec * 1.5
-        maximum = state.target_duration_sec * 2.0
+        minimum = state.target_duration_sec
+        maximum = state.target_duration_sec * 1.5
         if not minimum <= primary_duration <= maximum:
             blockers.append(
                 f"主选总时长 {primary_duration:g} 秒不在 {minimum:g}～{maximum:g} 秒范围内"
             )
-        if state.unresolved:
+        if any(
+            not isinstance(item, dict)
+            or item.get("priority") != "low"
+            for item in state.unresolved
+        ):
             blockers.append("仍存在未解决的高优先级问题")
         if blockers:
             raise SelectionValidationError(blockers)
@@ -274,6 +359,8 @@ class SelectionValidator:
     def primary_union_duration(candidates: list[SelectionCandidate]) -> float:
         by_asset: dict[str, list[tuple[float, float]]] = defaultdict(list)
         for candidate in candidates:
+            if candidate.status != "primary":
+                continue
             by_asset[candidate.asset_id].append(
                 (candidate.start_sec, candidate.end_sec)
             )

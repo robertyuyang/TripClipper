@@ -7,6 +7,26 @@ import os
 from pathlib import Path
 from typing import Any
 
+from deerflow.models.openai_codex_provider import CodexChatModel
+
+
+class MultimodalCodexChatModel(CodexChatModel):
+    """保留 Tool 返回的 Responses API 图片内容，而不是压平成文本。"""
+
+    @classmethod
+    def _normalize_content(cls, content: Any) -> Any:
+        if (
+            isinstance(content, list)
+            and content
+            and all(
+                isinstance(item, dict)
+                and item.get("type") in {"input_text", "input_image", "input_file"}
+                for item in content
+            )
+        ):
+            return content
+        return super()._normalize_content(content)
+
 
 class CodexAuthenticationError(RuntimeError):
     pass
@@ -34,9 +54,7 @@ def ensure_codex_authenticated(auth_path: Path | None = None) -> Path:
 
 
 def build_codex_model() -> Any:
-    from deerflow.models.openai_codex_provider import CodexChatModel
-
-    return CodexChatModel(model="gpt-5.4", reasoning_effort="high")
+    return MultimodalCodexChatModel(model="gpt-5.4", reasoning_effort="high")
 
 
 def run_agent(
@@ -65,6 +83,7 @@ def run_agent(
 
 __all__ = [
     "CodexAuthenticationError",
+    "MultimodalCodexChatModel",
     "build_codex_model",
     "ensure_codex_authenticated",
     "run_agent",

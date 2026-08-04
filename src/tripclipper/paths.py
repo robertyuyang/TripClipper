@@ -124,6 +124,13 @@ def selection_task_dir(
     return selections_dir(slug, base_dir) / task_name
 
 
+def selection_shared_frames_dir(
+    slug: str,
+    base_dir: Optional[_PathLike] = None,
+) -> Path:
+    return selections_dir(slug, base_dir) / "shared_frames"
+
+
 def analyze_log_path(slug: str, ts: str, base_dir: Optional[_PathLike] = None) -> Path:
     """Return the JSONL log file path for an analyze/run invocation.
 
@@ -184,6 +191,7 @@ __all__ = [
     "logs_dir",
     "selections_dir",
     "selection_task_dir",
+    "selection_shared_frames_dir",
     "analyze_log_path",
     "cluster_log_path",
     "ensure_project_dirs",

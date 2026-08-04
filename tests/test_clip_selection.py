@@ -774,7 +774,7 @@ def test_completion_counts_overlapping_primary_ranges_by_union() -> None:
                 candidate_id="candidate-002",
                 asset_id="asset-1",
                 start_sec=10,
-                end_sec=50,
+                end_sec=45,
                 category_ids=["category-001"],
                 reason="后半段反应自然",
             ),
@@ -977,9 +977,9 @@ def _completed_search_state(
 
 @pytest.mark.parametrize(
     ("duration", "accepted"),
-    [(44.9, False), (45.0, True), (60.0, True), (60.1, False)],
+    [(29.9, False), (30.0, True), (45.0, True), (45.1, False)],
 )
-def test_completion_requires_150_to_200_percent_capacity(
+def test_completion_requires_100_to_150_percent_capacity(
     duration: float,
     accepted: bool,
 ) -> None:
@@ -988,7 +988,7 @@ def test_completion_requires_150_to_200_percent_capacity(
     if accepted:
         validator.validate_completion(state)
     else:
-        with pytest.raises(SelectionValidationError, match="45～60"):
+        with pytest.raises(SelectionValidationError, match="30～45"):
             validator.validate_completion(state)
 
 
@@ -1103,9 +1103,9 @@ def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
                 candidate_id="candidate-001",
                 asset_id="asset-1",
                 start_sec=0,
-                end_sec=55,
+                end_sec=40,
                 category_ids=["category-001"],
-                reason="已有 55 秒主选",
+                reason="已有 40 秒主选",
             )
         ],
     )
@@ -1115,7 +1115,7 @@ def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
         start_sec=0,
         end_sec=10,
         category_ids=["category-001"],
-        reason="加入后会超过 60 秒上限",
+        reason="加入后会超过 45 秒上限",
     )
     validator = SelectionValidator(
         {"asset-1": 60, "asset-2": 20},
