@@ -89,15 +89,23 @@ class SelectionTools:
             )
             self.store.save(self.state)
             for inspection in inspections:
+                saved_inspection = merged[inspection.asset_id]
                 self.store.append_event(
                     "asset_opened",
                     tool=tool_name,
-                    data={"asset_id": inspection.asset_id},
+                    data={
+                        "asset_id": inspection.asset_id,
+                        "category_ids": saved_inspection.category_ids,
+                        "shortlist_reason": saved_inspection.shortlist_reason,
+                    },
                 )
             self.store.append_event(
                 "asset_batch_opened",
                 tool=tool_name,
-                data={"asset_ids": [item.asset_id for item in inspections]},
+                data={
+                    "asset_ids": [item.asset_id for item in inspections],
+                    "count": len(inspections),
+                },
             )
             return {"accepted": True, "assets": details}
 

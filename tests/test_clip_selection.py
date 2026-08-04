@@ -434,6 +434,32 @@ def test_asset_get_batch_records_inspections_atomically(tmp_path: Path) -> None:
         "asset-3",
         "asset-4",
     ]
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "task" / "events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [
+        event["data"]
+        for event in events
+        if event["event_type"] == "asset_opened"
+    ] == [
+        {
+            "asset_id": f"asset-{index}",
+            "category_ids": ["category-001"],
+            "shortlist_reason": f"比较对象 {index}",
+        }
+        for index in range(1, 5)
+    ]
+    assert next(
+        event["data"]
+        for event in events
+        if event["event_type"] == "asset_batch_opened"
+    ) == {
+        "asset_ids": ["asset-1", "asset-2", "asset-3", "asset-4"],
+        "count": 4,
+    }
 
 
 def test_asset_get_batch_rejects_whole_batch_on_invalid_category(
@@ -461,6 +487,16 @@ def test_asset_get_batch_rejects_whole_batch_on_invalid_category(
     assert result["accepted"] is False
     assert state.asset_progress.inspections == []
     assert state.asset_progress.opened_asset_ids == []
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "task" / "events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert not any(
+        event["event_type"] in {"asset_opened", "asset_batch_opened"}
+        for event in events
+    )
 
 
 def test_asset_get_batch_merges_categories_and_latest_reason(tmp_path: Path) -> None:
