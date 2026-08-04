@@ -9,10 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from tripclipper.cut_index import read_cut_index
-from tripclipper.paths import cut_index_path, selection_task_dir
+from tripclipper.paths import (
+    cut_index_path,
+    selection_shared_frames_dir,
+    selection_task_dir,
+)
 
 from .agent import build_codex_model, ensure_codex_authenticated, run_agent
 from .asset_tools import AssetBrowser
+from .frames import FrameSampler
 from .models import SelectionState
 from .review import SelectionReviewError, render_selection_review
 from .selection_tools import SelectionTools
@@ -59,14 +64,21 @@ def _load_runtime_instructions() -> str:
     system_prompt = (package_dir / "prompts" / "system.md").read_text(
         encoding="utf-8"
     )
-    skill = (
+    skill_dir = (
         package_dir
         / "skills"
         / "custom"
         / "clip_selection"
-        / "SKILL.md"
-    ).read_text(encoding="utf-8")
-    return f"{system_prompt}\n\n<clip_selection_skill>\n{skill}\n</clip_selection_skill>"
+    )
+    skill = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    references = "\n\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((skill_dir / "references").glob("*.md"))
+    )
+    return (
+        f"{system_prompt}\n\n<clip_selection_skill>\n{skill}\n\n"
+        f"{references}\n</clip_selection_skill>"
+    )
 
 
 def run_selection(
@@ -85,6 +97,8 @@ def run_selection(
     task_name = source_brief.stem
     if not task_name or any(separator in task_name for separator in ("/", "\\")):
         raise SelectionError("任务名称不能为空或包含路径分隔符")
+    if task_name == "shared_frames":
+        raise SelectionError("任务名称不能使用保留名称 shared_frames")
 
     index_path = cut_index_path(slug, base_dir)
     if not index_path.is_file():
@@ -122,7 +136,20 @@ def run_selection(
         asset_ids=set(browser.by_id),
         total_pages=browser.total_pages,
     )
-    selection_tools = SelectionTools(browser, state, store, validator)
+    frame_sampler = FrameSampler(
+        browser.by_id,
+        state,
+        store,
+        selection_shared_frames_dir(slug, base_dir),
+        source_folder=cut.project.source_folder,
+    )
+    selection_tools = SelectionTools(
+        browser,
+        state,
+        store,
+        validator,
+        frame_sampler=frame_sampler,
+    )
 
     if model is None:
         ensure_codex_authenticated()

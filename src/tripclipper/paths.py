@@ -124,6 +124,13 @@ def selection_task_dir(
     return selections_dir(slug, base_dir) / task_name
 
 
+def selection_shared_frames_dir(
+    slug: str,
+    base_dir: Optional[_PathLike] = None,
+) -> Path:
+    return selections_dir(slug, base_dir) / "shared_frames"
+
+
 def selection_review_html_path(
     slug: str,
     task_name: str,
@@ -193,6 +200,7 @@ __all__ = [
     "logs_dir",
     "selections_dir",
     "selection_task_dir",
+    "selection_shared_frames_dir",
     "selection_review_html_path",
     "analyze_log_path",
     "cluster_log_path",

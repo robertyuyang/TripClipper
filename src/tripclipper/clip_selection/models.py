@@ -24,10 +24,12 @@ class SelectionCandidate(BaseModel):
     asset_id: str
     start_sec: float
     end_sec: float
-    status: Literal["primary"] = "primary"
+    status: Literal["primary", "alternate", "needs_review"] = "primary"
     category_ids: list[str] = Field(default_factory=list)
     recommended_use: str | None = None
     reason: str
+    alternative_to_ids: list[str] = Field(default_factory=list)
+    review_reason: str | None = None
 
 
 class AssetInspection(BaseModel):
@@ -36,10 +38,19 @@ class AssetInspection(BaseModel):
     shortlist_reason: str
 
 
+class SampledRange(BaseModel):
+    asset_id: str
+    start_sec: float
+    end_sec: float
+    count: int
+    frame_paths: list[str] = Field(default_factory=list)
+
+
 class AssetProgress(BaseModel):
     listed_pages: list[int] = Field(default_factory=list)
     opened_asset_ids: list[str] = Field(default_factory=list)
     inspections: list[AssetInspection] = Field(default_factory=list)
+    sampled_ranges: list[SampledRange] = Field(default_factory=list)
 
 
 class SelectionState(BaseModel):
@@ -57,6 +68,7 @@ __all__ = [
     "AssetInspection",
     "AssetProgress",
     "CategoryDraft",
+    "SampledRange",
     "SelectionCandidate",
     "SelectionCategory",
     "SelectionState",

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.tools import StructuredTool
 
 from .asset_tools import AssetBrowser
+from .frames import FrameSampler
 from .models import (
     AssetInspection,
     CategoryDraft,
@@ -25,11 +26,22 @@ class SelectionTools:
         state: SelectionState,
         store: SelectionStore,
         validator: SelectionValidator,
+        *,
+        frame_sampler: FrameSampler | None = None,
     ) -> None:
         self.browser = browser
         self.state = state
         self.store = store
         self.validator = validator
+        self.frame_sampler = frame_sampler
+        self._next_candidate_number = max(
+            (
+                int(item.candidate_id.rsplit("-", 1)[-1])
+                for item in state.candidates
+                if item.candidate_id.rsplit("-", 1)[-1].isdigit()
+            ),
+            default=0,
+        ) + 1
 
     def as_langchain_tools(self) -> list[StructuredTool]:
         def inspection_progress() -> dict[str, Any]:
@@ -170,6 +182,18 @@ class SelectionTools:
             """批量打开 1～10 个不同素材的完整索引详情。"""
             return save_inspections(inspections, tool_name="asset_get_batch")
 
+        def asset_frames_sample(
+            asset_id: str,
+            start_sec: float,
+            end_sec: float,
+            count: int,
+        ) -> list[dict[str, Any]]:
+            """查看指定素材和时间范围的采样帧，优先复用已有视觉证据。"""
+            if self.frame_sampler is None:
+                raise RuntimeError("当前任务没有配置采样帧目录")
+            result = self.frame_sampler.sample(asset_id, start_sec, end_sec, count)
+            return self.frame_sampler.tool_content(result)
+
         def selection_categories_save(
             categories: list[CategoryDraft],
         ) -> dict[str, Any]:
@@ -240,25 +264,34 @@ class SelectionTools:
             end_sec: float,
             category_ids: list[str],
             reason: str,
+            status: Literal["primary", "alternate", "needs_review"] = "primary",
             recommended_use: str | None = None,
+            alternative_to_ids: list[str] | None = None,
+            review_reason: str | None = None,
         ) -> dict[str, Any]:
-            """新增一个主选候选；候选 ID 由代码生成。"""
+            """新增主选、备选或待人工复核候选；候选 ID 由代码生成。"""
             parameters = {
                 "asset_id": asset_id,
                 "start_sec": start_sec,
                 "end_sec": end_sec,
                 "category_ids": category_ids,
                 "reason": reason,
+                "status": status,
                 "recommended_use": recommended_use,
+                "alternative_to_ids": alternative_to_ids or [],
+                "review_reason": review_reason,
             }
             candidate = SelectionCandidate(
-                candidate_id=f"candidate-{len(self.state.candidates) + 1:03d}",
+                candidate_id=f"candidate-{self._next_candidate_number:03d}",
                 asset_id=asset_id,
                 start_sec=start_sec,
                 end_sec=end_sec,
+                status=status,
                 category_ids=category_ids,
                 recommended_use=recommended_use,
                 reason=reason,
+                alternative_to_ids=alternative_to_ids or [],
+                review_reason=review_reason,
             )
             try:
                 self.validator.validate_candidate_add(candidate, self.state)
@@ -283,6 +316,7 @@ class SelectionTools:
                 },
             )
             self.state.candidates.append(candidate)
+            self._next_candidate_number += 1
             self.store.save(self.state)
             self.store.append_event(
                 "candidate_added",
@@ -290,6 +324,128 @@ class SelectionTools:
                 data={"candidate": candidate.model_dump(mode="json")},
             )
             return {"accepted": True, "candidate": candidate.model_dump(mode="json")}
+
+        def selection_candidate_update(
+            candidate_id: str,
+            start_sec: float,
+            end_sec: float,
+            status: Literal["primary", "alternate", "needs_review"],
+            category_ids: list[str],
+            reason: str,
+            recommended_use: str | None = None,
+            alternative_to_ids: list[str] | None = None,
+            review_reason: str | None = None,
+        ) -> dict[str, Any]:
+            """用完整的新内容修订一个既有候选。"""
+            existing = next(
+                (
+                    candidate
+                    for candidate in self.state.candidates
+                    if candidate.candidate_id == candidate_id
+                ),
+                None,
+            )
+            if existing is None:
+                blockers = [f"候选不存在：{candidate_id}"]
+                self.store.append_event(
+                    "change_validated",
+                    tool="selection_candidate_update",
+                    data={
+                        "accepted": False,
+                        "blockers": blockers,
+                        "parameters": {"candidate_id": candidate_id},
+                    },
+                )
+                return {"accepted": False, "blockers": blockers}
+            parameters = {
+                "candidate_id": candidate_id,
+                "asset_id": existing.asset_id,
+                "start_sec": start_sec,
+                "end_sec": end_sec,
+                "status": status,
+                "category_ids": category_ids,
+                "reason": reason,
+                "recommended_use": recommended_use,
+                "alternative_to_ids": alternative_to_ids or [],
+                "review_reason": review_reason,
+            }
+            candidate = SelectionCandidate(**parameters)
+            try:
+                self.validator.validate_candidate_update(candidate, self.state)
+            except SelectionValidationError as exc:
+                self.store.append_event(
+                    "change_validated",
+                    tool="selection_candidate_update",
+                    data={
+                        "accepted": False,
+                        "blockers": exc.blockers,
+                        "parameters": parameters,
+                    },
+                )
+                return {"accepted": False, "blockers": exc.blockers}
+            self.state.candidates = [
+                candidate if item.candidate_id == candidate_id else item
+                for item in self.state.candidates
+            ]
+            self.store.save(self.state)
+            self.store.append_event(
+                "change_validated",
+                tool="selection_candidate_update",
+                data={"accepted": True, "blockers": [], "parameters": parameters},
+            )
+            self.store.append_event(
+                "candidate_updated",
+                tool="selection_candidate_update",
+                data={"candidate": candidate.model_dump(mode="json")},
+            )
+            return {"accepted": True, "candidate": candidate.model_dump(mode="json")}
+
+        def selection_candidate_remove(
+            candidate_id: str,
+            reason: str,
+        ) -> dict[str, Any]:
+            """移除候选并把原因写入事件；仍被引用的候选不可移除。"""
+            blockers: list[str] = []
+            if candidate_id not in {
+                candidate.candidate_id for candidate in self.state.candidates
+            }:
+                blockers.append(f"候选不存在：{candidate_id}")
+            references = sorted(
+                candidate.candidate_id
+                for candidate in self.state.candidates
+                if candidate_id in candidate.alternative_to_ids
+            )
+            if references:
+                blockers.append(
+                    f"候选 {candidate_id} 仍被其他候选引用："
+                    + ", ".join(references)
+                )
+            if not reason.strip():
+                blockers.append("移除原因不能为空")
+            parameters = {"candidate_id": candidate_id, "reason": reason}
+            self.store.append_event(
+                "change_validated",
+                tool="selection_candidate_remove",
+                data={
+                    "accepted": not blockers,
+                    "blockers": blockers,
+                    "parameters": parameters,
+                },
+            )
+            if blockers:
+                return {"accepted": False, "blockers": blockers}
+            self.state.candidates = [
+                candidate
+                for candidate in self.state.candidates
+                if candidate.candidate_id != candidate_id
+            ]
+            self.store.save(self.state)
+            self.store.append_event(
+                "candidate_removed",
+                tool="selection_candidate_remove",
+                data=parameters,
+            )
+            return {"accepted": True, "candidate_id": candidate_id}
 
         def selection_finish_request() -> dict[str, Any]:
             """请求完成选片；确定性校验通过后状态立即变成 completed。"""
@@ -334,7 +490,7 @@ class SelectionTools:
             )
             return {"accepted": True, "status": self.state.status}
 
-        return [
+        tools = [
             StructuredTool.from_function(asset_list, name="asset_list"),
             StructuredTool.from_function(asset_get, name="asset_get"),
             StructuredTool.from_function(asset_get_batch, name="asset_get_batch"),
@@ -347,10 +503,27 @@ class SelectionTools:
                 name="selection_candidate_add",
             ),
             StructuredTool.from_function(
+                selection_candidate_update,
+                name="selection_candidate_update",
+            ),
+            StructuredTool.from_function(
+                selection_candidate_remove,
+                name="selection_candidate_remove",
+            ),
+            StructuredTool.from_function(
                 selection_finish_request,
                 name="selection_finish_request",
             ),
         ]
+        if self.frame_sampler is not None:
+            tools.insert(
+                3,
+                StructuredTool.from_function(
+                    asset_frames_sample,
+                    name="asset_frames_sample",
+                ),
+            )
+        return tools
 
 
 __all__ = ["SelectionTools"]
