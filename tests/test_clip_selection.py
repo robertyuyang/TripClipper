@@ -491,8 +491,16 @@ def test_asset_get_batch_records_inspections_atomically(tmp_path: Path) -> None:
     assert result["inspection_count"] == 4
     assert result["remaining_inspection_count"] == 0
     assert result["category_progress"] == {
-        "category-001": 4,
-        "category-002": 0,
+        "category-001": {
+            "inspection_count": 4,
+            "required_inspection_count": 4,
+            "remaining_inspection_count": 0,
+        },
+        "category-002": {
+            "inspection_count": 0,
+            "required_inspection_count": 4,
+            "remaining_inspection_count": 4,
+        },
     }
     assert len(state.asset_progress.inspections) == 4
     assert state.asset_progress.opened_asset_ids == [
@@ -618,8 +626,16 @@ def test_asset_get_records_single_inspection(tmp_path: Path) -> None:
     assert result["inspection_count"] == 1
     assert result["remaining_inspection_count"] == 0
     assert result["category_progress"] == {
-        "category-001": 1,
-        "category-002": 0,
+        "category-001": {
+            "inspection_count": 1,
+            "required_inspection_count": 1,
+            "remaining_inspection_count": 0,
+        },
+        "category-002": {
+            "inspection_count": 0,
+            "required_inspection_count": 1,
+            "remaining_inspection_count": 1,
+        },
     }
     assert state.asset_progress.inspections == [
         AssetInspection(
@@ -1117,8 +1133,16 @@ def test_category_resave_preserves_ids_across_rename_and_reorder(
     assert first["inspection_count"] == 0
     assert first["remaining_inspection_count"] == 0
     assert first["category_progress"] == {
-        "category-001": 0,
-        "category-002": 0,
+        "category-001": {
+            "inspection_count": 0,
+            "required_inspection_count": 0,
+            "remaining_inspection_count": 0,
+        },
+        "category-002": {
+            "inspection_count": 0,
+            "required_inspection_count": 0,
+            "remaining_inspection_count": 0,
+        },
     }
 
     second = save.invoke(

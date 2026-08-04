@@ -36,22 +36,29 @@ class SelectionTools:
             inspections = self.state.asset_progress.inspections
             inspected_ids = {inspection.asset_id for inspection in inspections}
             required_count = self.validator.required_inspection_count(self.state)
+            category_minimum = min(8, self.validator.total_assets)
+            category_progress: dict[str, dict[str, int]] = {}
+            for category in self.state.categories:
+                count = len(
+                    {
+                        inspection.asset_id
+                        for inspection in inspections
+                        if category.category_id in inspection.category_ids
+                    }
+                )
+                required = category_minimum if category.required else 0
+                category_progress[category.category_id] = {
+                    "inspection_count": count,
+                    "required_inspection_count": required,
+                    "remaining_inspection_count": max(0, required - count),
+                }
             return {
                 "required_inspection_count": required_count,
                 "inspection_count": len(inspected_ids),
                 "remaining_inspection_count": max(
                     0, required_count - len(inspected_ids)
                 ),
-                "category_progress": {
-                    category.category_id: len(
-                        {
-                            inspection.asset_id
-                            for inspection in inspections
-                            if category.category_id in inspection.category_ids
-                        }
-                    )
-                    for category in self.state.categories
-                },
+                "category_progress": category_progress,
             }
 
         def save_inspections(
