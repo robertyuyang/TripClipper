@@ -158,8 +158,6 @@ tripclipper run <slug>
 - 将结果写入 `projects/<slug>/exports/`
 - 完成后自动打开 `review.html`
 
-`run` 不包含任务级选片和 Eagle 同步；两者需要在项目分析及聚类完成后按需单独执行。
-
 ### 4. 分阶段运行
 
 ```bash
@@ -177,22 +175,6 @@ tripclipper select <slug> path/to/选片任务.md
 ```
 
 `select` 只读现有 `cut_index.json`，使用本机 Codex 登录信息运行真实选片 Agent；首次运行会在 `projects/<slug>/selections/<任务名>/` 保存 Brief 快照、当前状态和追加式事件。
-
-推荐的完整调用顺序是：
-
-```bash
-# 完成 scan → sample → full → cluster → export
-tripclipper run <slug>
-
-# cluster 完成后，按具体 Brief 执行任务级选片
-tripclipper select <slug> path/to/选片任务.md
-
-# 选片完成后，先预览再正式同步到 Eagle
-tripclipper sync-eagle <slug> --dry-run
-tripclipper sync-eagle <slug> --apply
-```
-
-也就是 `run → select → sync-eagle`。同一项目可以针对不同 Brief 建立多个选片任务，因此 `select` 不会自动并入项目级 `run`；`sync-eagle` 也继续保持为显式执行的外部同步步骤。
 
 Agent 会先浏览全部素材摘要，再按任务中必要分类批量打开完整索引详情；单次可用 `asset_get_batch` 检查 1～10 个素材。完整检查数量会随素材总数和分类数动态提高，避免只精读少量素材就下结论。
 
