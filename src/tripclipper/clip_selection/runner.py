@@ -116,6 +116,7 @@ def run_selection(
     )
     validator = SelectionValidator(
         browser.asset_durations,
+        asset_ids=set(browser.by_id),
         total_pages=browser.total_pages,
     )
     selection_tools = SelectionTools(browser, state, store, validator)

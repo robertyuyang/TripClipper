@@ -32,6 +32,28 @@ class SelectionTools:
         self.validator = validator
 
     def as_langchain_tools(self) -> list[StructuredTool]:
+        def inspection_progress() -> dict[str, Any]:
+            inspections = self.state.asset_progress.inspections
+            inspected_ids = {inspection.asset_id for inspection in inspections}
+            required_count = self.validator.required_inspection_count(self.state)
+            return {
+                "required_inspection_count": required_count,
+                "inspection_count": len(inspected_ids),
+                "remaining_inspection_count": max(
+                    0, required_count - len(inspected_ids)
+                ),
+                "category_progress": {
+                    category.category_id: len(
+                        {
+                            inspection.asset_id
+                            for inspection in inspections
+                            if category.category_id in inspection.category_ids
+                        }
+                    )
+                    for category in self.state.categories
+                },
+            }
+
         def save_inspections(
             inspections: list[AssetInspection],
             *,
@@ -107,7 +129,11 @@ class SelectionTools:
                     "count": len(inspections),
                 },
             )
-            return {"accepted": True, "assets": details}
+            return {
+                "accepted": True,
+                "assets": details,
+                **inspection_progress(),
+            }
 
         def asset_list(page: int = 1) -> dict[str, Any]:
             """分页列出素材摘要。完成前必须从第 1 页浏览到最后一页。"""
@@ -197,6 +223,7 @@ class SelectionTools:
                     category.model_dump(mode="json")
                     for category in self.state.categories
                 ],
+                **inspection_progress(),
             }
 
         def selection_candidate_add(

@@ -103,6 +103,42 @@ def _write_cut_index(path: Path) -> None:
                             }
                         ],
                     },
+                    {
+                        "asset_id": "asset-activity-1",
+                        "filename": "activity-1.mp4",
+                        "type": "video",
+                        "metadata": {"duration": 20.0},
+                        "analysis_status": "analyzed",
+                        "summary": "人物参与户外活动，动作强烈，环境开阔。",
+                        "rating": 4,
+                        "subject_type": "activity",
+                        "shot_scale": "wide",
+                        "clip_suggestions": [
+                            {
+                                "in": "00:00:00",
+                                "out": "00:00:15",
+                                "reason": "动作完整",
+                            }
+                        ],
+                    },
+                    {
+                        "asset_id": "asset-activity-2",
+                        "filename": "activity-2.mp4",
+                        "type": "video",
+                        "metadata": {"duration": 20.0},
+                        "analysis_status": "analyzed",
+                        "summary": "人物与山谷环境同框，节奏轻快。",
+                        "rating": 4,
+                        "subject_type": "people_landscape",
+                        "shot_scale": "full",
+                        "clip_suggestions": [
+                            {
+                                "in": "00:00:00",
+                                "out": "00:00:15",
+                                "reason": "人物环境兼具",
+                            }
+                        ],
+                    },
                 ],
             },
             ensure_ascii=False,
@@ -111,7 +147,7 @@ def _write_cut_index(path: Path) -> None:
     )
 
 
-def test_scripted_model_completes_minimal_selection_without_changing_index(
+def test_scripted_model_completes_depth_checked_selection_without_changing_index(
     tmp_path: Path,
 ) -> None:
     projects_dir = tmp_path / "projects"
@@ -126,9 +162,8 @@ def test_scripted_model_completes_minimal_selection_without_changing_index(
         responses=[
             _tool_call("asset_list", {"page": 1}, "call-list-1"),
             _tool_call("asset_list", {"page": 2}, "call-list-2"),
-            _tool_call(
-                "asset_get", {"asset_id": "asset-people"}, "call-get"
-            ),
+            _tool_call("asset_list", {"page": 3}, "call-list-3"),
+            _tool_call("asset_list", {"page": 4}, "call-list-4"),
             _tool_call(
                 "selection_categories_save",
                 {
@@ -148,15 +183,23 @@ def test_scripted_model_completes_minimal_selection_without_changing_index(
                 "call-categories",
             ),
             _tool_call(
-                "selection_candidate_add",
+                "asset_get_batch",
                 {
-                    "asset_id": "asset-people",
-                    "start_sec": 0.0,
-                    "end_sec": 25.0,
-                    "category_ids": ["category-001"],
-                    "reason": "这条范围越界，应被确定性校验拒绝。",
+                    "inspections": [
+                        {
+                            "asset_id": asset_id,
+                            "category_ids": ["category-001", "category-002"],
+                            "shortlist_reason": "两个分类的同类比较素材",
+                        }
+                        for asset_id in [
+                            "asset-people",
+                            "asset-landscape",
+                            "asset-activity-1",
+                            "asset-activity-2",
+                        ]
+                    ]
                 },
-                "call-invalid-candidate",
+                "call-inspect",
             ),
             _tool_call(
                 "selection_candidate_add",
@@ -165,8 +208,8 @@ def test_scripted_model_completes_minimal_selection_without_changing_index(
                     "start_sec": 0.0,
                     "end_sec": 15.0,
                     "category_ids": ["category-001"],
-                    "recommended_use": "用于开头",
-                    "reason": "挥手欢呼感染力强，动作完整。",
+                    "recommended_use": "片头",
+                    "reason": "人物表情强，优于三个同类比较素材。",
                 },
                 "call-candidate-1",
             ),
@@ -177,10 +220,22 @@ def test_scripted_model_completes_minimal_selection_without_changing_index(
                     "start_sec": 0.0,
                     "end_sec": 15.0,
                     "category_ids": ["category-002"],
-                    "recommended_use": "用于节奏转换",
-                    "reason": "山谷构图干净，与人物中景形成景别变化。",
+                    "recommended_use": "环境过场",
+                    "reason": "环境层次清楚，优于三个同类比较素材。",
                 },
                 "call-candidate-2",
+            ),
+            _tool_call(
+                "selection_candidate_add",
+                {
+                    "asset_id": "asset-activity-1",
+                    "start_sec": 0.0,
+                    "end_sec": 15.0,
+                    "category_ids": ["category-001", "category-002"],
+                    "recommended_use": "中段高光",
+                    "reason": "内容与景别形成变化，优于三个同类比较素材。",
+                },
+                "call-candidate-3",
             ),
             _tool_call("selection_finish_request", {}, "call-finish"),
             AIMessage(content="选片候选池已完成。"),
@@ -198,7 +253,7 @@ def test_scripted_model_completes_minimal_selection_without_changing_index(
     assert result.state.status == "completed"
     assert result.state.target_duration_sec == 30.0
     assert len(result.state.categories) == 2
-    assert len(result.state.candidates) == 2
+    assert len(result.state.candidates) == 3
     assert [category.category_id for category in result.state.categories] == [
         "category-001",
         "category-002",
@@ -206,6 +261,7 @@ def test_scripted_model_completes_minimal_selection_without_changing_index(
     assert [candidate.candidate_id for candidate in result.state.candidates] == [
         "candidate-001",
         "candidate-002",
+        "candidate-003",
     ]
     assert result.brief_path.read_text(encoding="utf-8") == brief_text
     assert any(
@@ -224,10 +280,18 @@ def test_scripted_model_completes_minimal_selection_without_changing_index(
         "selection_started",
         "asset_listed",
         "asset_listed",
-        "asset_opened",
+        "asset_listed",
+        "asset_listed",
         "change_validated",
         "categories_saved",
         "change_validated",
+        "asset_opened",
+        "asset_opened",
+        "asset_opened",
+        "asset_opened",
+        "asset_batch_opened",
+        "change_validated",
+        "candidate_added",
         "change_validated",
         "candidate_added",
         "change_validated",
@@ -235,17 +299,13 @@ def test_scripted_model_completes_minimal_selection_without_changing_index(
         "completion_validated",
         "selection_completed",
     ]
-    events = [
-        json.loads(line)
-        for line in result.events_path.read_text(encoding="utf-8").splitlines()
+    assert result.state.asset_progress.opened_asset_ids == [
+        "asset-people",
+        "asset-landscape",
+        "asset-activity-1",
+        "asset-activity-2",
     ]
-    rejected = next(
-        event
-        for event in events
-        if event["event_type"] == "change_validated"
-        and not event["data"]["accepted"]
-    )
-    assert rejected["data"]["parameters"]["end_sec"] == 25.0
+    assert len(result.state.asset_progress.inspections) == 4
 
 
 def test_select_cli_reports_completed_task(monkeypatch, tmp_path: Path) -> None:
@@ -427,6 +487,13 @@ def test_asset_get_batch_records_inspections_atomically(tmp_path: Path) -> None:
 
     assert result["accepted"] is True
     assert len(result["assets"]) == 4
+    assert result["required_inspection_count"] == 4
+    assert result["inspection_count"] == 4
+    assert result["remaining_inspection_count"] == 0
+    assert result["category_progress"] == {
+        "category-001": 4,
+        "category-002": 0,
+    }
     assert len(state.asset_progress.inspections) == 4
     assert state.asset_progress.opened_asset_ids == [
         "asset-1",
@@ -547,6 +614,13 @@ def test_asset_get_records_single_inspection(tmp_path: Path) -> None:
     )
 
     assert result["accepted"] is True
+    assert result["required_inspection_count"] == 1
+    assert result["inspection_count"] == 1
+    assert result["remaining_inspection_count"] == 0
+    assert result["category_progress"] == {
+        "category-001": 1,
+        "category-002": 0,
+    }
     assert state.asset_progress.inspections == [
         AssetInspection(
             asset_id="asset-1",
@@ -1039,6 +1113,13 @@ def test_category_resave_preserves_ids_across_rename_and_reorder(
         "category-001",
         "category-002",
     ]
+    assert first["required_inspection_count"] == 0
+    assert first["inspection_count"] == 0
+    assert first["remaining_inspection_count"] == 0
+    assert first["category_progress"] == {
+        "category-001": 0,
+        "category-002": 0,
+    }
 
     second = save.invoke(
         {
