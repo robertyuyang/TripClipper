@@ -386,8 +386,8 @@ def test_review_generation_failure_keeps_completed_selection(
     projects_dir = tmp_path / "projects"
     cut_index_path = projects_dir / "demo" / "cut_index.json"
     _write_cut_index(cut_index_path)
-    brief_path = tmp_path / "30秒失败降级.md"
-    brief_path.write_text("剪一个 30 秒视频。", encoding="utf-8")
+    brief_path = tmp_path / "20秒失败降级.md"
+    brief_path.write_text("剪一个 20 秒视频。", encoding="utf-8")
     model = ScriptedSelectionModel(
         responses=[
             _tool_call("asset_list", {"page": 1}, "call-list"),
@@ -403,6 +403,25 @@ def test_review_generation_failure_keeps_completed_selection(
                     ]
                 },
                 "call-categories",
+            ),
+            _tool_call(
+                "asset_get_batch",
+                {
+                    "inspections": [
+                        {
+                            "asset_id": asset_id,
+                            "category_ids": ["category-001"],
+                            "shortlist_reason": "完整候选的同类比较素材",
+                        }
+                        for asset_id in [
+                            "asset-people",
+                            "asset-landscape",
+                            "asset-activity-1",
+                            "asset-activity-2",
+                        ]
+                    ]
+                },
+                "call-inspect",
             ),
             _tool_call(
                 "selection_candidate_add",
