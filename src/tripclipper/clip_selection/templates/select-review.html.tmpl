@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{PAGE_TITLE}} · 选片验收</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, "PingFang SC", sans-serif; }
+    body { margin: 0; background: #101214; color: #f4f4ef; }
+    main { max-width: 1440px; margin: auto; padding: 28px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 12px; }
+    .metric, .panel, .category-card { background: #1b1f22; border: 1px solid #30363b; border-radius: 14px; padding: 16px; }
+    .metric strong { display: block; font-size: 1.4rem; margin-top: 6px; }
+    .brief { white-space: pre-wrap; }
+    .categories { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .category-card p { color: #aeb6bd; margin-bottom: 0; }
+    .coverage { float: right; color: #75d3a8; }
+    .warning { border-color: #d99a45; }
+    button { font: inherit; }
+    .sample-panel { margin-top: 18px; border-color: #4b6590; }
+    .sample-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, .7fr); gap: 18px; align-items: start; }
+    .sample-details { display: grid; grid-template-columns: 90px 1fr; gap: 8px 12px; }
+    .sample-details dt { color: #8e99a2; }
+    .sample-details dd { margin: 0; overflow-wrap: anywhere; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(340px, .8fr); gap: 18px; margin-top: 18px; align-items: start; }
+    .player-panel { position: sticky; top: 18px; }
+    .media-frame { display: grid; place-items: center; min-height: 360px; overflow: hidden; background: #070809; border-radius: 12px; }
+    video, .image-preview { display: block; width: 100%; max-height: 62vh; background: #070809; object-fit: contain; }
+    .image-preview[hidden], video[hidden] { display: none; }
+    .player-status { min-height: 1.5em; color: #ffcb8b; }
+    .player-controls, .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .player-controls button, .filter-chip { color: inherit; background: #282e33; border: 1px solid #414a52; border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+    .player-controls button:disabled { opacity: .38; cursor: not-allowed; }
+    .filter-chip.active { color: #0d1825; background: #9bc1ff; border-color: #9bc1ff; }
+    .detail-grid { display: grid; grid-template-columns: 120px 1fr; gap: 7px 12px; }
+    .detail-grid dt { color: #8e99a2; }
+    .detail-grid dd { margin: 0; overflow-wrap: anywhere; }
+    .detail-copy { white-space: pre-wrap; line-height: 1.6; }
+    a { color: #9bc1ff; }
+    .candidate-list { display: flex; flex-direction: column; gap: 9px; max-height: 72vh; overflow: auto; }
+    .candidate-card { display: flex; gap: 12px; width: 100%; text-align: left; color: inherit; background: #202529; border: 1px solid #343b40; border-radius: 12px; padding: 12px; }
+    .candidate-card { cursor: pointer; }
+    .candidate-card.selected { border-color: #77a7ff; background: #252f3c; box-shadow: 0 0 0 1px #77a7ff inset; }
+    .candidate-card[hidden] { display: none; }
+    .candidate-number { color: #77a7ff; font-weight: 700; }
+    .candidate-copy { display: grid; gap: 5px; }
+    .candidate-copy > span { color: #aeb6bd; font-size: .9rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag { color: #c5d7ff; background: #29374e; border-radius: 999px; padding: 2px 8px; }
+    .candidate-issue { color: #ffb46a !important; }
+    .muted { color: #aeb6bd; }
+    @media (max-width: 900px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } .workspace, .sample-layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="muted">任务级只读选片验收页 · 候选顺序不是最终剪辑时间线</p>
+    <h1>{{PAGE_TITLE}}</h1>
+    <p>任务：{{TASK_NAME}}</p>
+  </header>
+  <section class="summary-grid" aria-label="任务摘要">
+    <div class="metric">状态<strong>{{STATUS}}</strong></div>
+    <div class="metric">目标时长<strong>{{TARGET_DURATION}}</strong></div>
+    <div class="metric">主选总时长<strong>{{PRIMARY_DURATION}}</strong></div>
+    <div class="metric">候选 / 分类<strong>{{CANDIDATE_COUNT}} / {{CATEGORY_COUNT}}</strong></div>
+    <div class="metric">素材分页<strong>{{PAGE_PROGRESS}}</strong></div>
+    <div class="metric">已读详情<strong>{{OPENED_PROGRESS}}</strong></div>
+  </section>
+  <section class="panel sample-panel" aria-label="选片小样">
+    <h2>选片小样</h2>
+    <p class="muted">冷开头快剪块＋正文 · 跳过不可播放候选 <strong id="sample-skipped-count">0</strong> 条</p>
+    <div class="sample-layout">
+      <div>
+        <div class="media-frame">
+          <video id="sample-player" controls preload="metadata"></video>
+        </div>
+        <p id="sample-status" class="player-status">准备播放小样。</p>
+        <div class="player-controls" aria-label="选片小样播放控制">
+          <button id="sample-toggle" type="button">继续</button>
+          <button id="sample-restart" type="button">从头播放</button>
+          <button id="sample-previous" type="button">上一段</button>
+          <button id="sample-next" type="button">下一段</button>
+        </div>
+      </div>
+      <dl class="sample-details">
+        <dt>进度</dt><dd id="sample-progress">—</dd>
+        <dt>候选</dt><dd id="sample-candidate">—</dd>
+        <dt>Session</dt><dd id="sample-session">—</dd>
+        <dt>范围</dt><dd id="sample-range">—</dd>
+      </dl>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>Brief</h2>
+    <div class="brief">{{BRIEF}}</div>
+  </section>
+  <section>
+    <h2>分类覆盖</h2>
+    <div class="categories">{{CATEGORY_CARDS}}</div>
+  </section>
+  <section class="{{UNRESOLVED_CLASS}}" data-section="unresolved">
+    <h2>未解决问题</h2>
+    {{UNRESOLVED}}
+  </section>
+  <section class="workspace">
+    <div class="panel player-panel">
+      <h2>当前候选</h2>
+      <div class="media-frame">
+        <video id="review-player" controls preload="metadata"></video>
+        <img id="image-preview" class="image-preview" alt="当前非视频候选预览" hidden>
+      </div>
+      <p id="player-status" class="player-status">请选择候选。切换候选只定位，不自动播放下一条。</p>
+      <div class="player-controls" aria-label="片段播放控制">
+        <button id="previous-candidate" type="button">上一条</button>
+        <button id="replay-candidate" type="button">重新播放</button>
+        <button id="next-candidate" type="button">下一条</button>
+      </div>
+      <dl class="detail-grid">
+        <dt>候选</dt><dd id="detail-candidate">—</dd>
+        <dt>来源素材</dt><dd id="detail-asset">—</dd>
+        <dt>文件名</dt><dd id="detail-filename">—</dd>
+        <dt>本地路径</dt><dd id="detail-path">—</dd>
+        <dt>时间范围</dt><dd id="detail-range">—</dd>
+        <dt>分类用途</dt><dd id="detail-categories">—</dd>
+        <dt>建议用途</dt><dd id="detail-use">—</dd>
+      </dl>
+      <h3>完整理由</h3>
+      <p id="detail-reason" class="detail-copy">—</p>
+      <a id="open-source" href="#" hidden>打开原文件</a>
+    </div>
+    <aside class="panel">
+      <h2>候选列表</h2>
+      <div id="category-filters" class="filters" aria-label="分类筛选">{{CATEGORY_FILTERS}}</div>
+      <div id="candidate-list" class="candidate-list">{{CANDIDATE_CARDS}}</div>
+    </aside>
+  </section>
+</main>
+<script id="review-data" type="application/json">{{REVIEW_DATA}}</script>
+<script>
+  "use strict";
+
+  const reviewData = JSON.parse(document.getElementById("review-data").textContent);
+  const samplePlayer = document.getElementById("sample-player");
+  const sampleStatus = document.getElementById("sample-status");
+  const sampleToggle = document.getElementById("sample-toggle");
+  const sampleRestart = document.getElementById("sample-restart");
+  const samplePrevious = document.getElementById("sample-previous");
+  const sampleNext = document.getElementById("sample-next");
+  const player = document.getElementById("review-player");
+  const imagePreview = document.getElementById("image-preview");
+  const playerStatus = document.getElementById("player-status");
+  const candidateCards = Array.from(document.querySelectorAll("button.candidate-card"));
+  const filterButtons = Array.from(document.querySelectorAll("button.filter-chip"));
+  const previousButton = document.getElementById("previous-candidate");
+  const replayButton = document.getElementById("replay-candidate");
+  const nextButton = document.getElementById("next-candidate");
+  const openSource = document.getElementById("open-source");
+  let currentIndex = -1;
+  let boundaryUpdate = false;
+  let sampleIndex = -1;
+  let sampleBoundaryUpdate = false;
+  let sampleLoadToken = 0;
+
+  document.getElementById("sample-skipped-count").textContent = reviewData.sampleSkippedCount;
+
+  function currentSampleSegment() {
+    return sampleIndex >= 0 ? reviewData.sampleQueue[sampleIndex] : null;
+  }
+
+  function updateSampleDetails() {
+    const segment = currentSampleSegment();
+    const hasSegment = Boolean(segment);
+    samplePrevious.disabled = !hasSegment || sampleIndex <= 0;
+    sampleNext.disabled = !hasSegment || sampleIndex >= reviewData.sampleQueue.length - 1;
+    sampleToggle.disabled = !hasSegment;
+    sampleRestart.disabled = reviewData.sampleQueue.length === 0;
+    if (!segment) {
+      setText("sample-progress", "无可播放片段");
+      setText("sample-candidate", null);
+      setText("sample-session", null);
+      setText("sample-range", null);
+      return;
+    }
+    const phase = segment.phase === "cold-open" ? "冷开头" : "正文";
+    setText("sample-progress", `${phase} ${segment.phasePosition}/${segment.phaseCount}`);
+    setText("sample-candidate", `${segment.candidateId} · ${segment.filename}`);
+    setText("sample-session", segment.sessionId || "无 session 映射");
+    setText("sample-range", segment.rangeText);
+  }
+
+  function renumberSampleQueue() {
+    for (const phase of ["cold-open", "body"]) {
+      const segments = reviewData.sampleQueue.filter((segment) => segment.phase === phase);
+      segments.forEach((segment, index) => {
+        segment.phasePosition = index + 1;
+        segment.phaseCount = segments.length;
+      });
+    }
+  }
+
+  function skipInvalidSampleCandidate(segment, shouldPlay) {
+    const removedIndex = sampleIndex;
+    reviewData.sampleQueue = reviewData.sampleQueue.filter(
+      (item) => item.candidateIndex !== segment.candidateIndex,
+    );
+    document.getElementById("sample-skipped-count").textContent =
+      Number(document.getElementById("sample-skipped-count").textContent) + 1;
+    renumberSampleQueue();
+    if (reviewData.sampleQueue.length) {
+      playSampleSegment(Math.min(removedIndex, reviewData.sampleQueue.length - 1), shouldPlay);
+      return;
+    }
+    sampleIndex = -1;
+    samplePlayer.pause();
+    samplePlayer.removeAttribute("src");
+    samplePlayer.load();
+    sampleStatus.textContent = "没有可播放的视频候选。";
+    updateSampleDetails();
+  }
+
+  function playSampleSegment(index, shouldPlay = true) {
+    const segment = reviewData.sampleQueue[index];
+    if (!segment) return;
+    sampleIndex = index;
+    const token = ++sampleLoadToken;
+    samplePlayer.pause();
+    samplePlayer.src = segment.mediaUri;
+    samplePlayer.load();
+    sampleStatus.textContent = `正在载入 ${segment.filename}…`;
+    updateSampleDetails();
+    samplePlayer.addEventListener("loadedmetadata", () => {
+      if (token !== sampleLoadToken) return;
+      if (!Number.isFinite(samplePlayer.duration) || segment.endSec > samplePlayer.duration + 0.05) {
+        sampleStatus.textContent = "实际视频时长不足，已跳过该候选。";
+        skipInvalidSampleCandidate(segment, shouldPlay);
+        return;
+      }
+      samplePlayer.currentTime = segment.startSec;
+      sampleStatus.textContent = shouldPlay ? "正在播放小样。" : "小样已就绪。";
+      if (shouldPlay) {
+        samplePlayer.play().catch(() => {
+          sampleStatus.textContent = "浏览器未能播放该媒体格式。";
+        });
+      }
+    }, { once: true });
+  }
+
+  function moveSample(delta) {
+    const target = sampleIndex + delta;
+    if (target < 0 || target >= reviewData.sampleQueue.length) return;
+    playSampleSegment(target);
+  }
+
+  function restartSample() {
+    if (reviewData.sampleQueue.length) playSampleSegment(0);
+  }
+
+  function toggleSample() {
+    const segment = currentSampleSegment();
+    if (!segment) return;
+    if (samplePlayer.paused) {
+      if (samplePlayer.currentTime >= segment.endSec - 0.03) {
+        samplePlayer.currentTime = segment.startSec;
+      }
+      samplePlayer.play().catch(() => {
+        sampleStatus.textContent = "浏览器未能播放该媒体格式。";
+      });
+    } else {
+      samplePlayer.pause();
+    }
+  }
+
+  function currentCandidate() {
+    return currentIndex >= 0 ? reviewData.candidates[currentIndex] : null;
+  }
+
+  function visibleIndexes() {
+    return candidateCards
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.dataset.index));
+  }
+
+  function setText(id, value) {
+    document.getElementById(id).textContent = value || "—";
+  }
+
+  function updateNavigation() {
+    const indexes = visibleIndexes();
+    const position = indexes.indexOf(currentIndex);
+    previousButton.disabled = position <= 0;
+    nextButton.disabled = position < 0 || position >= indexes.length - 1;
+    replayButton.disabled = !currentCandidate()?.canPlay;
+  }
+
+  function showDetails(candidate) {
+    setText("detail-candidate", candidate.candidateId);
+    setText("detail-asset", candidate.assetId);
+    setText("detail-filename", candidate.filename);
+    setText("detail-path", candidate.filePath);
+    setText("detail-range", `${candidate.rangeText}（片段 ${candidate.durationText}）`);
+    setText(
+      "detail-categories",
+      candidate.categories.map((category) => `${category.name}：${category.purpose}`).join("；"),
+    );
+    setText("detail-use", candidate.recommendedUse);
+    setText("detail-reason", candidate.reason);
+    openSource.hidden = !candidate.fileUri;
+    openSource.href = candidate.fileUri || "#";
+  }
+
+  function clearMedia() {
+    player.pause();
+    player.removeAttribute("src");
+    player.load();
+    imagePreview.removeAttribute("src");
+    imagePreview.hidden = true;
+    player.hidden = false;
+  }
+
+  function selectCandidate(index) {
+    const candidate = reviewData.candidates[index];
+    if (!candidate) return;
+    currentIndex = index;
+    candidateCards.forEach((card) => {
+      card.classList.toggle("selected", Number(card.dataset.index) === index);
+    });
+    clearMedia();
+    showDetails(candidate);
+
+    if (candidate.mediaType === "image" && candidate.mediaUri) {
+      player.hidden = true;
+      imagePreview.hidden = false;
+      imagePreview.src = candidate.mediaUri;
+      playerStatus.textContent = "非视频素材：显示静态预览，不提供区间播放。";
+    } else if (!candidate.canPlay) {
+      playerStatus.textContent = candidate.issue || "当前候选不可播放。";
+    } else {
+      playerStatus.textContent = `正在载入 ${candidate.filename}…`;
+      player.src = candidate.mediaUri;
+      player.addEventListener("loadedmetadata", () => {
+        if (!Number.isFinite(player.duration) || candidate.endSec > player.duration + 0.05) {
+          playerStatus.textContent = "实际视频时长不足，时间范围错误。";
+          replayButton.disabled = true;
+          return;
+        }
+        player.currentTime = candidate.startSec;
+        playerStatus.textContent = `已定位到 ${candidate.startSec} 秒；请主动播放。`;
+      }, { once: true });
+    }
+    updateNavigation();
+  }
+
+  function replayCurrent() {
+    const candidate = currentCandidate();
+    if (!candidate?.canPlay) return;
+    player.currentTime = candidate.startSec;
+    player.play().catch(() => {
+      playerStatus.textContent = "浏览器未能播放该媒体格式；可尝试打开原文件。";
+    });
+  }
+
+  function moveCurrent(delta) {
+    const indexes = visibleIndexes();
+    const position = indexes.indexOf(currentIndex);
+    const targetPosition = position + delta;
+    if (targetPosition < 0 || targetPosition >= indexes.length) return;
+    selectCandidate(indexes[targetPosition]);
+  }
+
+  function clampToCandidateRange() {
+    const candidate = currentCandidate();
+    if (!candidate?.canPlay || boundaryUpdate) return;
+    const clamped = Math.min(candidate.endSec, Math.max(candidate.startSec, player.currentTime));
+    if (Math.abs(clamped - player.currentTime) > 0.01) {
+      boundaryUpdate = true;
+      player.currentTime = clamped;
+      boundaryUpdate = false;
+    }
+  }
+
+  function applyFilter(categoryId) {
+    candidateCards.forEach((card) => {
+      const categories = card.dataset.categories.split(" ").filter(Boolean);
+      card.hidden = categoryId !== "all" && !categories.includes(categoryId);
+    });
+    filterButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.category === categoryId);
+    });
+    const indexes = visibleIndexes();
+    if (!indexes.includes(currentIndex) && indexes.length) selectCandidate(indexes[0]);
+    updateNavigation();
+  }
+
+  player.addEventListener("timeupdate", () => {
+    const candidate = currentCandidate();
+    if (!candidate?.canPlay || boundaryUpdate) return;
+    if (player.currentTime >= candidate.endSec) {
+      boundaryUpdate = true;
+      player.pause();
+      player.currentTime = candidate.endSec;
+      playerStatus.textContent = `已在 ${candidate.endSec} 秒候选终点停住。`;
+      boundaryUpdate = false;
+    }
+  });
+  player.addEventListener("seeking", clampToCandidateRange);
+  player.addEventListener("play", () => {
+    samplePlayer.pause();
+    const candidate = currentCandidate();
+    if (candidate?.canPlay && player.currentTime >= candidate.endSec - 0.03) {
+      player.currentTime = candidate.startSec;
+    }
+  });
+  player.addEventListener("error", () => {
+    if (player.getAttribute("src")) {
+      playerStatus.textContent = "浏览器不支持或无法读取该媒体；可尝试打开原文件。";
+    }
+  });
+
+  samplePlayer.addEventListener("timeupdate", () => {
+    const segment = currentSampleSegment();
+    if (!segment || sampleBoundaryUpdate || samplePlayer.currentTime < segment.endSec) return;
+    if (sampleIndex < reviewData.sampleQueue.length - 1) {
+      playSampleSegment(sampleIndex + 1);
+      return;
+    }
+    sampleBoundaryUpdate = true;
+    samplePlayer.pause();
+    samplePlayer.currentTime = segment.endSec;
+    sampleStatus.textContent = "小样播放完成。";
+    sampleBoundaryUpdate = false;
+  });
+  samplePlayer.addEventListener("seeking", () => {
+    const segment = currentSampleSegment();
+    if (!segment || sampleBoundaryUpdate) return;
+    const clamped = Math.min(segment.endSec, Math.max(segment.startSec, samplePlayer.currentTime));
+    if (Math.abs(clamped - samplePlayer.currentTime) > 0.01) {
+      sampleBoundaryUpdate = true;
+      samplePlayer.currentTime = clamped;
+      sampleBoundaryUpdate = false;
+    }
+  });
+  samplePlayer.addEventListener("play", () => {
+    player.pause();
+    sampleToggle.textContent = "暂停";
+  });
+  samplePlayer.addEventListener("pause", () => {
+    sampleToggle.textContent = "继续";
+  });
+  samplePlayer.addEventListener("error", () => {
+    if (samplePlayer.getAttribute("src")) {
+      sampleStatus.textContent = "浏览器不支持或无法读取该媒体。";
+    }
+  });
+
+  candidateCards.forEach((card) => {
+    card.addEventListener("click", () => selectCandidate(Number(card.dataset.index)));
+  });
+  filterButtons.forEach((button) => {
+    button.addEventListener("click", () => applyFilter(button.dataset.category));
+  });
+  previousButton.addEventListener("click", () => moveCurrent(-1));
+  replayButton.addEventListener("click", replayCurrent);
+  nextButton.addEventListener("click", () => moveCurrent(1));
+  sampleToggle.addEventListener("click", toggleSample);
+  sampleRestart.addEventListener("click", restartSample);
+  samplePrevious.addEventListener("click", () => moveSample(-1));
+  sampleNext.addEventListener("click", () => moveSample(1));
+
+  if (reviewData.sampleQueue.length) playSampleSegment(0, false);
+  else {
+    sampleStatus.textContent = "没有可播放的视频候选。";
+    updateSampleDetails();
+  }
+  if (reviewData.candidates.length) selectCandidate(0);
+  else updateNavigation();
+</script>
+</body>
+</html>

@@ -131,6 +131,15 @@ def selection_shared_frames_dir(
     return selections_dir(slug, base_dir) / "shared_frames"
 
 
+def selection_review_html_path(
+    slug: str,
+    task_name: str,
+    base_dir: Optional[_PathLike] = None,
+) -> Path:
+    """返回某个选片任务自己的只读验收页路径。"""
+    return selection_task_dir(slug, task_name, base_dir) / "select-review.html"
+
+
 def analyze_log_path(slug: str, ts: str, base_dir: Optional[_PathLike] = None) -> Path:
     """Return the JSONL log file path for an analyze/run invocation.
 
@@ -192,6 +201,7 @@ __all__ = [
     "selections_dir",
     "selection_task_dir",
     "selection_shared_frames_dir",
+    "selection_review_html_path",
     "analyze_log_path",
     "cluster_log_path",
     "ensure_project_dirs",

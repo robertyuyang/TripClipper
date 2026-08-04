@@ -34,6 +34,7 @@ tripclipper = [
     "templates/*.yaml",
     "jianying/templates/jianying10_template/**/*",
     "clip_selection/prompts/*.md",
+    "clip_selection/templates/*.tmpl",
     "clip_selection/skills/**/*.md",
 ]
 
