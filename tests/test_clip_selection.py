@@ -316,6 +316,7 @@ def test_select_cli_reports_completed_task(monkeypatch, tmp_path: Path) -> None:
     brief_path = tmp_path / "brief.md"
     brief_path.write_text("剪一个 30 秒视频。", encoding="utf-8")
     task_dir = tmp_path / "projects" / "demo" / "selections" / "brief"
+    opened: list[str] = []
 
     def fake_run_selection(slug, brief, *, base_dir=None):
         assert slug == "demo"
@@ -329,6 +330,9 @@ def test_select_cli_reports_completed_task(monkeypatch, tmp_path: Path) -> None:
         )
 
     monkeypatch.setattr("tripclipper.cli.run_selection", fake_run_selection)
+    monkeypatch.setattr(
+        "tripclipper.cli.webbrowser.open", lambda uri: opened.append(uri) or True
+    )
     result = CliRunner().invoke(
         main,
         [
@@ -345,6 +349,34 @@ def test_select_cli_reports_completed_task(monkeypatch, tmp_path: Path) -> None:
     assert "候选数" in result.output
     assert str(task_dir) in result.output
     assert "审阅页面" in result.output
+    assert opened == [(task_dir / "select-review.html").resolve().as_uri()]
+
+
+def test_select_cli_reports_open_failure_without_rolling_back_result(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    brief_path = tmp_path / "brief.md"
+    brief_path.write_text("剪一个 30 秒视频。", encoding="utf-8")
+    review_path = tmp_path / "task" / "select-review.html"
+    review_path.parent.mkdir()
+    review_path.write_text("<html></html>", encoding="utf-8")
+    monkeypatch.setattr(
+        "tripclipper.cli.run_selection",
+        lambda *args, **kwargs: SimpleNamespace(
+            state=SimpleNamespace(status="completed", candidates=[1]),
+            task_dir=review_path.parent,
+            review_html_path=review_path,
+            review_error=None,
+        ),
+    )
+    monkeypatch.setattr("tripclipper.cli.webbrowser.open", lambda uri: False)
+
+    result = CliRunner().invoke(main, ["select", "demo", str(brief_path)])
+
+    assert result.exit_code == 1
+    assert "选片已完成，页面已生成，但浏览器未能打开" in result.output
+    assert review_path.read_text(encoding="utf-8") == "<html></html>"
 
 
 def test_review_generation_failure_keeps_completed_selection(

@@ -17,6 +17,11 @@
     .coverage { float: right; color: #75d3a8; }
     .warning { border-color: #d99a45; }
     button { font: inherit; }
+    .sample-panel { margin-top: 18px; border-color: #4b6590; }
+    .sample-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, .7fr); gap: 18px; align-items: start; }
+    .sample-details { display: grid; grid-template-columns: 90px 1fr; gap: 8px 12px; }
+    .sample-details dt { color: #8e99a2; }
+    .sample-details dd { margin: 0; overflow-wrap: anywhere; }
     .workspace { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(340px, .8fr); gap: 18px; margin-top: 18px; align-items: start; }
     .player-panel { position: sticky; top: 18px; }
     .media-frame { display: grid; place-items: center; min-height: 360px; overflow: hidden; background: #070809; border-radius: 12px; }
@@ -44,7 +49,7 @@
     .tag { color: #c5d7ff; background: #29374e; border-radius: 999px; padding: 2px 8px; }
     .candidate-issue { color: #ffb46a !important; }
     .muted { color: #aeb6bd; }
-    @media (max-width: 900px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } .workspace { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } .workspace, .sample-layout { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -61,6 +66,30 @@
     <div class="metric">候选 / 分类<strong>{{CANDIDATE_COUNT}} / {{CATEGORY_COUNT}}</strong></div>
     <div class="metric">素材分页<strong>{{PAGE_PROGRESS}}</strong></div>
     <div class="metric">已读详情<strong>{{OPENED_PROGRESS}}</strong></div>
+  </section>
+  <section class="panel sample-panel" aria-label="选片小样">
+    <h2>选片小样</h2>
+    <p class="muted">冷开头快剪块＋正文 · 跳过不可播放候选 <strong id="sample-skipped-count">0</strong> 条</p>
+    <div class="sample-layout">
+      <div>
+        <div class="media-frame">
+          <video id="sample-player" controls preload="metadata"></video>
+        </div>
+        <p id="sample-status" class="player-status">准备播放小样。</p>
+        <div class="player-controls" aria-label="选片小样播放控制">
+          <button id="sample-toggle" type="button">继续</button>
+          <button id="sample-restart" type="button">从头播放</button>
+          <button id="sample-previous" type="button">上一段</button>
+          <button id="sample-next" type="button">下一段</button>
+        </div>
+      </div>
+      <dl class="sample-details">
+        <dt>进度</dt><dd id="sample-progress">—</dd>
+        <dt>候选</dt><dd id="sample-candidate">—</dd>
+        <dt>Session</dt><dd id="sample-session">—</dd>
+        <dt>范围</dt><dd id="sample-range">—</dd>
+      </dl>
+    </div>
   </section>
   <section class="panel">
     <h2>Brief</h2>
@@ -112,6 +141,12 @@
   "use strict";
 
   const reviewData = JSON.parse(document.getElementById("review-data").textContent);
+  const samplePlayer = document.getElementById("sample-player");
+  const sampleStatus = document.getElementById("sample-status");
+  const sampleToggle = document.getElementById("sample-toggle");
+  const sampleRestart = document.getElementById("sample-restart");
+  const samplePrevious = document.getElementById("sample-previous");
+  const sampleNext = document.getElementById("sample-next");
   const player = document.getElementById("review-player");
   const imagePreview = document.getElementById("image-preview");
   const playerStatus = document.getElementById("player-status");
@@ -123,6 +158,118 @@
   const openSource = document.getElementById("open-source");
   let currentIndex = -1;
   let boundaryUpdate = false;
+  let sampleIndex = -1;
+  let sampleBoundaryUpdate = false;
+  let sampleLoadToken = 0;
+
+  document.getElementById("sample-skipped-count").textContent = reviewData.sampleSkippedCount;
+
+  function currentSampleSegment() {
+    return sampleIndex >= 0 ? reviewData.sampleQueue[sampleIndex] : null;
+  }
+
+  function updateSampleDetails() {
+    const segment = currentSampleSegment();
+    const hasSegment = Boolean(segment);
+    samplePrevious.disabled = !hasSegment || sampleIndex <= 0;
+    sampleNext.disabled = !hasSegment || sampleIndex >= reviewData.sampleQueue.length - 1;
+    sampleToggle.disabled = !hasSegment;
+    sampleRestart.disabled = reviewData.sampleQueue.length === 0;
+    if (!segment) {
+      setText("sample-progress", "无可播放片段");
+      setText("sample-candidate", null);
+      setText("sample-session", null);
+      setText("sample-range", null);
+      return;
+    }
+    const phase = segment.phase === "cold-open" ? "冷开头" : "正文";
+    setText("sample-progress", `${phase} ${segment.phasePosition}/${segment.phaseCount}`);
+    setText("sample-candidate", `${segment.candidateId} · ${segment.filename}`);
+    setText("sample-session", segment.sessionId || "无 session 映射");
+    setText("sample-range", segment.rangeText);
+  }
+
+  function renumberSampleQueue() {
+    for (const phase of ["cold-open", "body"]) {
+      const segments = reviewData.sampleQueue.filter((segment) => segment.phase === phase);
+      segments.forEach((segment, index) => {
+        segment.phasePosition = index + 1;
+        segment.phaseCount = segments.length;
+      });
+    }
+  }
+
+  function skipInvalidSampleCandidate(segment, shouldPlay) {
+    const removedIndex = sampleIndex;
+    reviewData.sampleQueue = reviewData.sampleQueue.filter(
+      (item) => item.candidateIndex !== segment.candidateIndex,
+    );
+    document.getElementById("sample-skipped-count").textContent =
+      Number(document.getElementById("sample-skipped-count").textContent) + 1;
+    renumberSampleQueue();
+    if (reviewData.sampleQueue.length) {
+      playSampleSegment(Math.min(removedIndex, reviewData.sampleQueue.length - 1), shouldPlay);
+      return;
+    }
+    sampleIndex = -1;
+    samplePlayer.pause();
+    samplePlayer.removeAttribute("src");
+    samplePlayer.load();
+    sampleStatus.textContent = "没有可播放的视频候选。";
+    updateSampleDetails();
+  }
+
+  function playSampleSegment(index, shouldPlay = true) {
+    const segment = reviewData.sampleQueue[index];
+    if (!segment) return;
+    sampleIndex = index;
+    const token = ++sampleLoadToken;
+    samplePlayer.pause();
+    samplePlayer.src = segment.mediaUri;
+    samplePlayer.load();
+    sampleStatus.textContent = `正在载入 ${segment.filename}…`;
+    updateSampleDetails();
+    samplePlayer.addEventListener("loadedmetadata", () => {
+      if (token !== sampleLoadToken) return;
+      if (!Number.isFinite(samplePlayer.duration) || segment.endSec > samplePlayer.duration + 0.05) {
+        sampleStatus.textContent = "实际视频时长不足，已跳过该候选。";
+        skipInvalidSampleCandidate(segment, shouldPlay);
+        return;
+      }
+      samplePlayer.currentTime = segment.startSec;
+      sampleStatus.textContent = shouldPlay ? "正在播放小样。" : "小样已就绪。";
+      if (shouldPlay) {
+        samplePlayer.play().catch(() => {
+          sampleStatus.textContent = "浏览器未能播放该媒体格式。";
+        });
+      }
+    }, { once: true });
+  }
+
+  function moveSample(delta) {
+    const target = sampleIndex + delta;
+    if (target < 0 || target >= reviewData.sampleQueue.length) return;
+    playSampleSegment(target);
+  }
+
+  function restartSample() {
+    if (reviewData.sampleQueue.length) playSampleSegment(0);
+  }
+
+  function toggleSample() {
+    const segment = currentSampleSegment();
+    if (!segment) return;
+    if (samplePlayer.paused) {
+      if (samplePlayer.currentTime >= segment.endSec - 0.03) {
+        samplePlayer.currentTime = segment.startSec;
+      }
+      samplePlayer.play().catch(() => {
+        sampleStatus.textContent = "浏览器未能播放该媒体格式。";
+      });
+    } else {
+      samplePlayer.pause();
+    }
+  }
 
   function currentCandidate() {
     return currentIndex >= 0 ? reviewData.candidates[currentIndex] : null;
@@ -258,6 +405,7 @@
   });
   player.addEventListener("seeking", clampToCandidateRange);
   player.addEventListener("play", () => {
+    samplePlayer.pause();
     const candidate = currentCandidate();
     if (candidate?.canPlay && player.currentTime >= candidate.endSec - 0.03) {
       player.currentTime = candidate.startSec;
@@ -266,6 +414,42 @@
   player.addEventListener("error", () => {
     if (player.getAttribute("src")) {
       playerStatus.textContent = "浏览器不支持或无法读取该媒体；可尝试打开原文件。";
+    }
+  });
+
+  samplePlayer.addEventListener("timeupdate", () => {
+    const segment = currentSampleSegment();
+    if (!segment || sampleBoundaryUpdate || samplePlayer.currentTime < segment.endSec) return;
+    if (sampleIndex < reviewData.sampleQueue.length - 1) {
+      playSampleSegment(sampleIndex + 1);
+      return;
+    }
+    sampleBoundaryUpdate = true;
+    samplePlayer.pause();
+    samplePlayer.currentTime = segment.endSec;
+    sampleStatus.textContent = "小样播放完成。";
+    sampleBoundaryUpdate = false;
+  });
+  samplePlayer.addEventListener("seeking", () => {
+    const segment = currentSampleSegment();
+    if (!segment || sampleBoundaryUpdate) return;
+    const clamped = Math.min(segment.endSec, Math.max(segment.startSec, samplePlayer.currentTime));
+    if (Math.abs(clamped - samplePlayer.currentTime) > 0.01) {
+      sampleBoundaryUpdate = true;
+      samplePlayer.currentTime = clamped;
+      sampleBoundaryUpdate = false;
+    }
+  });
+  samplePlayer.addEventListener("play", () => {
+    player.pause();
+    sampleToggle.textContent = "暂停";
+  });
+  samplePlayer.addEventListener("pause", () => {
+    sampleToggle.textContent = "继续";
+  });
+  samplePlayer.addEventListener("error", () => {
+    if (samplePlayer.getAttribute("src")) {
+      sampleStatus.textContent = "浏览器不支持或无法读取该媒体。";
     }
   });
 
@@ -278,7 +462,16 @@
   previousButton.addEventListener("click", () => moveCurrent(-1));
   replayButton.addEventListener("click", replayCurrent);
   nextButton.addEventListener("click", () => moveCurrent(1));
+  sampleToggle.addEventListener("click", toggleSample);
+  sampleRestart.addEventListener("click", restartSample);
+  samplePrevious.addEventListener("click", () => moveSample(-1));
+  sampleNext.addEventListener("click", () => moveSample(1));
 
+  if (reviewData.sampleQueue.length) playSampleSegment(0, false);
+  else {
+    sampleStatus.textContent = "没有可播放的视频候选。";
+    updateSampleDetails();
+  }
   if (reviewData.candidates.length) selectCandidate(0);
   else updateNavigation();
 </script>

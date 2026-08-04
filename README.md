@@ -177,14 +177,16 @@ tripclipper select <slug> path/to/选片任务.md
 ```
 
 `select` 只读现有 `cut_index.json`，使用本机 Codex 登录信息运行真实选片 Agent；首次运行会在 `projects/<slug>/selections/<任务名>/` 保存 Brief 快照、当前状态和追加式事件。
-选片成功后还会在同一任务目录生成只读离线验收页 `select-review.html`。
+选片成功后还会在同一任务目录生成只读离线验收页 `select-review.html`，并自动用默认浏览器打开。
 
 已有选片任务可以幂等重建并直接打开验收页，不会重新运行 Agent，也不会修改
 `state.json`、`events.jsonl`、`brief.md` 或 `cut_index.json`：
 
 ```bash
-tripclipper select-review <slug> <task-name> [--base-dir PATH] [--open]
+tripclipper sample <slug> <task-name> [--base-dir PATH]
 ```
+
+页面顶部的“选片小样”会按冷开头快剪块和正文顺序连续播放可用视频候选；原有单候选播放器、候选列表与分类筛选仍然保留。旧命令 `select-review` 可继续使用，行为与 `sample` 相同。
 
 推荐的完整调用顺序是：
 

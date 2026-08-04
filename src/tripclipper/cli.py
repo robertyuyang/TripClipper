@@ -122,6 +122,10 @@ def select_command(slug: str, brief_path: Path, base_dir: Path | None) -> None:
     click.echo(f"  任务目录       : {result.task_dir}")
     if result.review_html_path is not None:
         click.echo(f"  审阅页面       : {result.review_html_path}")
+        _open_generated_review(
+            result.review_html_path,
+            "选片已完成，页面已生成，但浏览器未能打开",
+        )
     else:
         click.echo(
             "警告：选片已成功，但审阅页生成失败："
@@ -130,7 +134,32 @@ def select_command(slug: str, brief_path: Path, base_dir: Path | None) -> None:
         )
 
 
-@main.command("select-review")
+def _open_generated_review(output: Path, failure_message: str) -> None:
+    try:
+        opened = webbrowser.open(output.resolve().as_uri())
+    except (OSError, webbrowser.Error) as exc:
+        click.echo(f"{failure_message}：{exc}", err=True)
+        raise click.exceptions.Exit(1) from exc
+    if not opened:
+        click.echo(f"{failure_message}。", err=True)
+        raise click.exceptions.Exit(1)
+
+
+def _render_and_open_sample(
+    slug: str,
+    task_name: str,
+    base_dir: Path | None,
+) -> None:
+    try:
+        output = render_selection_review(slug, task_name, base_dir=base_dir)
+    except (SelectionReviewError, OSError, ValueError) as exc:
+        click.echo(f"生成选片小样失败：{exc}", err=True)
+        raise click.exceptions.Exit(1) from exc
+    click.echo(f"选片小样审阅页面: {output}")
+    _open_generated_review(output, "审阅页已生成，但浏览器未能打开")
+
+
+@main.command("sample")
 @click.argument("slug")
 @click.argument("task_name")
 @click.option(
@@ -139,29 +168,31 @@ def select_command(slug: str, brief_path: Path, base_dir: Path | None) -> None:
     type=click.Path(path_type=Path),
     help="项目根目录基准。",
 )
-@click.option("--open", "open_browser", is_flag=True, help="生成后用默认浏览器打开。")
+def sample_command(
+    slug: str,
+    task_name: str,
+    base_dir: Path | None,
+) -> None:
+    """只读生成选片小样并用默认浏览器打开。"""
+    _render_and_open_sample(slug, task_name, base_dir)
+
+
+@main.command("select-review", hidden=True)
+@click.argument("slug")
+@click.argument("task_name")
+@click.option(
+    "--base-dir",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="项目根目录基准。",
+)
 def select_review_command(
     slug: str,
     task_name: str,
     base_dir: Path | None,
-    open_browser: bool,
 ) -> None:
-    """只读重建已有选片任务的离线验收页。"""
-    try:
-        output = render_selection_review(slug, task_name, base_dir=base_dir)
-    except (SelectionReviewError, OSError, ValueError) as exc:
-        click.echo(f"生成选片验收页失败：{exc}", err=True)
-        raise click.exceptions.Exit(1) from exc
-    click.echo(f"审阅页面: {output}")
-    if open_browser:
-        try:
-            opened = webbrowser.open(output.as_uri())
-        except OSError as exc:
-            click.echo(f"审阅页已生成，但浏览器打开失败：{exc}", err=True)
-            raise click.exceptions.Exit(1) from exc
-        if not opened:
-            click.echo("审阅页已生成，但浏览器未能打开。", err=True)
-            raise click.exceptions.Exit(1)
+    """兼容旧命令：等同于 sample。"""
+    _render_and_open_sample(slug, task_name, base_dir)
 
 
 def _print_summary(summary: ProjectSummary) -> None:

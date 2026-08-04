@@ -35,6 +35,7 @@ class FakeElement {
     this.src = "";
     this.currentTime = 0;
     this.duration = 30;
+    this.paused = true;
     this.pauseCount = 0;
     this.playCount = 0;
   }
@@ -53,10 +54,14 @@ class FakeElement {
 
   pause() {
     this.pauseCount += 1;
+    this.paused = true;
+    this.dispatch("pause");
   }
 
   play() {
     this.playCount += 1;
+    this.paused = false;
+    this.dispatch("play");
     return Promise.resolve();
   }
 
@@ -72,6 +77,7 @@ class FakeElement {
 }
 
 const player = new FakeElement("review-player");
+const samplePlayer = new FakeElement("sample-player");
 const candidateCards = reviewData.candidates.map(
   (candidate, index) => new FakeElement(`candidate-${index}`, {
     index: String(index),
@@ -91,14 +97,25 @@ const ids = new Map([
     textContent: JSON.stringify(reviewData),
   })],
   ["review-player", player],
+  ["sample-player", samplePlayer],
   ["image-preview", new FakeElement("image-preview")],
   ["player-status", new FakeElement("player-status")],
   ["previous-candidate", new FakeElement("previous-candidate")],
   ["replay-candidate", new FakeElement("replay-candidate")],
   ["next-candidate", new FakeElement("next-candidate")],
   ["open-source", new FakeElement("open-source")],
+  ["sample-status", new FakeElement("sample-status")],
+  ["sample-skipped-count", new FakeElement("sample-skipped-count")],
+  ["sample-toggle", new FakeElement("sample-toggle")],
+  ["sample-restart", new FakeElement("sample-restart")],
+  ["sample-previous", new FakeElement("sample-previous")],
+  ["sample-next", new FakeElement("sample-next")],
 ]);
 for (const id of [
+  "sample-progress",
+  "sample-candidate",
+  "sample-session",
+  "sample-range",
   "detail-candidate",
   "detail-asset",
   "detail-filename",
@@ -123,6 +140,27 @@ const document = {
 };
 vm.runInNewContext(applicationScript, { document, JSON, Number, Math, console });
 
+if (process.argv[3] === "invalid-range") {
+  const invalidCandidateIndex = reviewData.sampleQueue[0].candidateIndex;
+  const nextCandidate = reviewData.sampleQueue.find(
+    (segment) => segment.candidateIndex !== invalidCandidateIndex,
+  );
+  const skippedBeforeInvalid = Number(ids.get("sample-skipped-count").textContent);
+  samplePlayer.duration = 0;
+  samplePlayer.dispatch("loadedmetadata");
+  assert.equal(
+    Number(ids.get("sample-skipped-count").textContent),
+    skippedBeforeInvalid + 1,
+    "运行时无效候选应增加一次跳过计数",
+  );
+  assert(
+    ids.get("sample-candidate").textContent.includes(nextCandidate.candidateId),
+    "运行时无效候选应被移除并继续定位下一候选",
+  );
+  console.log("ok");
+  process.exit(0);
+}
+
 player.dispatch("loadedmetadata");
 assert.equal(player.currentTime, 2, "初始候选应定位到 start_sec");
 assert.equal(player.playCount, 0, "初始定位不得自动播放");
@@ -144,6 +182,43 @@ assert(player.pauseCount > 0, "到达 end_sec 应暂停");
 player.currentTime = 99;
 player.dispatch("seeking");
 assert.equal(player.currentTime, 25, "拖动到区间外应约束回 end_sec");
+
+assert(reviewData.sampleQueue.length >= 2, "测试数据至少应生成两个小样片段");
+ids.get("sample-restart").dispatch("click");
+samplePlayer.dispatch("loadedmetadata");
+assert.equal(
+  samplePlayer.currentTime,
+  reviewData.sampleQueue[0].startSec,
+  "从头播放应定位到第一段起点",
+);
+assert.equal(samplePlayer.playCount, 1, "从头播放应主动播放第一段");
+assert(player.pauseCount > 0, "小样开始播放时应暂停单候选播放器");
+
+samplePlayer.currentTime = reviewData.sampleQueue[0].endSec;
+samplePlayer.dispatch("timeupdate");
+samplePlayer.dispatch("loadedmetadata");
+assert.equal(
+  samplePlayer.currentTime,
+  reviewData.sampleQueue[1].startSec,
+  "到达终点应定位到下一段",
+);
+assert.equal(samplePlayer.playCount, 2, "到达终点应自动播放下一段");
+
+player.play();
+assert(samplePlayer.pauseCount > 0, "单候选播放器开始播放时应暂停小样");
+
+ids.get("sample-restart").dispatch("click");
+samplePlayer.dispatch("loadedmetadata");
+for (let index = 0; index < reviewData.sampleQueue.length - 1; index += 1) {
+  samplePlayer.currentTime = reviewData.sampleQueue[index].endSec;
+  samplePlayer.dispatch("timeupdate");
+  samplePlayer.dispatch("loadedmetadata");
+}
+const finalSegment = reviewData.sampleQueue.at(-1);
+samplePlayer.currentTime = finalSegment.endSec;
+samplePlayer.dispatch("timeupdate");
+assert.equal(samplePlayer.currentTime, finalSegment.endSec, "最后一段应停在终点");
+assert.equal(samplePlayer.paused, true, "最后一段结束后应停止且不循环");
 
 filterButtons.find((button) => button.dataset.category === "category-001").dispatch("click");
 assert.equal(

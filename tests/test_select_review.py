@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import webbrowser
 
 import pytest
 from click.testing import CliRunner
@@ -190,6 +191,97 @@ def _review_data(html: str) -> dict:
     return json.loads(match.group(1).replace("<\\/", "</"))
 
 
+def _configure_sample_queue(review_task: dict[str, Path]) -> None:
+    state = json.loads(review_task["state_path"].read_text(encoding="utf-8"))
+    state["categories"][0]["name"] = "开头高能人物"
+    state["candidates"] = [
+        {
+            "candidate_id": "candidate-004",
+            "asset_id": "asset-unmapped",
+            "start_sec": 1,
+            "end_sec": 3,
+            "status": "primary",
+            "category_ids": [],
+            "reason": "无 session 映射",
+        },
+        {
+            "candidate_id": "candidate-001",
+            "asset_id": "asset-a",
+            "start_sec": 2,
+            "end_sec": 20,
+            "status": "primary",
+            "category_ids": ["category-001", "category-002"],
+            "reason": "冷开头也进入正文",
+        },
+        {
+            "candidate_id": "candidate-005",
+            "asset_id": "asset-e",
+            "start_sec": 4,
+            "end_sec": 6,
+            "status": "primary",
+            "category_ids": [],
+            "reason": "第二个 session",
+        },
+        {
+            "candidate_id": "candidate-003",
+            "asset_id": "asset-c",
+            "start_sec": 5,
+            "end_sec": 8,
+            "status": "primary",
+            "category_ids": [],
+            "reason": "第一个 session 的第二个素材",
+        },
+        {
+            "candidate_id": "candidate-002",
+            "asset_id": "asset-b",
+            "start_sec": 8,
+            "end_sec": 10,
+            "status": "primary",
+            "category_ids": [],
+            "reason": "第一个 session 的第一个素材",
+        },
+        {
+            "candidate_id": "candidate-skipped",
+            "asset_id": "asset-image",
+            "start_sec": 0,
+            "end_sec": 1,
+            "status": "primary",
+            "category_ids": ["category-001"],
+            "reason": "图片必须跳过",
+        },
+    ]
+    review_task["state_path"].write_text(
+        json.dumps(state, ensure_ascii=False), encoding="utf-8"
+    )
+
+    cut = json.loads(review_task["cut_index_path"].read_text(encoding="utf-8"))
+    for asset_id in ["asset-a", "asset-b", "asset-c", "asset-e", "asset-unmapped"]:
+        filename = f"{asset_id}.mp4"
+        (review_task["source_dir"] / filename).write_bytes(b"video")
+        cut["assets"].append(
+            {
+                "asset_id": asset_id,
+                "filename": filename,
+                "relative_path": filename,
+                "type": "video",
+                "metadata": {"duration": 30.0},
+            }
+        )
+    cut["sessions"] = [
+        {
+            "session_id": "session-early",
+            "asset_ids": ["asset-b", "asset-c"],
+        },
+        {
+            "session_id": "session-late",
+            "asset_ids": ["asset-a", "asset-e"],
+        },
+    ]
+    review_task["cut_index_path"].write_text(
+        json.dumps(cut, ensure_ascii=False), encoding="utf-8"
+    )
+
+
 def test_selection_review_path_is_inside_task_directory(tmp_path: Path) -> None:
     assert selection_review_html_path("demo", "快剪", tmp_path) == (
         tmp_path / "demo" / "selections" / "快剪" / "select-review.html"
@@ -304,7 +396,39 @@ def test_primary_duration_merges_overlapping_ranges_per_asset(
     assert "主选总时长<strong>23 秒</strong>" in html
 
 
-def test_review_contains_single_player_and_read_only_controls(
+def test_render_review_builds_cold_open_and_body_sample_queue(
+    review_task: dict[str, Path],
+) -> None:
+    _configure_sample_queue(review_task)
+
+    html = render_selection_review(
+        "demo", "快剪", base_dir=review_task["base_dir"]
+    ).read_text(encoding="utf-8")
+    data = _review_data(html)
+
+    assert [item["candidateId"] for item in data["sampleQueue"]] == [
+        "candidate-001",
+        "candidate-002",
+        "candidate-003",
+        "candidate-001",
+        "candidate-005",
+        "candidate-004",
+    ]
+    cold_open = data["sampleQueue"][0]
+    assert cold_open["phase"] == "cold-open"
+    assert (cold_open["startSec"], cold_open["endSec"]) == (10.5, 11.5)
+    assert [item["phase"] for item in data["sampleQueue"][1:]] == ["body"] * 5
+    assert [item["sessionId"] for item in data["sampleQueue"][1:]] == [
+        "session-early",
+        "session-early",
+        "session-late",
+        "session-late",
+        None,
+    ]
+    assert data["sampleSkippedCount"] == 1
+
+
+def test_review_contains_sample_and_single_candidate_players(
     review_task: dict[str, Path],
 ) -> None:
     html = render_selection_review(
@@ -313,6 +437,7 @@ def test_review_contains_single_player_and_read_only_controls(
         base_dir=review_task["base_dir"],
     ).read_text(encoding="utf-8")
 
+    assert html.count('id="sample-player"') == 1
     assert html.count('id="review-player"') == 1
     assert html.count('<button class="candidate-card"') == 6
     assert 'id="category-filters"' in html
@@ -320,6 +445,9 @@ def test_review_contains_single_player_and_read_only_controls(
     assert "function replayCurrent" in html
     assert "function moveCurrent" in html
     assert "function clampToCandidateRange" in html
+    assert "function playSampleSegment" in html
+    assert "function moveSample" in html
+    assert "function restartSample" in html
     assert 'addEventListener("timeupdate"' in html
     assert 'addEventListener("seeking"' in html
     assert 'addEventListener("error"' in html
@@ -370,7 +498,27 @@ def test_player_navigation_and_boundaries_run_in_scripted_dom(
     assert result.stdout.strip() == "ok"
 
 
-def test_select_review_cli_is_idempotent_and_preserves_inputs(
+def test_browser_metadata_invalid_range_is_skipped_in_scripted_dom(
+    review_task: dict[str, Path],
+) -> None:
+    output = render_selection_review(
+        "demo", "快剪", base_dir=review_task["base_dir"]
+    )
+    harness = Path(__file__).parent / "js" / "select_review_harness.mjs"
+
+    result = subprocess.run(
+        ["node", str(harness), str(output), "invalid-range"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
+
+
+def test_sample_cli_is_idempotent_opens_and_preserves_inputs(
     monkeypatch,
     review_task: dict[str, Path],
 ) -> None:
@@ -388,12 +536,11 @@ def test_select_review_cli_is_idempotent_and_preserves_inputs(
 
     monkeypatch.setattr("tripclipper.cli.webbrowser.open", open_browser)
     arguments = [
-        "select-review",
+        "sample",
         "demo",
         "快剪",
         "--base-dir",
         str(review_task["base_dir"]),
-        "--open",
     ]
 
     first = CliRunner().invoke(main, arguments)
@@ -408,6 +555,32 @@ def test_select_review_cli_is_idempotent_and_preserves_inputs(
     ]
     assert (review_task["task_dir"] / "select-review.html").read_bytes() == first_html
     assert _hashes(inputs) == before
+
+
+def test_select_review_alias_still_opens_browser(
+    monkeypatch,
+    review_task: dict[str, Path],
+) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr(
+        "tripclipper.cli.webbrowser.open", lambda uri: opened.append(uri) or True
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "select-review",
+            "demo",
+            "快剪",
+            "--base-dir",
+            str(review_task["base_dir"]),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert opened == [
+        (review_task["task_dir"] / "select-review.html").resolve().as_uri()
+    ]
 
 
 def test_select_review_cli_reports_missing_task(tmp_path: Path) -> None:
@@ -429,14 +602,39 @@ def test_select_review_cli_fails_when_browser_does_not_open(
     result = CliRunner().invoke(
         main,
         [
-            "select-review",
+            "sample",
             "demo",
             "快剪",
             "--base-dir",
             str(review_task["base_dir"]),
-            "--open",
         ],
     )
 
     assert result.exit_code == 1
     assert "浏览器未能打开" in result.output
+
+
+def test_sample_cli_reports_browser_exception_after_writing_html(
+    monkeypatch,
+    review_task: dict[str, Path],
+) -> None:
+    def fail_to_open(uri: str) -> bool:
+        raise webbrowser.Error("没有可用浏览器")
+
+    monkeypatch.setattr("tripclipper.cli.webbrowser.open", fail_to_open)
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "sample",
+            "demo",
+            "快剪",
+            "--base-dir",
+            str(review_task["base_dir"]),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "审阅页已生成，但浏览器未能打开" in result.output
+    assert "没有可用浏览器" in result.output
+    assert (review_task["task_dir"] / "select-review.html").is_file()

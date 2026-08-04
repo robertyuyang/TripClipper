@@ -176,6 +176,92 @@ def _candidate_context(
     }
 
 
+def _sample_queue(
+    candidates: list[dict[str, Any]],
+    cut: CutIndex,
+) -> tuple[list[dict[str, Any]], int]:
+    session_by_asset: dict[str, tuple[int, int, str]] = {}
+    for session_index, session in enumerate(cut.sessions):
+        for asset_index, asset_id in enumerate(session.asset_ids):
+            session_by_asset.setdefault(
+                asset_id, (session_index, asset_index, session.session_id)
+            )
+
+    playable = [candidate for candidate in candidates if candidate["canPlay"]]
+
+    def order(candidate: dict[str, Any]) -> tuple[Any, ...]:
+        mapped = session_by_asset.get(candidate["assetId"])
+        if mapped is None:
+            return (1, candidate["index"])
+        session_index, asset_index, _ = mapped
+        return (
+            0,
+            session_index,
+            asset_index,
+            candidate["startSec"],
+            candidate["index"],
+        )
+
+    ordered = sorted(playable, key=order)
+    cold_open = [
+        candidate
+        for candidate in ordered
+        if any(
+            category["name"] == "开头高能人物"
+            for category in candidate["categories"]
+        )
+    ]
+
+    def segment(
+        candidate: dict[str, Any],
+        *,
+        phase: str,
+        phase_position: int,
+        phase_count: int,
+    ) -> dict[str, Any]:
+        start_sec = candidate["startSec"]
+        end_sec = candidate["endSec"]
+        if phase == "cold-open" and end_sec - start_sec > 1:
+            midpoint = (start_sec + end_sec) / 2
+            start_sec = midpoint - 0.5
+            end_sec = midpoint + 0.5
+        mapped = session_by_asset.get(candidate["assetId"])
+        return {
+            "candidateIndex": candidate["index"],
+            "candidateId": candidate["candidateId"],
+            "assetId": candidate["assetId"],
+            "filename": candidate["filename"],
+            "mediaUri": candidate["mediaUri"],
+            "startSec": start_sec,
+            "endSec": end_sec,
+            "rangeText": f"{start_sec:g}–{end_sec:g} 秒",
+            "sessionId": mapped[2] if mapped else None,
+            "phase": phase,
+            "phasePosition": phase_position,
+            "phaseCount": phase_count,
+        }
+
+    queue = [
+        segment(
+            candidate,
+            phase="cold-open",
+            phase_position=index,
+            phase_count=len(cold_open),
+        )
+        for index, candidate in enumerate(cold_open, start=1)
+    ]
+    queue.extend(
+        segment(
+            candidate,
+            phase="body",
+            phase_position=index,
+            phase_count=len(ordered),
+        )
+        for index, candidate in enumerate(ordered, start=1)
+    )
+    return queue, len(candidates) - len(playable)
+
+
 def _escape(value: Any) -> str:
     return html.escape(str(value), quote=True)
 
@@ -279,6 +365,8 @@ def _render_html(context: dict[str, Any]) -> str:
                 "taskName": context["taskName"],
                 "categories": context["categories"],
                 "candidates": context["candidates"],
+                "sampleQueue": context["sampleQueue"],
+                "sampleSkippedCount": context["sampleSkippedCount"],
             }
         ),
     }
@@ -327,6 +415,7 @@ def _build_context(
         )
         for index, candidate in enumerate(state.candidates)
     ]
+    sample_queue, sample_skipped_count = _sample_queue(candidates, cut)
     total_pages = max(
         math.ceil(len(cut.assets) / 20),
         max(state.asset_progress.listed_pages, default=0),
@@ -347,6 +436,8 @@ def _build_context(
         ),
         "categories": categories,
         "candidates": candidates,
+        "sampleQueue": sample_queue,
+        "sampleSkippedCount": sample_skipped_count,
         "unresolved": state.unresolved,
     }
 
