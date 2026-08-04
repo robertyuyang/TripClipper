@@ -17,6 +17,7 @@ from tripclipper.clip_selection.agent import (
 )
 from tripclipper.clip_selection.asset_tools import AssetBrowser
 from tripclipper.clip_selection.models import (
+    AssetInspection,
     SelectionCandidate,
     SelectionCategory,
     SelectionState,
@@ -335,6 +336,37 @@ def test_validator_rejects_invalid_candidate_references_and_reason(
 
     with pytest.raises(SelectionValidationError, match=message):
         validator.validate_candidate(candidate, state)
+
+
+def test_required_inspection_count_scales_with_assets_and_categories() -> None:
+    categories = [
+        SelectionCategory(
+            category_id=f"category-{index:03d}",
+            name=f"分类 {index}",
+            purpose="比较素材",
+        )
+        for index in range(1, 5)
+    ]
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=categories,
+    )
+    validator = SelectionValidator(
+        {},
+        asset_ids={f"asset-{index}" for index in range(260)},
+        total_pages=13,
+    )
+
+    assert validator.required_inspection_count(state) == 52
+
+
+def test_old_state_defaults_to_empty_inspections() -> None:
+    state = SelectionState.model_validate(
+        {"task_name": "demo", "target_duration_sec": 30}
+    )
+
+    assert state.asset_progress.inspections == []
 
 
 @pytest.mark.parametrize(

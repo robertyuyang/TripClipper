@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import math
 
 from .models import (
     CategoryDraft,
@@ -23,10 +24,22 @@ class SelectionValidator:
         self,
         asset_durations: dict[str, float],
         *,
+        asset_ids: set[str] | None = None,
         total_pages: int,
     ) -> None:
         self.asset_durations = asset_durations
+        self.asset_ids = set(asset_ids or asset_durations)
+        self.total_assets = len(self.asset_ids)
         self.total_pages = total_pages
+
+    def required_inspection_count(self, state: SelectionState) -> int:
+        required_categories = sum(category.required for category in state.categories)
+        desired = max(
+            30,
+            math.ceil(self.total_assets * 0.2),
+            required_categories * 8,
+        )
+        return min(self.total_assets, desired)
 
     def validate_categories(
         self,

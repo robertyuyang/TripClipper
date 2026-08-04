@@ -30,9 +30,16 @@ class SelectionCandidate(BaseModel):
     reason: str
 
 
+class AssetInspection(BaseModel):
+    asset_id: str
+    category_ids: list[str] = Field(default_factory=list)
+    shortlist_reason: str
+
+
 class AssetProgress(BaseModel):
     listed_pages: list[int] = Field(default_factory=list)
     opened_asset_ids: list[str] = Field(default_factory=list)
+    inspections: list[AssetInspection] = Field(default_factory=list)
 
 
 class SelectionState(BaseModel):
@@ -47,6 +54,7 @@ class SelectionState(BaseModel):
 
 
 __all__ = [
+    "AssetInspection",
     "AssetProgress",
     "CategoryDraft",
     "SelectionCandidate",
