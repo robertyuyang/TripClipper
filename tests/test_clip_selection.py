@@ -25,6 +25,7 @@ from tripclipper.clip_selection.models import (
 )
 from tripclipper.clip_selection.runner import run_selection
 from tripclipper.clip_selection.runner import parse_target_duration
+from tripclipper.clip_selection.review import SelectionReviewError
 from tripclipper.clip_selection.selection_tools import SelectionTools
 from tripclipper.clip_selection.store import SelectionStore
 from tripclipper.clip_selection.validator import (
@@ -251,6 +252,9 @@ def test_scripted_model_completes_depth_checked_selection_without_changing_index
     )
 
     assert result.state.status == "completed"
+    assert result.review_html_path == (result.task_dir / "select-review.html").resolve()
+    assert result.review_error is None
+    assert result.review_html_path.is_file()
     assert result.state.target_duration_sec == 30.0
     assert len(result.state.categories) == 2
     assert len(result.state.candidates) == 3
@@ -320,6 +324,8 @@ def test_select_cli_reports_completed_task(monkeypatch, tmp_path: Path) -> None:
         return SimpleNamespace(
             state=SimpleNamespace(status="completed", candidates=[1, 2]),
             task_dir=task_dir,
+            review_html_path=task_dir / "select-review.html",
+            review_error=None,
         )
 
     monkeypatch.setattr("tripclipper.cli.run_selection", fake_run_selection)
@@ -338,6 +344,103 @@ def test_select_cli_reports_completed_task(monkeypatch, tmp_path: Path) -> None:
     assert "completed" in result.output
     assert "候选数" in result.output
     assert str(task_dir) in result.output
+    assert "审阅页面" in result.output
+
+
+def test_review_generation_failure_keeps_completed_selection(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    projects_dir = tmp_path / "projects"
+    cut_index_path = projects_dir / "demo" / "cut_index.json"
+    _write_cut_index(cut_index_path)
+    brief_path = tmp_path / "30秒失败降级.md"
+    brief_path.write_text("剪一个 30 秒视频。", encoding="utf-8")
+    model = ScriptedSelectionModel(
+        responses=[
+            _tool_call("asset_list", {"page": 1}, "call-list"),
+            _tool_call(
+                "selection_categories_save",
+                {
+                    "categories": [
+                        {
+                            "name": "完整候选",
+                            "required": True,
+                            "purpose": "覆盖目标时长",
+                        }
+                    ]
+                },
+                "call-categories",
+            ),
+            _tool_call(
+                "selection_candidate_add",
+                {
+                    "asset_id": "asset-people",
+                    "start_sec": 0.0,
+                    "end_sec": 15.0,
+                    "category_ids": ["category-001"],
+                    "reason": "人物镜头覆盖前半段。",
+                },
+                "call-candidate-1",
+            ),
+            _tool_call(
+                "selection_candidate_add",
+                {
+                    "asset_id": "asset-landscape",
+                    "start_sec": 0.0,
+                    "end_sec": 15.0,
+                    "category_ids": ["category-001"],
+                    "reason": "环境镜头覆盖后半段。",
+                },
+                "call-candidate-2",
+            ),
+            _tool_call("selection_finish_request", {}, "call-finish"),
+            AIMessage(content="完成。"),
+        ]
+    )
+
+    def fail_review(*args, **kwargs):
+        raise SelectionReviewError("模板损坏")
+
+    monkeypatch.setattr(
+        "tripclipper.clip_selection.runner.render_selection_review",
+        fail_review,
+    )
+
+    result = run_selection(
+        "demo",
+        brief_path,
+        base_dir=projects_dir,
+        model=model,
+    )
+
+    assert result.state.status == "completed"
+    assert json.loads(result.state_path.read_text(encoding="utf-8"))["status"] == "completed"
+    assert result.review_html_path is None
+    assert result.review_error == "模板损坏"
+
+
+def test_select_cli_warns_when_only_review_generation_failed(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    brief_path = tmp_path / "brief.md"
+    brief_path.write_text("剪一个 30 秒视频。", encoding="utf-8")
+    monkeypatch.setattr(
+        "tripclipper.cli.run_selection",
+        lambda *args, **kwargs: SimpleNamespace(
+            state=SimpleNamespace(status="completed", candidates=[1]),
+            task_dir=tmp_path / "task",
+            review_html_path=None,
+            review_error="模板损坏",
+        ),
+    )
+
+    result = CliRunner().invoke(main, ["select", "demo", str(brief_path)])
+
+    assert result.exit_code == 0
+    assert "选片已成功，但审阅页生成失败" in result.output
+    assert "模板损坏" in result.output
 
 
 @pytest.mark.parametrize(

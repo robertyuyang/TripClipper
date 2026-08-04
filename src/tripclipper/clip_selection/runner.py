@@ -14,6 +14,7 @@ from tripclipper.paths import cut_index_path, selection_task_dir
 from .agent import build_codex_model, ensure_codex_authenticated, run_agent
 from .asset_tools import AssetBrowser
 from .models import SelectionState
+from .review import SelectionReviewError, render_selection_review
 from .selection_tools import SelectionTools
 from .store import SelectionStore
 from .validator import SelectionValidator
@@ -30,6 +31,8 @@ class SelectionResult:
     brief_path: Path
     state_path: Path
     events_path: Path
+    review_html_path: Path | None
+    review_error: str | None
 
 
 def parse_target_duration(brief: str) -> float:
@@ -140,12 +143,25 @@ def run_selection(
     )
     if state.status != "completed":
         raise SelectionError("Agent 已结束，但选片任务尚未通过完成校验。")
+    review_html_path: Path | None = None
+    review_error: str | None = None
+    try:
+        review_html_path = render_selection_review(
+            slug,
+            task_name,
+            base_dir=base_dir,
+        )
+    except SelectionReviewError as exc:
+        # 审阅页是完成结果的只读派生产物；生成失败不能回滚已完成状态。
+        review_error = str(exc)
     return SelectionResult(
         state=state,
         task_dir=task_dir,
         brief_path=task_brief_path,
         state_path=store.state_path,
         events_path=store.events_path,
+        review_html_path=review_html_path,
+        review_error=review_error,
     )
 
 

@@ -39,6 +39,7 @@ from .cluster_runner import (
     cluster as runner_cluster,
 )
 from .clip_selection.agent import CodexAuthenticationError
+from .clip_selection.review import SelectionReviewError, render_selection_review
 from .clip_selection.runner import SelectionError, run_selection
 from .config import ConfigError, EagleSync, load_config
 from .cut_index import read_cut_index, write_cut_index
@@ -119,6 +120,48 @@ def select_command(slug: str, brief_path: Path, base_dir: Path | None) -> None:
     click.echo(f"  状态           : {result.state.status}")
     click.echo(f"  候选数         : {len(result.state.candidates)}")
     click.echo(f"  任务目录       : {result.task_dir}")
+    if result.review_html_path is not None:
+        click.echo(f"  审阅页面       : {result.review_html_path}")
+    else:
+        click.echo(
+            "警告：选片已成功，但审阅页生成失败："
+            f"{result.review_error or '未知错误'}",
+            err=True,
+        )
+
+
+@main.command("select-review")
+@click.argument("slug")
+@click.argument("task_name")
+@click.option(
+    "--base-dir",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="项目根目录基准。",
+)
+@click.option("--open", "open_browser", is_flag=True, help="生成后用默认浏览器打开。")
+def select_review_command(
+    slug: str,
+    task_name: str,
+    base_dir: Path | None,
+    open_browser: bool,
+) -> None:
+    """只读重建已有选片任务的离线验收页。"""
+    try:
+        output = render_selection_review(slug, task_name, base_dir=base_dir)
+    except (SelectionReviewError, OSError, ValueError) as exc:
+        click.echo(f"生成选片验收页失败：{exc}", err=True)
+        raise click.exceptions.Exit(1) from exc
+    click.echo(f"审阅页面: {output}")
+    if open_browser:
+        try:
+            opened = webbrowser.open(output.as_uri())
+        except OSError as exc:
+            click.echo(f"审阅页已生成，但浏览器打开失败：{exc}", err=True)
+            raise click.exceptions.Exit(1) from exc
+        if not opened:
+            click.echo("审阅页已生成，但浏览器未能打开。", err=True)
+            raise click.exceptions.Exit(1)
 
 
 def _print_summary(summary: ProjectSummary) -> None:
