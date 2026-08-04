@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from click.testing import CliRunner
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
+from langchain_core.tools import StructuredTool
 from pydantic import PrivateAttr
 import pytest
 
@@ -367,6 +368,156 @@ def test_old_state_defaults_to_empty_inspections() -> None:
     )
 
     assert state.asset_progress.inspections == []
+
+
+def _build_inspection_batch_tool(
+    tmp_path: Path,
+) -> tuple[SelectionState, StructuredTool]:
+    assets = [
+        Asset(asset_id=f"asset-{index}", metadata={"duration": 20})
+        for index in range(1, 5)
+    ]
+    state = SelectionState(
+        task_name="demo",
+        target_duration_sec=30,
+        categories=[
+            SelectionCategory(
+                category_id="category-001",
+                name="人物",
+                purpose="人物比较",
+            ),
+            SelectionCategory(
+                category_id="category-002",
+                name="环境",
+                purpose="环境比较",
+            ),
+        ],
+    )
+    store = SelectionStore(tmp_path / "task")
+    browser = AssetBrowser(assets, state, store)
+    tools = SelectionTools(
+        browser,
+        state,
+        store,
+        SelectionValidator(
+            browser.asset_durations,
+            asset_ids=set(browser.by_id),
+            total_pages=1,
+        ),
+    ).as_langchain_tools()
+    batch = next(tool for tool in tools if tool.name == "asset_get_batch")
+    return state, batch
+
+
+def test_asset_get_batch_records_inspections_atomically(tmp_path: Path) -> None:
+    state, batch = _build_inspection_batch_tool(tmp_path)
+
+    result = batch.invoke(
+        {
+            "inspections": [
+                {
+                    "asset_id": f"asset-{index}",
+                    "category_ids": ["category-001"],
+                    "shortlist_reason": f"比较对象 {index}",
+                }
+                for index in range(1, 5)
+            ]
+        }
+    )
+
+    assert result["accepted"] is True
+    assert len(result["assets"]) == 4
+    assert len(state.asset_progress.inspections) == 4
+    assert state.asset_progress.opened_asset_ids == [
+        "asset-1",
+        "asset-2",
+        "asset-3",
+        "asset-4",
+    ]
+
+
+def test_asset_get_batch_rejects_whole_batch_on_invalid_category(
+    tmp_path: Path,
+) -> None:
+    state, batch = _build_inspection_batch_tool(tmp_path)
+
+    result = batch.invoke(
+        {
+            "inspections": [
+                {
+                    "asset_id": "asset-1",
+                    "category_ids": ["category-001"],
+                    "shortlist_reason": "合法",
+                },
+                {
+                    "asset_id": "asset-2",
+                    "category_ids": ["category-missing"],
+                    "shortlist_reason": "非法分类",
+                },
+            ]
+        }
+    )
+
+    assert result["accepted"] is False
+    assert state.asset_progress.inspections == []
+    assert state.asset_progress.opened_asset_ids == []
+
+
+def test_asset_get_batch_merges_categories_and_latest_reason(tmp_path: Path) -> None:
+    state, batch = _build_inspection_batch_tool(tmp_path)
+    first = {
+        "asset_id": "asset-1",
+        "category_ids": ["category-001"],
+        "shortlist_reason": "先比较人物",
+    }
+    second = {
+        "asset_id": "asset-1",
+        "category_ids": ["category-002"],
+        "shortlist_reason": "再比较环境",
+    }
+
+    assert batch.invoke({"inspections": [first]})["accepted"] is True
+    assert batch.invoke({"inspections": [second]})["accepted"] is True
+
+    assert len(state.asset_progress.inspections) == 1
+    inspection = state.asset_progress.inspections[0]
+    assert inspection.category_ids == ["category-001", "category-002"]
+    assert inspection.shortlist_reason == "再比较环境"
+
+
+def test_asset_get_records_single_inspection(tmp_path: Path) -> None:
+    state, _ = _build_inspection_batch_tool(tmp_path)
+    assets = [Asset(asset_id="asset-1", metadata={"duration": 20})]
+    store = SelectionStore(tmp_path / "single")
+    browser = AssetBrowser(assets, state, store)
+    tools = SelectionTools(
+        browser,
+        state,
+        store,
+        SelectionValidator(
+            browser.asset_durations,
+            asset_ids=set(browser.by_id),
+            total_pages=1,
+        ),
+    ).as_langchain_tools()
+    get = next(tool for tool in tools if tool.name == "asset_get")
+
+    result = get.invoke(
+        {
+            "asset_id": "asset-1",
+            "category_ids": ["category-001"],
+            "shortlist_reason": "单条比较",
+        }
+    )
+
+    assert result["accepted"] is True
+    assert state.asset_progress.inspections == [
+        AssetInspection(
+            asset_id="asset-1",
+            category_ids=["category-001"],
+            shortlist_reason="单条比较",
+        )
+    ]
 
 
 @pytest.mark.parametrize(

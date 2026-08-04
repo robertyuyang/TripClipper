@@ -8,6 +8,7 @@ from langchain_core.tools import StructuredTool
 
 from .asset_tools import AssetBrowser
 from .models import (
+    AssetInspection,
     CategoryDraft,
     SelectionCandidate,
     SelectionCategory,
@@ -31,13 +32,101 @@ class SelectionTools:
         self.validator = validator
 
     def as_langchain_tools(self) -> list[StructuredTool]:
+        def save_inspections(
+            inspections: list[AssetInspection],
+            *,
+            tool_name: str,
+        ) -> dict[str, Any]:
+            parameters = {
+                "inspections": [
+                    inspection.model_dump(mode="json") for inspection in inspections
+                ]
+            }
+            try:
+                self.validator.validate_inspection_batch(inspections, self.state)
+            except SelectionValidationError as exc:
+                self.store.append_event(
+                    "change_validated",
+                    tool=tool_name,
+                    data={
+                        "accepted": False,
+                        "blockers": exc.blockers,
+                        "parameters": parameters,
+                    },
+                )
+                return {"accepted": False, "blockers": exc.blockers}
+
+            details = self.browser.get_many(
+                [inspection.asset_id for inspection in inspections]
+            )
+            merged = {
+                inspection.asset_id: inspection
+                for inspection in self.state.asset_progress.inspections
+            }
+            for inspection in inspections:
+                previous = merged.get(inspection.asset_id)
+                if previous is not None:
+                    inspection = inspection.model_copy(
+                        update={
+                            "category_ids": sorted(
+                                set(previous.category_ids)
+                                | set(inspection.category_ids)
+                            )
+                        }
+                    )
+                merged[inspection.asset_id] = inspection
+
+            opened_asset_ids = list(self.state.asset_progress.opened_asset_ids)
+            for inspection in inspections:
+                if inspection.asset_id not in opened_asset_ids:
+                    opened_asset_ids.append(inspection.asset_id)
+            self.state.asset_progress.inspections = list(merged.values())
+            self.state.asset_progress.opened_asset_ids = opened_asset_ids
+            self.store.append_event(
+                "change_validated",
+                tool=tool_name,
+                data={"accepted": True, "blockers": [], "parameters": parameters},
+            )
+            self.store.save(self.state)
+            for inspection in inspections:
+                self.store.append_event(
+                    "asset_opened",
+                    tool=tool_name,
+                    data={"asset_id": inspection.asset_id},
+                )
+            self.store.append_event(
+                "asset_batch_opened",
+                tool=tool_name,
+                data={"asset_ids": [item.asset_id for item in inspections]},
+            )
+            return {"accepted": True, "assets": details}
+
         def asset_list(page: int = 1) -> dict[str, Any]:
             """分页列出素材摘要。完成前必须从第 1 页浏览到最后一页。"""
             return self.browser.list_page(page)
 
-        def asset_get(asset_id: str) -> dict[str, Any]:
-            """打开一个素材的完整索引详情和已有片段建议。"""
-            return self.browser.get(asset_id)
+        def asset_get(
+            asset_id: str,
+            category_ids: list[str],
+            shortlist_reason: str,
+        ) -> dict[str, Any]:
+            """打开一个素材的完整索引详情，并记录其分类比较用途。"""
+            return save_inspections(
+                [
+                    AssetInspection(
+                        asset_id=asset_id,
+                        category_ids=category_ids,
+                        shortlist_reason=shortlist_reason,
+                    )
+                ],
+                tool_name="asset_get",
+            )
+
+        def asset_get_batch(
+            inspections: list[AssetInspection],
+        ) -> dict[str, Any]:
+            """批量打开 1～10 个不同素材的完整索引详情。"""
+            return save_inspections(inspections, tool_name="asset_get_batch")
 
         def selection_categories_save(
             categories: list[CategoryDraft],
@@ -191,6 +280,7 @@ class SelectionTools:
         return [
             StructuredTool.from_function(asset_list, name="asset_list"),
             StructuredTool.from_function(asset_get, name="asset_get"),
+            StructuredTool.from_function(asset_get_batch, name="asset_get_batch"),
             StructuredTool.from_function(
                 selection_categories_save,
                 name="selection_categories_save",

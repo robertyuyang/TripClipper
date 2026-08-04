@@ -79,6 +79,15 @@ class AssetBrowser:
         )
         return asset.model_dump(mode="json", by_alias=True)
 
+    def get_many(self, asset_ids: list[str]) -> list[dict[str, Any]]:
+        missing = [asset_id for asset_id in asset_ids if asset_id not in self.by_id]
+        if missing:
+            raise ValueError("素材不存在：" + ", ".join(missing))
+        return [
+            self.by_id[asset_id].model_dump(mode="json", by_alias=True)
+            for asset_id in asset_ids
+        ]
+
     @staticmethod
     def _summary(asset: Asset) -> dict[str, Any]:
         return {

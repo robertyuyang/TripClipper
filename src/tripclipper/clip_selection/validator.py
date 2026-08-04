@@ -6,6 +6,7 @@ from collections import defaultdict
 import math
 
 from .models import (
+    AssetInspection,
     CategoryDraft,
     SelectionCandidate,
     SelectionCategory,
@@ -102,6 +103,33 @@ class SelectionValidator:
             blockers.append(f"分类引用不存在：{', '.join(missing)}")
         if not candidate.reason.strip():
             blockers.append("候选理由不能为空")
+        if blockers:
+            raise SelectionValidationError(blockers)
+
+    def validate_inspection_batch(
+        self,
+        inspections: list[AssetInspection],
+        state: SelectionState,
+    ) -> None:
+        blockers: list[str] = []
+        if not 1 <= len(inspections) <= 10:
+            blockers.append("每批必须包含 1～10 个素材")
+        asset_ids = [inspection.asset_id for inspection in inspections]
+        if len(set(asset_ids)) != len(asset_ids):
+            blockers.append("批内素材 ID 不得重复")
+        category_ids = {category.category_id for category in state.categories}
+        if not category_ids:
+            blockers.append("必须先保存分类")
+        for inspection in inspections:
+            if inspection.asset_id not in self.asset_ids:
+                blockers.append(f"素材不存在：{inspection.asset_id}")
+            missing = sorted(set(inspection.category_ids) - category_ids)
+            if missing:
+                blockers.append(f"分类引用不存在：{', '.join(missing)}")
+            if not inspection.category_ids:
+                blockers.append(f"{inspection.asset_id} 缺少比较分类")
+            if not inspection.shortlist_reason.strip():
+                blockers.append(f"{inspection.asset_id} 缺少入围理由")
         if blockers:
             raise SelectionValidationError(blockers)
 
