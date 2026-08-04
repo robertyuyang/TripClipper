@@ -127,6 +127,12 @@ class SelectionValidator:
     def validate_search_depth(self, state: SelectionState) -> None:
         blockers: list[str] = []
         inspections = state.asset_progress.inspections
+        blockers.extend(self._inspection_item_blockers(inspections, state))
+        seen_asset_ids: set[str] = set()
+        for inspection in inspections:
+            if inspection.asset_id in seen_asset_ids:
+                blockers.append(f"素材检查记录重复：{inspection.asset_id}")
+            seen_asset_ids.add(inspection.asset_id)
         inspected_ids = {item.asset_id for item in inspections}
         required_count = self.required_inspection_count(state)
         if len(inspected_ids) < required_count:
@@ -150,17 +156,12 @@ class SelectionValidator:
         if blockers:
             raise SelectionValidationError(blockers)
 
-    def validate_inspection_batch(
+    def _inspection_item_blockers(
         self,
         inspections: list[AssetInspection],
         state: SelectionState,
-    ) -> None:
+    ) -> list[str]:
         blockers: list[str] = []
-        if not 1 <= len(inspections) <= 10:
-            blockers.append("每批必须包含 1～10 个素材")
-        asset_ids = [inspection.asset_id for inspection in inspections]
-        if len(set(asset_ids)) != len(asset_ids):
-            blockers.append("批内素材 ID 不得重复")
         category_ids = {category.category_id for category in state.categories}
         if not category_ids:
             blockers.append("必须先保存分类")
@@ -174,6 +175,20 @@ class SelectionValidator:
                 blockers.append(f"{inspection.asset_id} 缺少比较分类")
             if not inspection.shortlist_reason.strip():
                 blockers.append(f"{inspection.asset_id} 缺少入围理由")
+        return blockers
+
+    def validate_inspection_batch(
+        self,
+        inspections: list[AssetInspection],
+        state: SelectionState,
+    ) -> None:
+        blockers: list[str] = []
+        if not 1 <= len(inspections) <= 10:
+            blockers.append("每批必须包含 1～10 个素材")
+        asset_ids = [inspection.asset_id for inspection in inspections]
+        if len(set(asset_ids)) != len(asset_ids):
+            blockers.append("批内素材 ID 不得重复")
+        blockers.extend(self._inspection_item_blockers(inspections, state))
         if blockers:
             raise SelectionValidationError(blockers)
 

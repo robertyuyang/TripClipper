@@ -658,6 +658,108 @@ def test_search_depth_requires_52_inspections_for_260_assets() -> None:
         validator.validate_search_depth(state)
 
 
+def _fully_inspected_four_category_state() -> tuple[SelectionState, SelectionValidator]:
+    state = _state_with_four_required_categories()
+    asset_ids = {f"asset-{index}" for index in range(30)}
+    state.asset_progress.inspections = [
+        AssetInspection(
+            asset_id=asset_id,
+            category_ids=[category.category_id for category in state.categories],
+            shortlist_reason="同类比较",
+        )
+        for asset_id in sorted(asset_ids)
+    ]
+    return state, SelectionValidator({}, asset_ids=asset_ids, total_pages=2)
+
+
+@pytest.mark.parametrize(
+    ("replacement", "message"),
+    [
+        (
+            AssetInspection(
+                asset_id="asset-missing",
+                category_ids=[
+                    "category-001",
+                    "category-002",
+                    "category-003",
+                    "category-004",
+                ],
+                shortlist_reason="伪造检查",
+            ),
+            "素材不存在：asset-missing",
+        ),
+        (
+            AssetInspection(
+                asset_id="asset-0",
+                category_ids=["category-missing"],
+                shortlist_reason="伪造检查",
+            ),
+            "分类引用不存在：category-missing",
+        ),
+        (
+            AssetInspection(
+                asset_id="asset-0",
+                category_ids=[],
+                shortlist_reason="伪造检查",
+            ),
+            "asset-0 缺少比较分类",
+        ),
+        (
+            AssetInspection(
+                asset_id="asset-0",
+                category_ids=[
+                    "category-001",
+                    "category-002",
+                    "category-003",
+                    "category-004",
+                ],
+                shortlist_reason=" ",
+            ),
+            "asset-0 缺少入围理由",
+        ),
+    ],
+)
+def test_search_depth_rejects_invalid_existing_inspection(
+    replacement: AssetInspection,
+    message: str,
+) -> None:
+    state, validator = _fully_inspected_four_category_state()
+    state.asset_progress.inspections[0] = replacement
+
+    with pytest.raises(SelectionValidationError, match=message):
+        validator.validate_search_depth(state)
+
+
+def test_search_depth_rejects_duplicate_existing_inspections() -> None:
+    state, validator = _fully_inspected_four_category_state()
+    state.asset_progress.inspections[-1] = AssetInspection(
+        asset_id="asset-0",
+        category_ids=[
+            "category-001",
+            "category-002",
+            "category-003",
+            "category-004",
+        ],
+        shortlist_reason="重复检查",
+    )
+
+    with pytest.raises(SelectionValidationError, match="素材检查记录重复：asset-0"):
+        validator.validate_search_depth(state)
+
+
+def test_search_depth_requires_eight_assets_for_each_required_category() -> None:
+    state, validator = _fully_inspected_four_category_state()
+    for index, inspection in enumerate(state.asset_progress.inspections):
+        inspection.category_ids = (
+            ["category-001", "category-002", "category-003", "category-004"]
+            if index < 7
+            else ["category-002", "category-003", "category-004"]
+        )
+
+    with pytest.raises(SelectionValidationError, match="必要分类 分类 1 至少需要 8 个比较素材"):
+        validator.validate_search_depth(state)
+
+
 def _completed_search_state(
     duration: float,
 ) -> tuple[SelectionState, SelectionValidator]:
