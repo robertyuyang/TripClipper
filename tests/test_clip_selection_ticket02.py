@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
 from pydantic import PrivateAttr
@@ -14,6 +15,7 @@ from tripclipper.clip_selection.frames import FrameSampler
 from tripclipper.clip_selection.asset_tools import AssetBrowser
 from tripclipper.clip_selection.models import (
     AssetInspection,
+    SelectionCandidate,
     SelectionCategory,
     SelectionState,
 )
@@ -202,6 +204,7 @@ def test_codex_model_preserves_multimodal_function_output() -> None:
 def test_runtime_instructions_require_targeted_new_visual_evidence() -> None:
     instructions = _load_runtime_instructions()
 
+    assert "150%～200%" in instructions
     assert "至少选择一个会影响主备或候选修订的争议片段" in instructions
     assert "至少追加一张新帧" in instructions
     assert "不得只依赖索引文字完成任务" in instructions
@@ -209,7 +212,7 @@ def test_runtime_instructions_require_targeted_new_visual_evidence() -> None:
 
 def _candidate_tools(tmp_path: Path) -> tuple[SelectionState, dict[str, object]]:
     assets = [
-        Asset(asset_id=f"asset-{index}", metadata={"duration": 60.0})
+        Asset(asset_id=f"asset-{index}", metadata={"duration": 100.0})
         for index in range(4)
     ]
     category = SelectionCategory(
@@ -244,6 +247,48 @@ def _candidate_tools(tmp_path: Path) -> tuple[SelectionState, dict[str, object]]
         ),
     ).as_langchain_tools()
     return state, {tool.name: tool for tool in tools}
+
+
+def test_candidate_update_enforces_200_percent_primary_capacity(
+    tmp_path: Path,
+) -> None:
+    _, tools = _candidate_tools(tmp_path)
+    added = tools["selection_candidate_add"].invoke(
+        {
+            "asset_id": "asset-0",
+            "start_sec": 0,
+            "end_sec": 55,
+            "status": "primary",
+            "category_ids": ["category-001"],
+            "reason": "先保留 55 秒主选范围。",
+        }
+    )
+    candidate_id = added["candidate"]["candidate_id"]
+
+    accepted = tools["selection_candidate_update"].invoke(
+        {
+            "candidate_id": candidate_id,
+            "start_sec": 0,
+            "end_sec": 60,
+            "status": "primary",
+            "category_ids": ["category-001"],
+            "reason": "补足到 60 秒上限。",
+        }
+    )
+    assert accepted["accepted"] is True
+
+    rejected = tools["selection_candidate_update"].invoke(
+        {
+            "candidate_id": candidate_id,
+            "start_sec": 0,
+            "end_sec": 60.1,
+            "status": "primary",
+            "category_ids": ["category-001"],
+            "reason": "超过 60 秒上限。",
+        }
+    )
+    assert rejected["accepted"] is False
+    assert "超过主选容量上限 60 秒" in "；".join(rejected["blockers"])
 
 
 def test_candidate_tools_add_update_remove_and_protect_references(
@@ -397,6 +442,78 @@ def test_completion_validates_roles_relations_review_reason_and_high_priority(
     state.unresolved = [{"priority": "low", "reason": "可选的进一步比较"}]
     accepted = finish.invoke({})
     assert accepted == {"accepted": True, "status": "completed"}
+
+
+@pytest.mark.parametrize(
+    ("duration", "accepted"),
+    [(44.9, False), (45.0, True), (60.0, True), (60.1, False)],
+)
+def test_finish_tool_enforces_150_to_200_percent_primary_capacity(
+    tmp_path: Path,
+    duration: float,
+    accepted: bool,
+) -> None:
+    state, tools = _candidate_tools(tmp_path / str(duration))
+    state.candidates = [
+        SelectionCandidate(
+            candidate_id="candidate-001",
+            asset_id="asset-0",
+            start_sec=0,
+            end_sec=duration,
+            status="primary",
+            category_ids=["category-001"],
+            reason="边界容量候选。",
+        )
+    ]
+
+    result = tools["selection_finish_request"].invoke({})
+
+    assert result["accepted"] is accepted
+    if not accepted:
+        assert "45～60" in "；".join(result["blockers"])
+
+
+def test_alternate_and_needs_review_do_not_increase_primary_union(
+    tmp_path: Path,
+) -> None:
+    state, tools = _candidate_tools(tmp_path)
+    state.candidates = [
+        SelectionCandidate(
+            candidate_id="candidate-001",
+            asset_id="asset-0",
+            start_sec=0,
+            end_sec=45,
+            status="primary",
+            category_ids=["category-001"],
+            reason="45 秒主选。",
+        ),
+        SelectionCandidate(
+            candidate_id="candidate-002",
+            asset_id="asset-1",
+            start_sec=0,
+            end_sec=100,
+            status="alternate",
+            category_ids=["category-001"],
+            reason="不计入容量的备选。",
+            alternative_to_ids=["candidate-001"],
+        ),
+        SelectionCandidate(
+            candidate_id="candidate-003",
+            asset_id="asset-2",
+            start_sec=0,
+            end_sec=100,
+            status="needs_review",
+            category_ids=["category-001"],
+            reason="不计入容量的待复核候选。",
+            review_reason="内容稀有但存在遮挡，人工重点确认主体清晰度。",
+        ),
+    ]
+
+    assert SelectionValidator.primary_union_duration(state.candidates) == 45
+    assert tools["selection_finish_request"].invoke({}) == {
+        "accepted": True,
+        "status": "completed",
+    }
 
 
 def test_scripted_model_samples_frames_and_revises_candidates_without_network(

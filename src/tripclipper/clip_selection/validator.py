@@ -251,7 +251,7 @@ class SelectionValidator:
         projected_duration = self.primary_union_duration(
             projected
         )
-        maximum = state.target_duration_sec * 1.5
+        maximum = state.target_duration_sec * 2.0
         if projected_duration > maximum:
             raise SelectionValidationError(
                 [
@@ -288,7 +288,7 @@ class SelectionValidator:
                 blockers.extend(
                     f"{item.candidate_id}: {blocker}" for blocker in exc.blockers
                 )
-        maximum = state.target_duration_sec * 1.5
+        maximum = state.target_duration_sec * 2.0
         projected_duration = self.primary_union_duration(projected)
         if projected_duration > maximum:
             blockers.append(
@@ -340,8 +340,8 @@ class SelectionValidator:
                 )
 
         primary_duration = self.primary_union_duration(state.candidates)
-        minimum = state.target_duration_sec
-        maximum = state.target_duration_sec * 1.5
+        minimum = state.target_duration_sec * 1.5
+        maximum = state.target_duration_sec * 2.0
         if not minimum <= primary_duration <= maximum:
             blockers.append(
                 f"主选总时长 {primary_duration:g} 秒不在 {minimum:g}～{maximum:g} 秒范围内"

@@ -977,9 +977,9 @@ def _completed_search_state(
 
 @pytest.mark.parametrize(
     ("duration", "accepted"),
-    [(29.9, False), (30.0, True), (45.0, True), (45.1, False)],
+    [(44.9, False), (45.0, True), (60.0, True), (60.1, False)],
 )
-def test_completion_requires_100_to_150_percent_capacity(
+def test_completion_requires_150_to_200_percent_capacity(
     duration: float,
     accepted: bool,
 ) -> None:
@@ -988,7 +988,7 @@ def test_completion_requires_100_to_150_percent_capacity(
     if accepted:
         validator.validate_completion(state)
     else:
-        with pytest.raises(SelectionValidationError, match="30～45"):
+        with pytest.raises(SelectionValidationError, match="45～60"):
             validator.validate_completion(state)
 
 
@@ -1087,7 +1087,7 @@ def test_candidate_add_requires_completed_search_depth() -> None:
         validator.validate_candidate_add(candidate, state)
 
 
-def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
+def _state_for_candidate_add_capacity() -> SelectionState:
     state = SelectionState(
         task_name="demo",
         target_duration_sec=30,
@@ -1103,23 +1103,11 @@ def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
                 candidate_id="candidate-001",
                 asset_id="asset-1",
                 start_sec=0,
-                end_sec=40,
+                end_sec=55,
                 category_ids=["category-001"],
-                reason="已有 40 秒主选",
+                reason="已有 55 秒主选",
             )
         ],
-    )
-    extra = SelectionCandidate(
-        candidate_id="candidate-002",
-        asset_id="asset-2",
-        start_sec=0,
-        end_sec=10,
-        category_ids=["category-001"],
-        reason="加入后会超过 45 秒上限",
-    )
-    validator = SelectionValidator(
-        {"asset-1": 60, "asset-2": 20},
-        total_pages=1,
     )
     state.asset_progress.inspections = [
         AssetInspection(
@@ -1130,6 +1118,40 @@ def test_candidate_add_rejects_pool_that_would_exceed_capacity() -> None:
         for asset_id in ("asset-1", "asset-2")
     ]
     state.asset_progress.opened_asset_ids = ["asset-1", "asset-2"]
+    return state
+
+
+def test_candidate_add_accepts_pool_at_200_percent_capacity() -> None:
+    state = _state_for_candidate_add_capacity()
+    candidate = SelectionCandidate(
+        candidate_id="candidate-002",
+        asset_id="asset-2",
+        start_sec=0,
+        end_sec=5,
+        category_ids=["category-001"],
+        reason="加入后正好达到 60 秒上限",
+    )
+
+    SelectionValidator(
+        {"asset-1": 60, "asset-2": 20},
+        total_pages=1,
+    ).validate_candidate_add(candidate, state)
+
+
+def test_candidate_add_rejects_pool_above_200_percent_capacity() -> None:
+    state = _state_for_candidate_add_capacity()
+    extra = SelectionCandidate(
+        candidate_id="candidate-002",
+        asset_id="asset-2",
+        start_sec=0,
+        end_sec=5.1,
+        category_ids=["category-001"],
+        reason="加入后会超过 60 秒上限",
+    )
+    validator = SelectionValidator(
+        {"asset-1": 60, "asset-2": 20},
+        total_pages=1,
+    )
 
     with pytest.raises(SelectionValidationError, match="超过主选容量上限"):
         validator.validate_candidate_add(extra, state)
